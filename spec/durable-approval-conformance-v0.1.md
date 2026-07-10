@@ -44,6 +44,46 @@ presentation_state = DISCONNECTED
 execution_state    = UNUSED
 ```
 
+## Reviewer authorization trust boundary
+
+LS v0.1 chooses a **trusted upstream event boundary** for reviewer authorization.
+
+The frozen v0.1 event contract validates event shape, actor ownership, ordering, bindings, and deterministic state transitions. It does not carry reviewer credentials, signatures, registry proofs, or policy-lookup results.
+
+The normative trust contract is:
+
+> LS v0.1 trusts reviewer identity supplied by the authenticated upstream CI runtime. Inputs originating from pull-request-controlled content are not considered trusted reviewer identity.
+
+Within this boundary, `actor.type == REVIEWER` is sufficient only when all of the following are true:
+
+- the lifecycle event is emitted by an already-authenticated trusted runtime or event-store producer;
+- that producer has authorized `actor.id` before appending the event;
+- reviewer identity is derived from trusted platform identity context, not copied from event payload text;
+- the authenticated identity source and authorization decision remain auditable in producer provenance;
+- the appended event is immutable, and downstream consumers do not rewrite `actor.type` or `actor.id`.
+
+The following sources are untrusted for reviewer identity and MUST NOT authorize a `REVIEWER` event by themselves:
+
+- pull-request title, body, diff, comments, labels, or branch-controlled files;
+- issue text or other user-authored repository content;
+- artifact metadata, fixture content, model/tool output, or free-form evidence text;
+- environment variables or workflow inputs controllable by the pull request;
+- `reason`, `evidence_ref`, bindings, or any other lifecycle-event field outside `actor`.
+
+A producer receiving an event from an external or pull-request-controlled source MUST authenticate and normalize it before it enters the trusted append-only event stream. A raw payload that merely declares `actor.type = REVIEWER` is outside the v0.1 trust boundary and MUST NOT be accepted as proof of reviewer authorization.
+
+### Threat model
+
+| Threat | v0.1 control |
+|---|---|
+| Payload text claims that a reviewer approved | Identity is taken only from the authenticated producer context; text fields cannot override actor ownership. |
+| An `AGENT` or other unauthorized actor emits `UserApproved` / `UserRejected` | Deterministic validation rejects the event using the event-owner matrix. |
+| A pull request directly supplies `actor.type = REVIEWER` | The producer boundary must reject or re-authenticate the payload before append; the wire validator alone does not prove authorization. |
+| A downstream stage rewrites reviewer identity | Lifecycle events are immutable and append-only; provenance must preserve the original producer identity. |
+| The authenticated runtime or event store is compromised | Out of scope for the v0.1 wire contract; deployment security and provenance controls must surface this boundary explicitly. |
+
+This decision resolves [#822](https://github.com/safal207/LS/issues/822) for the v0.1 release sequence tracked by [Epic #846](https://github.com/safal207/LS/issues/846). In-band reviewer authorization evidence remains a possible future contract version and is not implied by v0.1 conformance.
+
 ## Immutable approval envelope
 
 The envelope binds the authority request to:
