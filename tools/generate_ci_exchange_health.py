@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Generate a compact CI Exchange metadata health report."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+from validate_ci_exchange import validate
+
+ROOT = Path(__file__).resolve().parents[1]
+JSON_OUTPUT = Path(".ci_exchange/health.latest.json")
+MARKDOWN_OUTPUT = Path(".ci_exchange/health.latest.md")
+
+CHECKS = [
+    {
+        "check_id": "registry",
+        "summary": "CI node registry is present and references reachable node manifests.",
+        "evidence": [".ci_nodes/registry.json", ".ci_nodes/nodes"],
+    },
+    {
+        "check_id": "routes",
+        "summary": "Route exports include best path, markers, evidence, and applicability boundaries.",
+        "evidence": [".ci_exchange/routes/grok-review-command-bus.route.json"],
+    },
+    {
+        "check_id": "contexts",
+        "summary": "Context exports include summary, claims, and evidence.",
+        "evidence": [".ci_exchange/contexts/connector-safe-command-bus.context.json"],
+    },
+    {
+        "check_id": "anti_patterns",
+        "summary": "Anti-pattern exports include symptom, impact, replacement, and evidence.",
+        "evidence": [".ci_exchange/anti_patterns/connector-issue-comment-trigger.antipattern.json"],
+    },
+    {
+        "check_id": "agent_context",
+        "summary": "Latest agent context references existing sources and keeps key route memory.",
+        "evidence": [".ci_exchange/agent_context.latest.json"],
+    },
+]
+
+
+def build_health_report(repo_root: Path = ROOT) -> dict[str, Any]:
+    errors = validate(repo_root)
+    status = "pass" if not errors else "fail"
+    checks = []
+    for check in CHECKS:
+        checks.append(
+            {
+                "check_id": check["check_id"],
+                "status": status,
+                "summary": check["summary"],
+                "evidence": check["evidence"],
+            }
+        )
+
+    return {
+        "schema_version": "ls.ci_exchange_health.v0.1",
+        "report_id": "ls.ci_exchange.health.latest",
+        "status": status,
+        "generated_from": [
+            "tools/validate_ci_exchange.py",
+            ".ci_nodes/registry.json",
+            ".ci_exchange/routes/grok-review-command-bus.route.json",
+            ".ci_exchange/contexts/connector-safe-command-bus.context.json",
+            ".ci_exchange/anti_patterns/connector-issue-comment-trigger.antipattern.json",
+            ".ci_exchange/agent_context.latest.json",
+        ],
+        "checks": checks,
+        "errors": errors,
+        "boundary": (
+            "This report checks static CI Exchange metadata health only. It does not run the "
+            "Grok command bus, call external model providers, approve pull requests, or prove "
+            "that a route is operationally healthy right now."
+        ),
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# CI Exchange Health Report",
+        "",
+        f"Status: **{report['status'].upper()}**",
+        "",
+        "## Checks",
+        "",
+        "| Check | Status | Summary |",
+        "| --- | --- | --- |",
+    ]
+    for check in report["checks"]:
+        lines.append(f"| `{check['check_id']}` | `{check['status']}` | {check['summary']} |")
+
+    lines.extend(["", "## Generated from", ""])
+    for path in report["generated_from"]:
+        lines.append(f"- `{path}`")
+
+    lines.extend(["", "## Boundary", "", report["boundary"], ""])
+
+    if report["errors"]:
+        lines.extend(["## Errors", ""])
+        for error in report["errors"]:
+            lines.append(f"- {error}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _dump_json(data: dict[str, Any]) -> str:
+    return json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo-root", type=Path, default=ROOT)
+    parser.add_argument("--json-output", type=Path, default=JSON_OUTPUT)
+    parser.add_argument("--markdown-output", type=Path, default=MARKDOWN_OUTPUT)
+    parser.add_argument("--check", action="store_true", help="Fail if committed health reports are stale.")
+    args = parser.parse_args()
+
+    repo_root = args.repo_root.resolve()
+    report = build_health_report(repo_root)
+    json_text = _dump_json(report)
+    markdown_text = render_markdown(report)
+
+    if args.check:
+        current_json = (repo_root / args.json_output).read_text(encoding="utf-8")
+        current_markdown = (repo_root / args.markdown_output).read_text(encoding="utf-8")
+        if current_json != json_text or current_markdown != markdown_text:
+            raise SystemExit("CI Exchange health reports are stale; run tools/generate_ci_exchange_health.py")
+        return 0 if report["status"] == "pass" else 1
+
+    (repo_root / args.json_output).write_text(json_text, encoding="utf-8")
+    (repo_root / args.markdown_output).write_text(markdown_text, encoding="utf-8")
+    return 0 if report["status"] == "pass" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
