@@ -12,7 +12,7 @@ observation
   -> durable trail
 ```
 
-The first specimen reconstructs the real history of `safal207/robys-coffee-house-demo#164`.
+The first specimens reconstruct the real delivery history of `safal207/robys-coffee-house-demo`.
 
 ## Boundary
 
@@ -45,6 +45,26 @@ This allows the trail to answer both:
 
 - what was believed at head X;
 - what is now known about head X.
+
+## Append-only snapshots
+
+A later observation does not rewrite a historically valid trail. LS preserves the original snapshot and appends a new exact-head snapshot when the external state changes.
+
+The Robys delivery sequence is represented by two complementary fixtures:
+
+```text
+PR #165 local CTA merge
+  -> customer detects logo and catalog delivery tails
+  -> historical open-tail fixture: RISK_DISCOVERED
+  -> PR #173 delivers production-referenced wordmark
+  -> PR #167 delivers pairing cardinality and source parity
+  -> current closure fixture: MERGED
+```
+
+This separates two true statements that existed at different times:
+
+- the delivery tails were genuinely open after the local CTA merge;
+- both tails were later closed through independently reviewed exact-head changes.
 
 ## Space
 
@@ -120,7 +140,9 @@ See `VISUAL_BENCHMARK_MODEL.md`.
 - `validate_levels.py` — deterministic level validator;
 - `visual-benchmark-axis.schema.json` — closed time-scoped benchmark shape;
 - `validate_visual_benchmark.py` — deterministic benchmark validator;
-- `fixtures/robys_pr_164_wordmark.json` — real CPT-001 specimen;
+- `fixtures/robys_pr_164_wordmark.json` — historical wordmark risk and review-regression specimen;
+- `fixtures/robys_pr_165_open_delivery_tails.json` — historical open delivery-tail snapshot;
+- `fixtures/robys_pr_167_closed_delivery_tails.json` — current exact-head closure snapshot through merged PR #173 and PR #167;
 - `fixtures/robys_pr_164_levels.json` — three-level causal overlay;
 - `fixtures/robys_pr_164_visual_benchmark_2026_07.json` — July 2026 visual benchmark;
 - `tests/` — positive and mutation coverage.
@@ -130,6 +152,12 @@ See `VISUAL_BENCHMARK_MODEL.md`.
 ```bash
 python ls-conformance/causal_phase_trail/validate.py \
   ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json
+
+python ls-conformance/causal_phase_trail/validate.py \
+  ls-conformance/causal_phase_trail/fixtures/robys_pr_165_open_delivery_tails.json
+
+python ls-conformance/causal_phase_trail/validate.py \
+  ls-conformance/causal_phase_trail/fixtures/robys_pr_167_closed_delivery_tails.json
 
 python ls-conformance/causal_phase_trail/validate_levels.py \
   ls-conformance/causal_phase_trail/fixtures/robys_pr_164_wordmark.json \
@@ -143,6 +171,14 @@ python -m unittest discover \
   -s ls-conformance/causal_phase_trail/tests -v
 ```
 
-## Current PR #164 result captured by the specimen
+## Robys result
 
-The compatibility fallback route reduced the original generated-content risk and forced exact-head visual evidence to be rebound. However, fresh current-head Qodo and CodeRabbit findings later introduced unresolved blockers, while the AI review contract remained red. The honest current phase is therefore `RISK_DISCOVERED`, not `MERGE_READY`.
+The original compatibility and delivery-tail fixtures remain historical evidence. They correctly preserve the states observed on their exact heads, including the regression to `RISK_DISCOVERED` and the two open customer-path tails.
+
+The append-only closure fixture binds to Robys PR #167 exact head `e3f2a14696e9bc3ff5ab2f87829e5540019a39b9`. It records that the selected sequential route succeeded:
+
+1. merged PR #173 delivered the production-referenced wordmark;
+2. merged PR #167 delivered two pairing offers and enforced parity with Discover;
+3. exact-head CodeRabbit and maintainer-attestation statuses were successful;
+4. no unresolved blocker remains in the closure snapshot;
+5. the reconstructed current phase is `MERGED`.
