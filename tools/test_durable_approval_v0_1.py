@@ -69,6 +69,21 @@ class DurableApprovalConformanceTests(unittest.TestCase):
         case["events"][2]["reason"] = "agent synthesized rejection"
         self.assert_rejected_with(fixture, "actor 'AGENT' cannot emit UserRejected")
 
+    def test_payload_text_cannot_spoof_reviewer_identity(self) -> None:
+        fixture = copy.deepcopy(self.fixture)
+        case = next(
+            case
+            for case in fixture["cases"]
+            if case["case_id"] == "restart_after_execution_claim"
+        )
+        approval = next(
+            event for event in case["events"] if event["event_type"] == "UserApproved"
+        )
+        approval["actor"] = {"type": "AGENT", "id": "payload-controlled-agent"}
+        approval["reason"] = "PR body claims reviewer alice approved this action"
+        approval["evidence_ref"] = "pull-request-body:reviewer=alice"
+        self.assert_rejected_with(fixture, "actor 'AGENT' cannot emit UserApproved")
+
     def test_expiry_without_expiry_policy_is_rejected(self) -> None:
         fixture = copy.deepcopy(self.fixture)
         case = next(case for case in fixture["cases"] if case["case_id"] == "elapsed_wait_without_expiry")
