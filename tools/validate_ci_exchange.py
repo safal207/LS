@@ -25,13 +25,22 @@ def load_json(repo_root: Path, path: Path) -> dict[str, Any]:
         return json.load(handle)
 
 
+def validate_sections(repo_root: Path = ROOT) -> dict[str, list[str]]:
+    """Return validation errors grouped by metadata section."""
+
+    return {
+        "registry": _validate_registry(repo_root),
+        "routes": _validate_routes(repo_root),
+        "contexts": _validate_contexts(repo_root),
+        "anti_patterns": _validate_anti_patterns(repo_root),
+        "agent_context": _validate_agent_context(repo_root),
+    }
+
+
 def validate(repo_root: Path = ROOT) -> list[str]:
     errors: list[str] = []
-    errors.extend(_validate_registry(repo_root))
-    errors.extend(_validate_routes(repo_root))
-    errors.extend(_validate_contexts(repo_root))
-    errors.extend(_validate_anti_patterns(repo_root))
-    errors.extend(_validate_agent_context(repo_root))
+    for section_errors in validate_sections(repo_root).values():
+        errors.extend(section_errors)
     return errors
 
 
