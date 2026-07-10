@@ -1,19 +1,20 @@
 {
-  "review_id": "typescript7-stable-2026-07-10",
+  "review_id": "typescript7-stable-2026-07-10-final",
+  "phase": "post-fix-verification",
   "targets": [
     {
       "repository": "safal207/typescript-7-rc-qa-benchmark",
       "pull_request": 11,
       "base_sha": "0930de5b62dca8b0fd4580cefded6d58af3e3435",
-      "head_sha": "7a6c5ff9e2adc513bb66135bcfd19c5c59bf4ef8",
-      "purpose": "TypeScript 7.0.2 stable benchmark, compatibility evidence, compiler-selection guard, and publication report"
+      "head_sha": "3487dff026b41a5a45b15d07ab5f8356c182fe2b",
+      "purpose": "Post-fix verification of locked TypeScript 7.0.2 stable evidence, production install contract, compiler-selection guard, and causal adjudication"
     },
     {
       "repository": "safal207/typescript-go-qa-findings",
       "pull_request": 15,
       "base_sha": "4535e1184e2048f400756cf5f0538cbdf8260f25",
-      "head_sha": "3206fe04b73ffc819143f47540bfd734ccbe2490",
-      "purpose": "Documentation and upstream-status synchronization for stable TypeScript 7 findings"
+      "head_sha": "f01a4a68ba4d61ab6f0ac159fbecb0e403d6d839",
+      "purpose": "Post-fix verification of immutable evidence provenance and synchronized TypeScript 7 findings"
     }
   ]
 }
