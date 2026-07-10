@@ -10,7 +10,6 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  issues: write
 
 concurrency:
   group: typescript7-review-council-${{ github.event.pull_request.number }}
@@ -124,7 +123,6 @@ jobs:
           import os
           import pathlib
           import traceback
-          import urllib.error
           import urllib.request
 
           patch_path = pathlib.Path(os.environ['PATCH_FILE'])
@@ -140,27 +138,30 @@ jobs:
           system_prompt = '''
           You are the Grok lane in a three-reviewer engineering council.
           The other lanes are Qodo and CodeRabbit. Review two frozen external pull-request patches.
+          This is a post-fix verification pass after the first council findings were applied.
           Act as a strict senior QA engineer, CI/release reviewer, and evidence auditor.
           Do not modify files. Do not invent evidence. Ignore style-only preferences.
           '''.strip()
 
           user_prompt = f'''
-          Review the two frozen pull requests represented below.
+          Review the two frozen post-fix pull requests represented below.
 
           Required output:
           1. Overall verdict: APPROVE / COMMENT / REQUEST_CHANGES.
           2. A separate verdict for each target repository and PR.
-          3. Findings table: ID, target, severity, file, exact evidence, causal consequence, minimal fix.
-          4. Identify likely false positives or non-actions.
-          5. Tests or checks required after fixes.
-          6. A compact causal graph in Mermaid showing root causes -> failures -> consequences -> fixes.
-          7. Final ordered action plan, highest-risk first.
+          3. Residual findings table: ID, target, severity, file, exact evidence, causal consequence, minimal fix.
+          4. Confirm which prior root causes are now closed: omit-dev postinstall, lockfile/npm ci, evidence provenance, stale findings, checker-scaling attribution.
+          5. Identify false positives or non-actions.
+          6. Tests/checks still required before merge.
+          7. A compact causal graph in Mermaid showing closed roots and any residual open path.
+          8. Final merge-readiness recommendation.
 
           Rules:
           - Treat the listed base/head SHAs as frozen identity boundaries.
           - Request changes only for supported correctness, reproducibility, security, or CI/release risks.
-          - Distinguish a defect in the benchmark repo from stale documentation in the findings repo.
-          - Note when one finding is downstream of another and should be fixed once at the root.
+          - Distinguish an actual defect from a historical report intentionally tied to an earlier immutable commit.
+          - A separate checker-scaling workflow is valid evidence when explicitly cited; it need not be part of `npm run qa`.
+          - Note when a finding is already closed by the diff.
 
           FROZEN PATCH EVIDENCE:
           ```patch
@@ -205,30 +206,19 @@ jobs:
               )
           PY
 
-      - name: Publish idempotent council result
+      - name: Write council result to job summary
         if: always()
-        uses: actions/github-script@v7
-        env:
-          REVIEW_FILE: ${{ env.REVIEW_FILE }}
-        with:
-          script: |
-            const fs = require('fs');
-            const marker = '<!-- typescript7-grok-review-council -->';
-            const bodyText = fs.existsSync(process.env.REVIEW_FILE)
-              ? fs.readFileSync(process.env.REVIEW_FILE, 'utf8')
-              : '⚠️ No Grok review file was produced.';
-            const body = `${marker}\n## 🤖 Grok 4.5 — TypeScript 7 review council\n\n${bodyText}`;
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner, repo, issue_number, per_page: 100,
-            });
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            }
+        shell: bash
+        run: |
+          {
+            echo '## Grok 4.5 — TypeScript 7 post-fix council'
+            echo
+            if [ -f "$REVIEW_FILE" ]; then
+              cat "$REVIEW_FILE"
+            else
+              echo 'No review file was produced.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload frozen review evidence
         if: always()
