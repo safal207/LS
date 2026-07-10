@@ -12,11 +12,15 @@ sys.path.insert(0, str(ROOT))
 from validate import TrailValidationError, validate_trail  # noqa: E402
 
 FIXTURE = ROOT / "fixtures" / "robys_pr_164_wordmark.json"
+CLOSED_DELIVERY_TAILS_FIXTURE = ROOT / "fixtures" / "robys_pr_167_closed_delivery_tails.json"
 
 
 class CausalPhaseTrailTests(unittest.TestCase):
     def setUp(self) -> None:
         self.trail = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        self.closed_delivery_tails = json.loads(
+            CLOSED_DELIVERY_TAILS_FIXTURE.read_text(encoding="utf-8")
+        )
 
     def assert_invalid(self, trail: dict, message: str) -> None:
         with self.assertRaisesRegex(TrailValidationError, message):
@@ -35,6 +39,24 @@ class CausalPhaseTrailTests(unittest.TestCase):
         validate_trail(self.trail)
         self.assertEqual(self.trail["decision"]["currentPhase"], "RISK_DISCOVERED")
         self.assertEqual(self.trail["decision"]["bestRouteId"], "route.plain-fallback")
+
+    def test_closed_delivery_tails_fixture_is_valid(self) -> None:
+        validate_trail(self.closed_delivery_tails)
+        decision = self.closed_delivery_tails["decision"]
+        self.assertEqual(decision["currentPhase"], "MERGED")
+        self.assertEqual(decision["bestRouteId"], "route.close-tails-sequentially")
+        self.assertEqual(decision["unresolvedBlockerNodeIds"], [])
+        self.assertEqual(
+            self.closed_delivery_tails["subject"]["currentHead"],
+            "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+        )
+
+    def test_closed_delivery_tails_cannot_hide_a_new_blocker(self) -> None:
+        trail = copy.deepcopy(self.closed_delivery_tails)
+        blocker = self.node(trail, "evidence.current-review-status")
+        blocker["blocking"] = True
+        trail["decision"]["unresolvedBlockerNodeIds"] = [blocker["id"]]
+        self.assert_invalid(trail, "unresolved blockers require RISK_DISCOVERED")
 
     def test_fresh_binding_evidence_rejects_stale_head(self) -> None:
         trail = copy.deepcopy(self.trail)
