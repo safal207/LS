@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -126,6 +127,77 @@ class CIMemoryTest(unittest.TestCase):
         self.assertEqual(rows[0]["project"], "UNTRACKED_PROVENANCE_CHAOS")
         self.assertEqual(rows[1]["intermediate"], "STABILIZATION")
         self.assertEqual(rows[2]["realization"], "append-only CI memory event")
+
+    def test_replay_emits_graph_network(self) -> None:
+        report = ci_memory.replay_events([self.pr831_event()])
+        graph = report["graph_network"]
+        node_ids = {node["id"] for node in graph["nodes"]}
+        edge_tuples = {(edge["from"], edge["to"], edge["type"]) for edge in graph["edges"]}
+
+        self.assertEqual(graph["schema_version"], ci_memory.GRAPH_SCHEMA_VERSION)
+        self.assertIn("event:pr831-provenance-mismatch-v0.1", node_ids)
+        self.assertIn("cell:pr831-provenance-mismatch-v0.1:t_past:project", node_ids)
+        self.assertIn("time:t_past", node_ids)
+        self.assertIn("space:project", node_ids)
+        self.assertIn("state:UNTRACKED_PROVENANCE_CHAOS", node_ids)
+        self.assertIn("guardrail:PROVENANCE_MISMATCH", node_ids)
+        self.assertIn(
+            (
+                "event:pr831-provenance-mismatch-v0.1",
+                "cell:pr831-provenance-mismatch-v0.1:t_past:project",
+                "HAS_CELL",
+            ),
+            edge_tuples,
+        )
+        self.assertIn(
+            (
+                "phase:DRIFT",
+                "phase:COLLISION",
+                "TRANSITIONS_TO",
+            ),
+            edge_tuples,
+        )
+        self.assertGreater(graph["nodes_count"], 0)
+        self.assertGreater(graph["edges_count"], 0)
+
+    def test_graph_preserves_metadata_for_valid_non_failure_event(self) -> None:
+        event = self.pr831_event()
+        event["event_id"] = "documentation-signal-v0.1"
+        event["event_type"] = "DOCUMENTATION_SIGNAL"
+        event["decision"] = "DOCUMENT_ONLY"
+        event["source"] = {
+            "pr_number": 824,
+            "head_sha": "f1cfdfbf5f648bc28434fb2f5a0cb77eb7e86666",
+        }
+
+        report = ci_memory.replay_events([event])
+        graph = report["graph_network"]
+        node_ids = {node["id"] for node in graph["nodes"]}
+        edge_tuples = {(edge["from"], edge["to"], edge["type"]) for edge in graph["edges"]}
+
+        self.assertEqual(report["status"], "CLEAR")
+        self.assertEqual(report["known_failures"], [])
+        self.assertIn("guardrail:DOCUMENTATION_SIGNAL", node_ids)
+        self.assertIn("evidence:audits/ls-responses/pr824/ls_response.json", node_ids)
+        self.assertIn(
+            (
+                "event:documentation-signal-v0.1",
+                "guardrail:DOCUMENTATION_SIGNAL",
+                "GUARDS_AGAINST",
+            ),
+            edge_tuples,
+        )
+        self.assertIn(
+            (
+                "event:documentation-signal-v0.1",
+                "evidence:audits/ls-responses/pr824/ls_response.json",
+                "SUPPORTED_BY",
+            ),
+            edge_tuples,
+        )
+
+    def test_mermaid_label_escapes_hash_characters(self) -> None:
+        self.assertEqual(ci_memory.mermaid_label('PR #831'), "PR #35;831")
 
     def test_duplicate_event_ids_are_rejected(self) -> None:
         report = ci_memory.replay_events([self.pr831_event(), self.pr831_event()])
@@ -297,6 +369,16 @@ class CIMemoryTest(unittest.TestCase):
             self.assertTrue((out_dir / "ci_memory_report.md").is_file())
             self.assertTrue((out_dir / "ci_memory_temporal_matrix.json").is_file())
             self.assertTrue((out_dir / "ci_memory_temporal_matrix.md").is_file())
+            self.assertTrue((out_dir / "ci_memory_graph.json").is_file())
+            self.assertTrue((out_dir / "ci_memory_graph.mmd").is_file())
+
+            graph = json.loads((out_dir / "ci_memory_graph.json").read_text(encoding="utf-8"))
+            self.assertEqual(graph["schema_version"], ci_memory.GRAPH_SCHEMA_VERSION)
+            self.assertGreater(graph["nodes_count"], 0)
+            self.assertGreater(graph["edges_count"], 0)
+            mermaid = (out_dir / "ci_memory_graph.mmd").read_text(encoding="utf-8")
+            self.assertIn("graph TD", mermaid)
+            self.assertIn("HAS_CELL", mermaid)
 
 
 if __name__ == "__main__":
