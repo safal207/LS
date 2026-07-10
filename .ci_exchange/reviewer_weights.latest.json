@@ -1,0 +1,135 @@
+{
+  "schema_version": "ls.reviewer_weights.v0.1",
+  "context_id": "ls.reviewer_weights.latest",
+  "summary": "Relative reviewer signal weights for LS PR decisions. Weights describe advisory contribution, not absolute truth.",
+  "scale": {
+    "weight_min": 0,
+    "weight_max": 100,
+    "interpretation": "Higher weight means stronger contribution to merge confidence for the specified dimension."
+  },
+  "dimensions": [
+    "gate_strength",
+    "causal_reasoning",
+    "runtime_confidence",
+    "security_confidence",
+    "documentation_confidence",
+    "tone_signal"
+  ],
+  "reviewers": [
+    {
+      "reviewer_id": "security_ci_pipeline",
+      "label": "Security & CI Pipeline",
+      "role": "required_quality_gate",
+      "weights": {
+        "gate_strength": 95,
+        "causal_reasoning": 35,
+        "runtime_confidence": 60,
+        "security_confidence": 95,
+        "documentation_confidence": 30,
+        "tone_signal": 10
+      },
+      "best_used_for": [
+        "tests",
+        "quality gate",
+        "vulnerability audit",
+        "SBOM",
+        "CodeQL"
+      ],
+      "limits": [
+        "Does not explain product intent deeply.",
+        "Does not replace human or agent synthesis."
+      ]
+    },
+    {
+      "reviewer_id": "reflection_http_e2e",
+      "label": "Reflection Dashboard HTTP E2E",
+      "role": "runtime_smoke_signal",
+      "weights": {
+        "gate_strength": 80,
+        "causal_reasoning": 25,
+        "runtime_confidence": 90,
+        "security_confidence": 25,
+        "documentation_confidence": 20,
+        "tone_signal": 5
+      },
+      "best_used_for": [
+        "HTTP route smoke",
+        "runtime regression signal"
+      ],
+      "limits": [
+        "Narrow scope.",
+        "Does not review metadata semantics."
+      ]
+    },
+    {
+      "reviewer_id": "grok_advisory_review",
+      "label": "Grok PR Review",
+      "role": "advisory_reasoning_signal",
+      "weights": {
+        "gate_strength": 35,
+        "causal_reasoning": 90,
+        "runtime_confidence": 35,
+        "security_confidence": 45,
+        "documentation_confidence": 70,
+        "tone_signal": 80
+      },
+      "best_used_for": [
+        "causal review",
+        "architecture critique",
+        "edge-case discovery",
+        "tone and clarity feedback"
+      ],
+      "limits": [
+        "Advisory only.",
+        "May be cancelled or unavailable while still producing fallback artifacts.",
+        "Findings require validation before becoming merge blockers."
+      ]
+    },
+    {
+      "reviewer_id": "coderabbit",
+      "label": "CodeRabbit",
+      "role": "summary_and_style_signal",
+      "weights": {
+        "gate_strength": 20,
+        "causal_reasoning": 45,
+        "runtime_confidence": 20,
+        "security_confidence": 30,
+        "documentation_confidence": 75,
+        "tone_signal": 65
+      },
+      "best_used_for": [
+        "release notes",
+        "documentation summary",
+        "surface-level review signal"
+      ],
+      "limits": [
+        "Usually not the final authority.",
+        "Should not override CI gates."
+      ]
+    },
+    {
+      "reviewer_id": "human_agent_synthesis",
+      "label": "Human/agent synthesis",
+      "role": "decision_synthesis",
+      "weights": {
+        "gate_strength": 70,
+        "causal_reasoning": 95,
+        "runtime_confidence": 70,
+        "security_confidence": 70,
+        "documentation_confidence": 85,
+        "tone_signal": 90
+      },
+      "best_used_for": [
+        "causal graph synthesis",
+        "trade-off decision",
+        "deciding whether advisory findings should become changes"
+      ],
+      "limits": [
+        "Must cite evidence.",
+        "Should not ignore failing required CI gates."
+      ]
+    }
+  ],
+  "decision_rule": "Required CI gates dominate merge eligibility. Advisory reviewers raise or lower confidence and can trigger follow-up commits when their causal findings are supported by evidence.",
+  "boundary": "These weights are heuristic and advisory. They help compare reviewer signals, but do not replace repository branch protection, test results, or human judgement."
+}
