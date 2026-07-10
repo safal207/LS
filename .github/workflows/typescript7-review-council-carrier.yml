@@ -1,0 +1,243 @@
+name: TypeScript 7 Review Council Carrier
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - audits/review-council/typescript7-stable-2026-07-10/**
+      - .github/workflows/typescript7-review-council-carrier.yml
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: typescript7-review-council-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  grok-external-review:
+    if: github.head_ref == 'review/typescript7-stable-council'
+    name: Grok 4.5 frozen external review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      MANIFEST: audits/review-council/typescript7-stable-2026-07-10/targets.json
+      PATCH_FILE: /tmp/typescript7-targets.patch
+      REVIEW_FILE: /tmp/typescript7-grok-review.md
+      XAI_MODEL: grok-4.5
+      PATCH_LIMIT_CHARS: '90000'
+
+    steps:
+      - name: Checkout carrier
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate frozen targets and fetch patches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import subprocess
+
+          manifest_path = pathlib.Path(os.environ['MANIFEST'])
+          patch_path = pathlib.Path(os.environ['PATCH_FILE'])
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          chunks = []
+
+          for target in manifest['targets']:
+              repo = target['repository']
+              pr = int(target['pull_request'])
+              expected_head = target['head_sha']
+              expected_base = target['base_sha']
+
+              raw = subprocess.check_output(
+                  ['gh', 'api', f'repos/{repo}/pulls/{pr}'],
+                  text=True,
+              )
+              data = json.loads(raw)
+              actual_head = data['head']['sha']
+              actual_base = data['base']['sha']
+              state = data['state']
+
+              if state != 'open':
+                  raise SystemExit(f'{repo}#{pr} is not open: {state}')
+              if actual_head != expected_head:
+                  raise SystemExit(
+                      f'{repo}#{pr} head moved: expected {expected_head}, got {actual_head}'
+                  )
+              if actual_base != expected_base:
+                  raise SystemExit(
+                      f'{repo}#{pr} base moved: expected {expected_base}, got {actual_base}'
+                  )
+
+              patch = subprocess.check_output(
+                  ['gh', 'pr', 'diff', str(pr), '--repo', repo, '--patch'],
+                  text=True,
+              )
+              chunks.append(
+                  '\n'.join([
+                      '=' * 88,
+                      f'TARGET: {repo}#{pr}',
+                      f'PURPOSE: {target["purpose"]}',
+                      f'BASE_SHA: {expected_base}',
+                      f'HEAD_SHA: {expected_head}',
+                      '=' * 88,
+                      patch,
+                  ])
+              )
+
+          combined = '\n\n'.join(chunks)
+          patch_path.write_text(combined, encoding='utf-8')
+          print(f'Frozen targets validated. Combined patch chars: {len(combined)}')
+          PY
+
+      - name: Check xAI API key
+        id: api_key
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          if [ -z "$XAI_API_KEY" ]; then
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            cat > "$REVIEW_FILE" <<'EOF'
+          ⚠️ Grok review skipped because `XAI_API_KEY` is not configured in LS.
+          EOF
+          else
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Grok 4.5 council review
+        if: steps.api_key.outputs.available == 'true'
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import traceback
+          import urllib.error
+          import urllib.request
+
+          patch_path = pathlib.Path(os.environ['PATCH_FILE'])
+          review_path = pathlib.Path(os.environ['REVIEW_FILE'])
+          model = os.environ['XAI_MODEL']
+          limit = int(os.environ['PATCH_LIMIT_CHARS'])
+          patch = patch_path.read_text(encoding='utf-8', errors='replace')
+          original_len = len(patch)
+          sent = patch[:limit]
+          if original_len > limit:
+              sent += '\n\n[PATCH TRUNCATED AT REVIEW LIMIT]'
+
+          system_prompt = '''
+          You are the Grok lane in a three-reviewer engineering council.
+          The other lanes are Qodo and CodeRabbit. Review two frozen external pull-request patches.
+          Act as a strict senior QA engineer, CI/release reviewer, and evidence auditor.
+          Do not modify files. Do not invent evidence. Ignore style-only preferences.
+          '''.strip()
+
+          user_prompt = f'''
+          Review the two frozen pull requests represented below.
+
+          Required output:
+          1. Overall verdict: APPROVE / COMMENT / REQUEST_CHANGES.
+          2. A separate verdict for each target repository and PR.
+          3. Findings table: ID, target, severity, file, exact evidence, causal consequence, minimal fix.
+          4. Identify likely false positives or non-actions.
+          5. Tests or checks required after fixes.
+          6. A compact causal graph in Mermaid showing root causes -> failures -> consequences -> fixes.
+          7. Final ordered action plan, highest-risk first.
+
+          Rules:
+          - Treat the listed base/head SHAs as frozen identity boundaries.
+          - Request changes only for supported correctness, reproducibility, security, or CI/release risks.
+          - Distinguish a defect in the benchmark repo from stale documentation in the findings repo.
+          - Note when one finding is downstream of another and should be fixed once at the root.
+
+          FROZEN PATCH EVIDENCE:
+          ```patch
+          {sent}
+          ```
+          '''.strip()
+
+          payload = {
+              'model': model,
+              'messages': [
+                  {'role': 'system', 'content': system_prompt},
+                  {'role': 'user', 'content': user_prompt},
+              ],
+          }
+          request = urllib.request.Request(
+              'https://api.x.ai/v1/chat/completions',
+              data=json.dumps(payload).encode('utf-8'),
+              headers={
+                  'Authorization': f'Bearer {os.environ["XAI_API_KEY"]}',
+                  'Content-Type': 'application/json',
+              },
+              method='POST',
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=420) as response:
+                  raw = response.read().decode('utf-8', errors='replace')
+              data = json.loads(raw)
+              text = (data.get('choices') or [{}])[0].get('message', {}).get('content', '').strip()
+              if not text:
+                  text = '_Grok returned no review text._'
+              review_path.write_text(
+                  f'_Model: `{model}`. Original patch chars: `{original_len}`; sent: `{len(sent)}`._\n\n{text}\n',
+                  encoding='utf-8',
+              )
+          except Exception:
+              review_path.write_text(
+                  '⚠️ Grok reviewer failed.\n\n```text\n'
+                  + traceback.format_exc()[:5000]
+                  + '\n```\n',
+                  encoding='utf-8',
+              )
+          PY
+
+      - name: Publish idempotent council result
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          REVIEW_FILE: ${{ env.REVIEW_FILE }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- typescript7-grok-review-council -->';
+            const bodyText = fs.existsSync(process.env.REVIEW_FILE)
+              ? fs.readFileSync(process.env.REVIEW_FILE, 'utf8')
+              : '⚠️ No Grok review file was produced.';
+            const body = `${marker}\n## 🤖 Grok 4.5 — TypeScript 7 review council\n\n${bodyText}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Upload frozen review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typescript7-grok-review-council
+          path: |
+            ${{ env.MANIFEST }}
+            ${{ env.PATCH_FILE }}
+            ${{ env.REVIEW_FILE }}
+          if-no-files-found: warn
+          retention-days: 90
