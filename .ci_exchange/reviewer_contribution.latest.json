@@ -1,0 +1,128 @@
+{
+  "schema_version": "ls.reviewer_contribution.v0.1",
+  "report_id": "ls.reviewer_contribution.pr_856",
+  "pull_request": 856,
+  "summary": "Evidence-based contribution comparison for reviewers on PR #856.",
+  "scoring_model": {
+    "severity_points": {
+      "high": 5,
+      "medium": 3,
+      "low": 1
+    },
+    "finding_score_formula": "severity_points * outcome_multiplier * (0.40 + 0.25*actionability + 0.20*causal_depth + 0.15*uniqueness)",
+    "outcome_multipliers": {
+      "confirmed_fixed": 1.0,
+      "confirmed_planned": 0.75,
+      "confirmed_not_fixed": 0.5,
+      "candidate": 0.25,
+      "rejected": 0.0,
+      "false_positive": -0.5
+    },
+    "interpretation": "Contribution measures validated impact on this PR, not general reviewer quality."
+  },
+  "reviewers": [
+    {
+      "reviewer_id": "qodo",
+      "label": "Qodo",
+      "contribution_points": 12.38,
+      "contribution_share_percent": 80.7,
+      "confirmed_findings": 3,
+      "findings": [
+        {
+          "finding_id": "qodo-missing-output-check-crash",
+          "severity": "high",
+          "outcome": "confirmed_fixed",
+          "actionability": 1.0,
+          "causal_depth": 0.8,
+          "uniqueness": 1.0,
+          "points": 4.8,
+          "impact": "Added a controlled missing-output failure path instead of a raw FileNotFoundError traceback."
+        },
+        {
+          "finding_id": "qodo-validator-exception-crash",
+          "severity": "high",
+          "outcome": "confirmed_fixed",
+          "actionability": 1.0,
+          "causal_depth": 0.8,
+          "uniqueness": 1.0,
+          "points": 4.8,
+          "impact": "Made health generation fail-soft when metadata cannot be loaded or parsed."
+        },
+        {
+          "finding_id": "qodo-misleading-per-check-status",
+          "severity": "medium",
+          "outcome": "confirmed_fixed",
+          "actionability": 1.0,
+          "causal_depth": 1.0,
+          "uniqueness": 0.5,
+          "points": 2.78,
+          "impact": "Confirmed the need for per-section validation status; overlaps with the Grok finding."
+        }
+      ]
+    },
+    {
+      "reviewer_id": "grok",
+      "label": "Grok PR Review",
+      "contribution_points": 2.78,
+      "contribution_share_percent": 18.1,
+      "confirmed_findings": 1,
+      "findings": [
+        {
+          "finding_id": "grok-misleading-per-check-status",
+          "severity": "medium",
+          "outcome": "confirmed_fixed",
+          "actionability": 1.0,
+          "causal_depth": 1.0,
+          "uniqueness": 0.5,
+          "points": 2.78,
+          "impact": "Triggered the causal refactor from one global status to per-section status."
+        }
+      ]
+    },
+    {
+      "reviewer_id": "coderabbit",
+      "label": "CodeRabbit",
+      "contribution_points": 0.18,
+      "contribution_share_percent": 1.2,
+      "confirmed_findings": 0,
+      "findings": [
+        {
+          "finding_id": "coderabbit-docstring-and-template-warnings",
+          "severity": "low",
+          "outcome": "candidate",
+          "actionability": 0.5,
+          "causal_depth": 0.2,
+          "uniqueness": 1.0,
+          "points": 0.18,
+          "impact": "Provided documentation and PR-template hygiene warnings, but no accepted correctness fix."
+        }
+      ]
+    },
+    {
+      "reviewer_id": "ls_multi_model",
+      "label": "LS multi-model review",
+      "contribution_points": 0.0,
+      "contribution_share_percent": 0.0,
+      "confirmed_findings": 0,
+      "findings": [],
+      "incomplete_reason": "Provider credential was not configured, so no model execution or structured finding was produced."
+    }
+  ],
+  "ranking": [
+    "qodo",
+    "grok",
+    "coderabbit",
+    "ls_multi_model"
+  ],
+  "total_contribution_points": 15.34,
+  "causal_graph": [
+    "review finding",
+    "human/agent confirmation",
+    "uniqueness check",
+    "accepted code change",
+    "test evidence",
+    "contribution points",
+    "reviewer comparison"
+  ],
+  "boundary": "Scores are PR-specific and evidence-based. They must be recalculated when findings are rejected, duplicated, reverted, or later proven incorrect."
+}
