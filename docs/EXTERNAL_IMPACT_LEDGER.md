@@ -10,10 +10,13 @@ The core theme is:
 
 ---
 
-## Case 1 — crewAI #6030: GovernanceDecision / GovernanceOutcome contract
+## Case 1 — [crewAI #6030](https://github.com/crewAIInc/crewAI/pull/6030): GovernanceDecision / GovernanceOutcome contract
 
-**Project:** crewAI  
-**Area:** AI-agent governance, runtime authorization, pre/post execution contracts.
+**Project:** crewAI
+
+**Area:** AI-agent governance, runtime authorization, pre-/post-execution contracts.
+
+**Public evidence:** review discussion, contract feedback, and contributed fail-closed fixture design are preserved in [crewAI PR #6030](https://github.com/crewAIInc/crewAI/pull/6030).
 
 ### What happened
 
@@ -58,14 +61,17 @@ This is a strong public technical review case in AI-agent governance and runtime
 
 ### Resume wording
 
-Contributed public technical review around an open-source AI-agent governance PR, focusing on pre/post execution contract separation, intent binding, duplicate execution prevention, idempotency boundaries, and runtime-verifiable decision/outcome records.
+Contributed public technical review around an open-source AI-agent governance PR, focusing on pre-/post-execution contract separation, intent binding, duplicate execution prevention, idempotency boundaries, and runtime-verifiable decision/outcome records.
 
 ---
 
-## Case 2 — crewAI #6063: Causal Memory Layer proposal for agent action traces
+## Case 2 — [crewAI #6063](https://github.com/crewAIInc/crewAI/issues/6063): Causal Memory Layer proposal for agent action traces
 
-**Project:** crewAI + Causal Memory Layer  
+**Project:** crewAI + Causal Memory Layer
+
 **Area:** causal audit, agent trace validation, responsibility lineage.
+
+**Public evidence:** the proposal, follow-up artifacts, and external validation trail are preserved in [crewAI issue #6063](https://github.com/crewAIInc/crewAI/issues/6063).
 
 ### What happened
 
@@ -114,10 +120,13 @@ Proposed a causal audit integration for AI-agent workflows, using structured act
 
 ---
 
-## Case 3 — OpenAI Codex #29627: Durable approval lifecycle and AuthorityState boundary
+## Case 3 — [OpenAI Codex #29627](https://github.com/openai/codex/issues/29627): Durable approval lifecycle and AuthorityState boundary
 
-**Project:** OpenAI Codex  
+**Project:** OpenAI Codex
+
 **Area:** approval lifecycle, user authority, durable runtime state.
+
+**Public evidence:** the state-machine analysis and linked LS conformance artifacts are preserved in [OpenAI Codex issue #29627](https://github.com/openai/codex/issues/29627).
 
 ### What happened
 
@@ -170,10 +179,13 @@ Analyzed an AI-agent approval lifecycle bug and proposed a durable approval stat
 
 ---
 
-## Case 4 — Claude Code #30519 / #76149: Effective permission vs configured permission
+## Case 4 — Claude Code [#30519](https://github.com/anthropics/claude-code/issues/30519) / [#76149](https://github.com/anthropics/claude-code/issues/76149): Effective permission vs configured permission
 
-**Project:** Anthropic Claude Code  
+**Project:** Anthropic Claude Code
+
 **Area:** permission enforcement, allow/deny rules, Auto Mode, MCP tool authorization.
+
+**Public evidence:** normalized-command intent analysis appears in [Claude Code issue #30519](https://github.com/anthropics/claude-code/issues/30519); the related Auto Mode/MCP allowlist failure is documented in [issue #76149](https://github.com/anthropics/claude-code/issues/76149).
 
 ### What happened
 
