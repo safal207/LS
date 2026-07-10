@@ -42,7 +42,8 @@ jobs:
       REVIEW_FILE: /tmp/grok_review.md
       PATCH_FILE: /tmp/pr.patch
       PATCH_ERROR_FILE: /tmp/pr.patch.err
-      XAI_MODEL: grok-latest
+      # Exact model pin verified against the live xAI API on 2026-07-10.
+      XAI_MODEL: grok-4.5
       PATCH_LIMIT_CHARS: "60000"
 
     steps:
@@ -217,7 +218,7 @@ jobs:
           patch_path = pathlib.Path(os.environ["PATCH_FILE"])
           review_path = pathlib.Path(os.environ["REVIEW_FILE"])
           limit = int(os.environ.get("PATCH_LIMIT_CHARS", "60000"))
-          model = os.environ.get("XAI_MODEL", "grok-latest")
+          model = os.environ.get("XAI_MODEL", "grok-4.5")
 
           def write_diagnostic(title, details):
               review_path.write_text(
@@ -305,11 +306,41 @@ jobs:
                   raise SystemExit(0)
 
               data = json.loads(raw)
+              raw_provider_model = data.get("model")
+              provider_model = (
+                  str(raw_provider_model).strip()
+                  if raw_provider_model is not None
+                  else ""
+              )
+              print(f"Requested model: {model}; provider model: {provider_model or '<missing>'}")
+
+              if not provider_model:
+                  print("::warning title=Grok model provenance missing::GROK_MODEL_PIN_MISSING=1")
+                  write_diagnostic(
+                      "Grok provider model is missing.",
+                      f"Requested model: `{model}`\n\nThe xAI response did not include a non-empty top-level `model` value. No advisory verdict was published because exact model provenance could not be confirmed.",
+                  )
+                  raise SystemExit(0)
+
+              if provider_model != model:
+                  print(
+                      "::warning title=Grok model pin mismatch::"
+                      f"GROK_MODEL_PIN_MISMATCH=1 requested={model} provider={provider_model}"
+                  )
+                  write_diagnostic(
+                      "Grok provider model mismatch.",
+                      f"Requested model: `{model}`\n\nProvider model: `{provider_model}`\n\nNo advisory verdict was published because exact model provenance did not match the configured pin.",
+                  )
+                  raise SystemExit(0)
+
               text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
               if not text:
                   text = "_Grok response did not contain choices[0].message.content._\n\n```json\n" + json.dumps(data, indent=2)[:10000] + "\n```"
 
-              header = f"_Model: `{model}`. Patch chars: `{original_len}`; sent chars: `{len(patch)}`._\n\n"
+              header = (
+                  f"_Requested model: `{model}`. Provider model: `{provider_model}`. "
+                  f"Patch chars: `{original_len}`; sent chars: `{len(patch)}`._\n\n"
+              )
               review_path.write_text(header + text, encoding="utf-8")
               print(f"Review written to {review_path}")
 
