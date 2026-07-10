@@ -58,6 +58,20 @@ class CausalPhaseTrailTests(unittest.TestCase):
         trail["decision"]["unresolvedBlockerNodeIds"] = [blocker["id"]]
         self.assert_invalid(trail, "unresolved blockers require RISK_DISCOVERED")
 
+    def test_hidden_active_blocker_is_rejected(self) -> None:
+        trail = copy.deepcopy(self.closed_delivery_tails)
+        blocker = self.node(trail, "evidence.current-review-status")
+        blocker["blocking"] = True
+        self.assert_invalid(
+            trail,
+            "unresolvedBlockerNodeIds must exactly match active blocking nodes",
+        )
+
+    def test_merged_phase_requires_satisfied_guards(self) -> None:
+        trail = copy.deepcopy(self.closed_delivery_tails)
+        trail["phaseHistory"][-1]["guards"][0]["satisfied"] = False
+        self.assert_invalid(trail, "MERGED guards must all be satisfied")
+
     def test_empty_nodes_are_rejected(self) -> None:
         trail = copy.deepcopy(self.trail)
         trail["nodes"] = []
