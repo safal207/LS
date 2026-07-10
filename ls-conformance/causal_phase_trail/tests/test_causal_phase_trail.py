@@ -58,6 +58,16 @@ class CausalPhaseTrailTests(unittest.TestCase):
         trail["decision"]["unresolvedBlockerNodeIds"] = [blocker["id"]]
         self.assert_invalid(trail, "unresolved blockers require RISK_DISCOVERED")
 
+    def test_empty_nodes_are_rejected(self) -> None:
+        trail = copy.deepcopy(self.trail)
+        trail["nodes"] = []
+        self.assert_invalid(trail, "nodes must not be empty")
+
+    def test_empty_edges_are_rejected(self) -> None:
+        trail = copy.deepcopy(self.trail)
+        trail["edges"] = []
+        self.assert_invalid(trail, "edges must not be empty")
+
     def test_fresh_binding_evidence_rejects_stale_head(self) -> None:
         trail = copy.deepcopy(self.trail)
         self.node(trail, "evidence.current-ci-green")["validFromHead"] = trail["subject"]["baseHead"]
