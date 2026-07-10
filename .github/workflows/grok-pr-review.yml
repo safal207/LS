@@ -42,6 +42,7 @@ jobs:
       REVIEW_FILE: /tmp/grok_review.md
       PATCH_FILE: /tmp/pr.patch
       PATCH_ERROR_FILE: /tmp/pr.patch.err
+      # Exact pin: review evidence must identify the model actually requested.
       XAI_MODEL: grok-4.5
       PATCH_LIMIT_CHARS: "60000"
 
@@ -306,6 +307,14 @@ jobs:
 
               data = json.loads(raw)
               provider_model = str(data.get("model") or "").strip() or model
+              print(f"Requested model: {model}; provider model: {provider_model}")
+              if provider_model != model:
+                  write_diagnostic(
+                      "Grok provider model mismatch.",
+                      f"Requested model: `{model}`\n\nProvider model: `{provider_model}`\n\nNo advisory verdict was published because exact model provenance did not match the configured pin.",
+                  )
+                  raise SystemExit(0)
+
               text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
               if not text:
                   text = "_Grok response did not contain choices[0].message.content._\n\n```json\n" + json.dumps(data, indent=2)[:10000] + "\n```"
