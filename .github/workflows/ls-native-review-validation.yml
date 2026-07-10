@@ -70,12 +70,16 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           REVIEW_PR_NUMBER: ${{ github.event.inputs.review_pr_number }}
+          TARGET_PR_NUMBER: ${{ github.event.inputs.target_pr_number }}
+          TARGET_COMMIT_SHA: ${{ github.event.inputs.target_commit_sha }}
           CASE_ID: ${{ github.event.inputs.case_id }}
         run: |
           python tools/extract_ls_review_response.py \
             --comments-json artifacts/ls-audit/pr_comments.json \
             --case-id "$CASE_ID" \
             --pr-number "$REVIEW_PR_NUMBER" \
+            --target-pr-number "$TARGET_PR_NUMBER" \
+            --target-commit-sha "$TARGET_COMMIT_SHA" \
             --out artifacts/ls-audit/ls_response.json
 
       - name: Validate extracted LS response

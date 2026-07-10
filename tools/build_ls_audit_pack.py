@@ -92,10 +92,31 @@ def sha256_text(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def build_expected_report_schema(case_id: str) -> dict[str, Any]:
+def build_expected_report_schema(
+    case_id: str,
+    pr_number: int = DEFAULT_PR_NUMBER,
+    commit_sha: str = DEFAULT_COMMIT_SHA,
+) -> dict[str, Any]:
     return {
         **EXPECTED_SCHEMA,
         "case_id": case_id,
+        "subject": {
+            "repository": REPOSITORY,
+            "pr_number": pr_number,
+            "commit_sha": commit_sha,
+        },
+        "source": {
+            "type": "LS_RUN",
+            "reviewed_pr_number": pr_number,
+            "reviewed_commit_sha": commit_sha,
+            "source_pr_number": pr_number,
+            "source_comment_id": None,
+            "source_head_sha": commit_sha,
+        },
+        "model_attestation": {
+            **EXPECTED_SCHEMA["model_attestation"],
+            "operator_note": f"Independent LS audit of merged PR #{pr_number}.",
+        },
         "verdict_allowed_values": sorted(VALID_VERDICTS),
         "source_type_allowed_values": sorted(VALID_SOURCE_TYPES),
     }
@@ -104,7 +125,7 @@ def build_expected_report_schema(case_id: str) -> dict[str, Any]:
 def build_prompt(pr_number: int, commit_sha: str, case_id: str) -> str:
     evidence_lines = "\n".join(f"- {path}" for path in EVIDENCE_PATHS)
     expected_schema = json.dumps(
-        build_expected_report_schema(case_id),
+        build_expected_report_schema(case_id, pr_number, commit_sha),
         indent=2,
         sort_keys=True,
     )
@@ -155,7 +176,11 @@ def build_evidence_pack(pr_number: int, commit_sha: str, case_id: str) -> dict[s
         "audit_goal": "durable approval optional event field schema/runtime parity",
         "evidence_files": files,
         "prompt": build_prompt(pr_number, commit_sha, case_id),
-        "expected_report_schema": build_expected_report_schema(case_id),
+        "expected_report_schema": build_expected_report_schema(
+            case_id,
+            pr_number,
+            commit_sha,
+        ),
     }
 
 
@@ -170,7 +195,7 @@ def _validate_subject(
     errors: list[str],
 ) -> None:
     if not isinstance(subject, dict):
-        errors.append("subject must be an object")
+        errors.append("provenance mismatch: subject must be an object")
         return
 
     if subject.get("repository") != REPOSITORY:
@@ -194,7 +219,7 @@ def _validate_source(
     errors: list[str],
 ) -> None:
     if not isinstance(source, dict):
-        errors.append("source must be an object")
+        errors.append("provenance mismatch: source must be an object")
         return
 
     source_type = source.get("type")
@@ -214,7 +239,13 @@ def _validate_source(
 
     source_pr_number = source.get("source_pr_number")
     if not isinstance(source_pr_number, int) or source_pr_number <= 0:
-        errors.append("source.source_pr_number must be a positive integer")
+        errors.append(
+            "provenance mismatch: source.source_pr_number must be a positive integer"
+        )
+    elif source_pr_number != expected_pr_number:
+        errors.append(
+            f"provenance mismatch: source.source_pr_number must be {expected_pr_number}"
+        )
 
     source_head_sha = source.get("source_head_sha")
     if not isinstance(source_head_sha, str) or not source_head_sha:

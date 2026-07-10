@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import unittest
 
+import build_ls_audit_pack as audit_pack
 import extract_ls_review_response as extractor
 
 
@@ -70,15 +71,24 @@ class LSReviewResponseExtractionTest(unittest.TestCase):
 
     def test_partial_comment_becomes_incomplete_response(self) -> None:
         response = extractor.build_response(
-            {"body": PARTIAL_COMMENT, "created_at": "2026-07-08T12:55:43Z"},
+            {
+                "id": 4914994285,
+                "body": PARTIAL_COMMENT,
+                "created_at": "2026-07-08T12:55:43Z",
+            },
             "pr824-ls-audit-v0.1",
             828,
+            824,
+            audit_pack.DEFAULT_COMMIT_SHA,
         )
         self.assertEqual(response["schema_version"], extractor.SCHEMA_VERSION)
         self.assertEqual(response["case_id"], "pr824-ls-audit-v0.1")
         self.assertEqual(response["model_attestation"]["provider"], "LS")
         self.assertEqual(response["verdict"], "INCOMPLETE")
         self.assertEqual(response["findings"], [])
+        self.assertEqual(response["subject"]["pr_number"], 824)
+        self.assertEqual(response["source"]["source_pr_number"], 828)
+        self.assertEqual(response["source"]["source_comment_id"], 4914994285)
         self.assertTrue(
             any("provider credential is not configured" in item for item in response["limitations"])
         )
@@ -86,12 +96,32 @@ class LSReviewResponseExtractionTest(unittest.TestCase):
 
     def test_complete_approve_comment_stays_approve(self) -> None:
         response = extractor.build_response(
-            {"body": APPROVE_COMMENT, "created_at": "2026-07-08T12:55:43Z"},
+            {
+                "id": 123,
+                "body": APPROVE_COMMENT,
+                "created_at": "2026-07-08T12:55:43Z",
+            },
             "case-x",
             830,
         )
         self.assertEqual(response["verdict"], "APPROVE")
         self.assertEqual(response["limitations"], [])
+
+    def test_extracted_same_pr_response_passes_provenance_validation(self) -> None:
+        response = extractor.build_response(
+            {
+                "id": 123,
+                "body": APPROVE_COMMENT,
+                "created_at": "2026-07-08T12:55:43Z",
+            },
+            "case-x",
+            830,
+            830,
+            "abc123",
+        )
+
+        errors = audit_pack.validate_ls_response(response, "case-x", 830, "abc123")
+        self.assertEqual(errors, [])
 
     def test_missing_comment_returns_none(self) -> None:
         self.assertIsNone(extractor.latest_ls_review_comment([{"body": "no marker"}]))

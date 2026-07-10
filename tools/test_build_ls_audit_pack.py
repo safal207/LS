@@ -102,7 +102,13 @@ class LSAuditPackBuilderTest(unittest.TestCase):
         del report["subject"]
         errors = audit_pack.validate_ls_response(report, audit_pack.DEFAULT_CASE_ID)
         self.assertIn("missing top-level fields: ['subject']", errors)
-        self.assertIn("subject must be an object", errors)
+        self.assertIn("provenance mismatch: subject must be an object", errors)
+        scorecard = audit_pack.build_scorecard(
+            audit_pack.DEFAULT_CASE_ID,
+            report,
+            errors,
+        )
+        self.assertEqual(scorecard["ls_result"]["status"], "PROVENANCE_MISMATCH")
 
     def test_source_reviewed_pr_mismatch_is_rejected(self) -> None:
         report = self.valid_report()
@@ -125,6 +131,14 @@ class LSAuditPackBuilderTest(unittest.TestCase):
             f"{audit_pack.DEFAULT_COMMIT_SHA!r}",
             errors,
         )
+
+    def test_source_pr_number_mismatch_is_rejected(self) -> None:
+        report = self.valid_report()
+        source = report["source"]
+        self.assertIsInstance(source, dict)
+        source["source_pr_number"] = 828
+        errors = audit_pack.validate_ls_response(report, audit_pack.DEFAULT_CASE_ID)
+        self.assertIn("provenance mismatch: source.source_pr_number must be 824", errors)
 
     def test_pr831_style_cross_pr_source_is_provenance_mismatch(self) -> None:
         errors = audit_pack.validate_ls_response(
@@ -170,6 +184,32 @@ class LSAuditPackBuilderTest(unittest.TestCase):
             schema["source_type_allowed_values"],
             ["GITHUB_PR_COMMENT", "LS_RUN"],
         )
+
+    def test_expected_schema_uses_runtime_provenance(self) -> None:
+        schema = audit_pack.build_expected_report_schema(
+            "case-900",
+            900,
+            "runtime-head-sha",
+        )
+
+        self.assertEqual(
+            schema["subject"],
+            {
+                "repository": audit_pack.REPOSITORY,
+                "pr_number": 900,
+                "commit_sha": "runtime-head-sha",
+            },
+        )
+        self.assertEqual(schema["source"]["reviewed_pr_number"], 900)
+        self.assertEqual(schema["source"]["reviewed_commit_sha"], "runtime-head-sha")
+        self.assertEqual(schema["source"]["source_pr_number"], 900)
+        self.assertEqual(schema["source"]["source_head_sha"], "runtime-head-sha")
+        self.assertIn("PR #900", schema["model_attestation"]["operator_note"])
+
+        evidence_pack = audit_pack.build_evidence_pack(900, "runtime-head-sha", "case-900")
+        self.assertEqual(evidence_pack["expected_report_schema"], schema)
+        self.assertIn('"pr_number": 900', evidence_pack["prompt"])
+        self.assertIn('"commit_sha": "runtime-head-sha"', evidence_pack["prompt"])
 
     def test_positive_int_rejects_invalid_values(self) -> None:
         self.assertEqual(audit_pack.positive_int("825"), 825)
