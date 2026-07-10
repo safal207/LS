@@ -249,6 +249,12 @@ def validate_trail(trail: dict[str, Any]) -> None:
         if edge["relation"] == "RESOLVED":
             require(node_index[edge["from"]]["claimRole"] == "CORRECTIVE_ACTION", f"RESOLVED edge {edge_id} must originate from corrective action")
 
+    closed_blocker_ids = {
+        edge["to"]
+        for edge in edges
+        if edge["binding"] and edge["relation"] in {"RESOLVED", "INVALIDATED"}
+    }
+
     phase_history = require_list(trail["phaseHistory"], "phaseHistory")
     require(phase_history, "phaseHistory must not be empty")
     prior_time: datetime | None = None
@@ -344,6 +350,23 @@ def validate_trail(trail: dict[str, Any]) -> None:
 
     blockers = require_list(decision["unresolvedBlockerNodeIds"], "decision.unresolvedBlockerNodeIds")
     require(len(blockers) == len(set(blockers)), "unresolvedBlockerNodeIds must be unique")
+
+    active_blocker_ids: set[str] = set()
+    for node_id, node in node_index.items():
+        if not node["blocking"] or node["validUntilHead"] is not None or node_id in closed_blocker_ids:
+            continue
+        if node["kind"] == "EVIDENCE" and not (
+            node["evidenceStatus"] == "FRESH"
+            and node["validFromHead"] == subject["currentHead"]
+        ):
+            continue
+        active_blocker_ids.add(node_id)
+
+    require(
+        set(blockers) == active_blocker_ids,
+        "unresolvedBlockerNodeIds must exactly match active blocking nodes",
+    )
+
     for blocker_id in blockers:
         require(blocker_id in node_index, f"unknown blocker node {blocker_id}")
         require(node_index[blocker_id]["blocking"], f"node {blocker_id} is not marked blocking")
@@ -352,9 +375,13 @@ def validate_trail(trail: dict[str, Any]) -> None:
             require(node_index[blocker_id]["validFromHead"] == subject["currentHead"], f"blocking evidence {blocker_id} must bind currentHead")
     if blockers:
         require(decision["currentPhase"] == "RISK_DISCOVERED", "unresolved blockers require RISK_DISCOVERED")
-    if decision["currentPhase"] == "MERGE_READY":
-        require(not blockers, "MERGE_READY cannot contain unresolved blockers")
-        require(all(guard["satisfied"] for guard in phase_history[-1]["guards"]), "MERGE_READY guards must all be satisfied")
+    if decision["currentPhase"] in {"MERGE_READY", "MERGED"}:
+        phase = decision["currentPhase"]
+        require(not blockers, f"{phase} cannot contain unresolved blockers")
+        require(
+            all(guard["satisfied"] for guard in phase_history[-1]["guards"]),
+            f"{phase} guards must all be satisfied",
+        )
 
     next_phases = require_list(decision["nextLegalTransitions"], "decision.nextLegalTransitions")
     require(len(next_phases) == len(set(next_phases)), "nextLegalTransitions must be unique")
