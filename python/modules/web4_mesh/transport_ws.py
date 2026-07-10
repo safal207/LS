@@ -153,7 +153,7 @@ class WebSocketTransport:
         if out:
             await self.send_many_routed(out)
 
-    # BUG-WS-01: Max allowed size of a single incoming WebSocket message (1 MB).
+    # Max allowed size of a single incoming WebSocket message (1 MB).
     _MAX_MESSAGE_BYTES = 1_048_576
 
     def _learn_origin_address(self, envelope: MeshEnvelope) -> None:
@@ -188,12 +188,18 @@ class WebSocketTransport:
         }
         return json.dumps(data, ensure_ascii=False)
 
-    def _deserialize_envelope(self, raw: str | bytes) -> Optional[MeshEnvelope]:
-        # BUG-WS-01: Drop messages that exceed the size cap before parsing.
-        if isinstance(raw, (str, bytes)) and len(raw) > self._MAX_MESSAGE_BYTES:
+    def _deserialize_envelope(self, raw: str | bytes | bytearray) -> Optional[MeshEnvelope]:
+        if isinstance(raw, str):
+            size_bytes = len(raw.encode("utf-8"))
+        elif isinstance(raw, (bytes, bytearray)):
+            size_bytes = len(raw)
+        else:
+            size_bytes = 0
+
+        if size_bytes > self._MAX_MESSAGE_BYTES:
             logger.warning(
                 "Dropped oversized message (%d bytes) for node %s",
-                len(raw),
+                size_bytes,
                 self.node.peer_id,
             )
             return None
