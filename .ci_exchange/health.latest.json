@@ -1,0 +1,58 @@
+{
+  "schema_version": "ls.ci_exchange_health.v0.1",
+  "report_id": "ls.ci_exchange.health.latest",
+  "status": "pass",
+  "generated_from": [
+    "tools/validate_ci_exchange.py",
+    ".ci_nodes/registry.json",
+    ".ci_exchange/routes/grok-review-command-bus.route.json",
+    ".ci_exchange/contexts/connector-safe-command-bus.context.json",
+    ".ci_exchange/anti_patterns/connector-issue-comment-trigger.antipattern.json",
+    ".ci_exchange/agent_context.latest.json"
+  ],
+  "checks": [
+    {
+      "check_id": "registry",
+      "status": "pass",
+      "summary": "CI node registry is present and references reachable node manifests.",
+      "evidence": [
+        ".ci_nodes/registry.json",
+        ".ci_nodes/nodes"
+      ]
+    },
+    {
+      "check_id": "routes",
+      "status": "pass",
+      "summary": "Route exports include best path, markers, evidence, and applicability boundaries.",
+      "evidence": [
+        ".ci_exchange/routes/grok-review-command-bus.route.json"
+      ]
+    },
+    {
+      "check_id": "contexts",
+      "status": "pass",
+      "summary": "Context exports include summary, claims, and evidence.",
+      "evidence": [
+        ".ci_exchange/contexts/connector-safe-command-bus.context.json"
+      ]
+    },
+    {
+      "check_id": "anti_patterns",
+      "status": "pass",
+      "summary": "Anti-pattern exports include symptom, impact, replacement, and evidence.",
+      "evidence": [
+        ".ci_exchange/anti_patterns/connector-issue-comment-trigger.antipattern.json"
+      ]
+    },
+    {
+      "check_id": "agent_context",
+      "status": "pass",
+      "summary": "Latest agent context references existing sources and keeps key route memory.",
+      "evidence": [
+        ".ci_exchange/agent_context.latest.json"
+      ]
+    }
+  ],
+  "errors": [],
+  "boundary": "This report checks static CI Exchange metadata health only. It does not run the Grok command bus, call external model providers, approve pull requests, or prove that a route is operationally healthy right now."
+}
