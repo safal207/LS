@@ -18,7 +18,8 @@
       "evidence": [
         ".ci_nodes/registry.json",
         ".ci_nodes/nodes"
-      ]
+      ],
+      "errors": []
     },
     {
       "check_id": "routes",
@@ -26,7 +27,8 @@
       "summary": "Route exports include best path, markers, evidence, and applicability boundaries.",
       "evidence": [
         ".ci_exchange/routes/grok-review-command-bus.route.json"
-      ]
+      ],
+      "errors": []
     },
     {
       "check_id": "contexts",
@@ -34,7 +36,8 @@
       "summary": "Context exports include summary, claims, and evidence.",
       "evidence": [
         ".ci_exchange/contexts/connector-safe-command-bus.context.json"
-      ]
+      ],
+      "errors": []
     },
     {
       "check_id": "anti_patterns",
@@ -42,7 +45,8 @@
       "summary": "Anti-pattern exports include symptom, impact, replacement, and evidence.",
       "evidence": [
         ".ci_exchange/anti_patterns/connector-issue-comment-trigger.antipattern.json"
-      ]
+      ],
+      "errors": []
     },
     {
       "check_id": "agent_context",
@@ -50,7 +54,8 @@
       "summary": "Latest agent context references existing sources and keeps key route memory.",
       "evidence": [
         ".ci_exchange/agent_context.latest.json"
-      ]
+      ],
+      "errors": []
     }
   ],
   "errors": [],
