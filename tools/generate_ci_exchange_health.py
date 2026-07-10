@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from validate_ci_exchange import validate
+from validate_ci_exchange import validate_sections
 
 ROOT = Path(__file__).resolve().parents[1]
 JSON_OUTPUT = Path(".ci_exchange/health.latest.json")
@@ -44,16 +44,20 @@ CHECKS = [
 
 
 def build_health_report(repo_root: Path = ROOT) -> dict[str, Any]:
-    errors = validate(repo_root)
-    status = "pass" if not errors else "fail"
+    section_errors = validate_sections(repo_root)
+    all_errors = [error for errors in section_errors.values() for error in errors]
+    status = "pass" if not all_errors else "fail"
     checks = []
     for check in CHECKS:
+        check_id = check["check_id"]
+        errors = section_errors.get(check_id, [])
         checks.append(
             {
-                "check_id": check["check_id"],
-                "status": status,
+                "check_id": check_id,
+                "status": "pass" if not errors else "fail",
                 "summary": check["summary"],
                 "evidence": check["evidence"],
+                "errors": errors,
             }
         )
 
@@ -70,7 +74,7 @@ def build_health_report(repo_root: Path = ROOT) -> dict[str, Any]:
             ".ci_exchange/agent_context.latest.json",
         ],
         "checks": checks,
-        "errors": errors,
+        "errors": all_errors,
         "boundary": (
             "This report checks static CI Exchange metadata health only. It does not run the "
             "Grok command bus, call external model providers, approve pull requests, or prove "
@@ -87,11 +91,15 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         "## Checks",
         "",
-        "| Check | Status | Summary |",
-        "| --- | --- | --- |",
+        "| Check | Status | Summary | Errors |",
+        "| --- | --- | --- | --- |",
     ]
     for check in report["checks"]:
-        lines.append(f"| `{check['check_id']}` | `{check['status']}` | {check['summary']} |")
+        errors = check.get("errors", [])
+        error_summary = "None" if not errors else f"{len(errors)} error(s)"
+        lines.append(
+            f"| `{check['check_id']}` | `{check['status']}` | {check['summary']} | {error_summary} |"
+        )
 
     lines.extend(["", "## Generated from", ""])
     for path in report["generated_from"]:
