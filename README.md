@@ -2,6 +2,12 @@
 
 [English](#english) | [Русский](#russian)
 
+> **LS v0.1 release proof: an evidence-backed Change Intelligence Gate for AI-generated pull requests.** It freezes the exact PR head, distinguishes `PASS` from `NOT_RUN`, combines deterministic and independent AI review evidence, uses human adjudication, and emits a verdict a person can verify.
+>
+> **LS v0.1 — доказательный Change Intelligence Gate для AI-generated PR.** Он фиксирует точный SHA, не превращает непройденную проверку в успех, сводит findings с фактами и показывает понятный итог.
+>
+> [Read the LS v0.1 Product Scorecard](docs/LS_V0_1_PRODUCT_SCORECARD.md) · Two external proofs: Robys causal closure and ibex reviewer-gate risk detection.
+
 ---
 
 <a name="english"></a>
