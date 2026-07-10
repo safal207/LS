@@ -62,9 +62,9 @@ A green advisory job alone is not a model success. If the reviewer is `NOT_RUN`,
 | --- | --- |
 | What LS checked | A real three-file, security-sensitive AI reviewer bootstrap in another repository: secret isolation, exact-head binding, untrusted diff parsing, reviewer execution status, and whether green CI justified acceptance. |
 | Evidence | Frozen target files and Git blobs; exact-head CI/job status; independent CodeRabbit findings; a blind Grok 4.5 artifact; explicit adjudication; and a later fix-head compare. |
-| Agents | CodeRabbit, Grok 4.5, deterministic CI, Ibex Verilator E2E, DeepSeek contract validation, and adjudication. The DeepSeek model lane is explicitly `NOT_RUN`. |
-| What they found | CodeRabbit found three major defects: cross-event cancellation, a force-push head race, and patch-body path allowlist contamination. Grok partially reproduced the parser defect, confirmed the green-vs-`NOT_RUN` evidence problem, missed two known defects, and produced one rejected false positive. |
-| Confirmed findings | All three CodeRabbit findings were confirmed against the frozen source. Grok F1 was rejected because YAML dedentation preserves the marker at column 0; one defense-in-depth candidate remains unresolved. |
+| Agents | CodeRabbit, Qodo, Grok 4.5, deterministic CI, Ibex Verilator E2E, DeepSeek contract validation, and adjudication. The DeepSeek model lane is explicitly `NOT_RUN`. |
+| What they found | CodeRabbit found three major defects: cross-event cancellation, a force-push head race, and patch-body path allowlist contamination. Qodo independently reproduced the head race, missed two known defects, added one private-repo portability risk, and produced one rejected permission false positive. Grok partially reproduced the parser defect, confirmed the green-vs-`NOT_RUN` evidence problem, missed two known defects, and produced one rejected false positive. |
+| Confirmed findings | All three CodeRabbit findings were confirmed against the frozen source. Qodo's head-race finding was confirmed; its private-repo opt-in finding is scoped to future portability; its permission finding was rejected because GitHub accepts `Pull requests: write` for PR issue comments. Grok F1 was rejected because YAML dedentation preserves the marker at column 0; one defense-in-depth candidate remains unresolved. |
 | Fixes delivered | Follow-up head `e0b465f131dad4ff6300c66e9fb8660757d94cff` adds event-scoped concurrency, checks the current head before and after diff fetch, restricts paths to `diff --git` metadata, and adds regression coverage. Exact-head CI and Ibex E2E passed. |
 | Exact heads | Vulnerable target: `afc29b1db985d705c90c91685ad4460cf981a805`; LS carrier: `90573c90c01060d8d9373e170e17a4af31d8f7e1`; fix recheck: `e0b465f131dad4ff6300c66e9fb8660757d94cff`. |
 | Verdict | **PILOT PASS / TARGET HOLD.** LS correctly returned `REQUEST_CHANGES` for the frozen target despite green workflows. The later fixes are confirmed, but the DeepSeek model lane remains incomplete and is not upgraded to PASS. |
@@ -72,7 +72,7 @@ A green advisory job alone is not a model success. If the reviewer is `NOT_RUN`,
 Canonical evidence:
 
 - [External target PR #57](https://github.com/safal207/ibex-agent-verification/pull/57) and [frozen compare](https://github.com/safal207/ibex-agent-verification/compare/4db48bc4eab67390e38542cbe676bb3cba2dd9b6...afc29b1db985d705c90c91685ad4460cf981a805)
-- [LS pilot PR #861](https://github.com/safal207/LS/pull/861) with frozen files and the adjudication record
+- [LS pilot PR #861](https://github.com/safal207/LS/pull/861) with frozen files, [Qodo review](https://github.com/safal207/LS/pull/861#issuecomment-4937152602), and adjudication records
 - [Grok PR Review run #198](https://github.com/safal207/LS/actions/runs/29105494882) and [artifact 8232627268](https://github.com/safal207/LS/actions/runs/29105494882/artifacts/8232627268), digest `sha256:2e00df8de5ed4a14a49780bde2bcfcf7fdc4a4e6e4244c1ce8e74e73190978ac`
 - Grok artifact header: `Requested model: grok-4.5. Provider model: grok-4.5.`
 - Vulnerable-head runs: [CI #708](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168705), [DeepSeek #18](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168706), [Ibex E2E #188](https://github.com/safal207/ibex-agent-verification/actions/runs/28337168708)
@@ -85,7 +85,7 @@ Canonical evidence:
 | Product surface | Customer-facing wordmark and pairing journey | Secret-bearing AI reviewer workflow |
 | Frozen evidence | Historical open snapshots plus append-only closure | Immutable three-file target plus later fix-head compare |
 | Deterministic signal | Causal validators and delivery-tail CI passed | CI and E2E passed on both vulnerable and fixed heads |
-| Reviewer signal | Qodo, CodeRabbit, and Grok found fail-closed gaps that were fixed | CodeRabbit reproduced 3/3 known defects; Grok reproduced 1/3, missed 2/3, and had 1 rejected false positive |
+| Reviewer signal | Qodo, CodeRabbit, and Grok found fail-closed gaps that were fixed | CodeRabbit reproduced 3/3 known defects; Qodo reproduced 1/3 and had 1 rejected false positive; Grok reproduced 1/3, missed 2/3, and had 1 rejected false positive |
 | Incomplete lane handling | Stale evidence invalidated instead of reused | Green DeepSeek workflow contained a skipped model job, recorded as `NOT_RUN` |
 | Adjudicated outcome | **PASS — delivered closure** | **REQUEST_CHANGES** on vulnerable head; fixes confirmed, model lane still incomplete |
 | Product lesson | LS preserves a true past risk and a later successful outcome without rewriting history | LS prevents green CI from laundering an unexecuted model lane or known review defects into acceptance |
