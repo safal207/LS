@@ -18,6 +18,7 @@ SCHEMA_VERSION = "ls.manual_real_model_audit_report.v0.1"
 LS_COMMENT_MARKER = "<!-- ls-multi-model-review -->"
 LS_COMMENT_TITLE = "## LS multi-model PR review"
 VALID_VERDICTS = {"APPROVE", "REQUEST_CHANGES", "INCOMPLETE"}
+REPOSITORY = "safal207/LS"
 
 FIELD_RE = re.compile(r"^-\s+(?P<key>[A-Za-z][A-Za-z -]*):\s+(?P<value>.+?)\s*$")
 BOLD_RE = re.compile(r"^\*\*(?P<value>.+?)\*\*$")
@@ -131,23 +132,50 @@ def build_limitations(fields: dict[str, str], incomplete_lanes: list[str], body:
     return limitations
 
 
-def build_response(comment: dict[str, Any], case_id: str, pr_number: int) -> dict[str, Any]:
+def build_response(
+    comment: dict[str, Any],
+    case_id: str,
+    source_pr_number: int,
+    target_pr_number: int | None = None,
+    target_commit_sha: str | None = None,
+) -> dict[str, Any]:
     body = comment["body"]
     fields = parse_top_level_fields(body)
     incomplete_lanes = bullet_items(section_lines(body, "### Incomplete lanes"))
     verdict = normalize_verdict(fields, incomplete_lanes, body)
     created_at = comment.get("created_at") or "unknown time"
     exact_head = fields.get("exact_head", "unknown head")
+    if target_pr_number is None:
+        target_pr_number = source_pr_number
+    if target_commit_sha is None:
+        target_commit_sha = exact_head
 
     return {
         "schema_version": SCHEMA_VERSION,
         "case_id": case_id,
+        "subject": {
+            "repository": REPOSITORY,
+            "pr_number": target_pr_number,
+            "commit_sha": target_commit_sha,
+        },
+        "source": {
+            "type": "GITHUB_PR_COMMENT",
+            # The current LS comment format describes the PR containing the
+            # comment and its exact head. Do not relabel that evidence as a
+            # different target merely because target CLI inputs requested it.
+            "reviewed_pr_number": source_pr_number,
+            "reviewed_commit_sha": exact_head,
+            "source_pr_number": source_pr_number,
+            "source_comment_id": comment.get("id"),
+            "source_head_sha": exact_head,
+        },
         "model_attestation": {
             "provider": "LS",
             "model": "LS multi-model PR review",
             "channel": "GITHUB_PR_COMMENT",
             "operator_note": (
-                f"Extracted from repo-native LS multi-model PR review comment on PR #{pr_number} "
+                "Extracted from repo-native LS multi-model PR review comment on "
+                f"PR #{source_pr_number} "
                 f"created at {created_at}; exact head {exact_head}."
             ),
         },
@@ -162,6 +190,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--comments-json", required=True, help="Path to GitHub issue comments JSON")
     parser.add_argument("--case-id", required=True)
     parser.add_argument("--pr-number", required=True, type=int)
+    parser.add_argument("--target-pr-number", required=True, type=int)
+    parser.add_argument("--target-commit-sha", required=True)
     parser.add_argument("--out", required=True, help="Output ls_response.json path")
     return parser.parse_args()
 
@@ -174,7 +204,13 @@ def main() -> int:
         print("ERROR: no LS multi-model PR review comment found")
         return 1
 
-    response = build_response(comment, args.case_id, args.pr_number)
+    response = build_response(
+        comment,
+        args.case_id,
+        args.pr_number,
+        args.target_pr_number,
+        args.target_commit_sha,
+    )
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(response, indent=2, sort_keys=True), encoding="utf-8")
