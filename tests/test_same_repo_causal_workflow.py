@@ -7,15 +7,45 @@ FORK_COLLECTOR = ROOT / ".github/workflows/causal-review-collect.yml"
 OLD_BRIDGE = ROOT / ".github/workflows/trusted-causal-review-ensemble.yml"
 
 
-def test_same_repo_workflow_uses_trusted_default_branch_code():
+def test_same_repo_workflow_is_loaded_from_protected_base_context():
     text = SAME_REPO.read_text(encoding="utf-8")
 
-    assert "pull_request_target" not in text
+    assert "  pull_request_target:\n" in text
+    assert "  pull_request:\n" not in text
     assert "github.event.pull_request.head.repo.full_name == github.repository" in text
+    assert "github.event.pull_request.author_association" in text
+    assert "OWNER" in text
+    assert "MEMBER" in text
+    assert "COLLABORATOR" in text
     assert "ref: refs/heads/${{ github.event.repository.default_branch }}" in text
     assert "persist-credentials: false" in text
     assert "ref: ${{ github.event.pull_request.head.sha }}" not in text
     assert "actions/checkout@v4" in text
+
+
+def test_same_repo_workflow_never_executes_target_pr_code():
+    text = SAME_REPO.read_text(encoding="utf-8")
+
+    forbidden = (
+        "git checkout",
+        "git switch",
+        "npm install",
+        "npm ci",
+        "pip install",
+        "poetry install",
+        "bundle install",
+        "cargo build",
+        "go test",
+        "make ",
+        "bash target.patch",
+        "source target.patch",
+    )
+    for command in forbidden:
+        assert command not in text
+
+    assert "python tools/github_causal_review_collector.py" in text
+    assert "python tools/causal_review_request.py" in text
+    assert 'PATCH_FILE: str(input_dir / "target.patch")' not in text
 
 
 def test_exact_target_is_verified_before_and_after_model_calls():
@@ -23,11 +53,13 @@ def test_exact_target_is_verified_before_and_after_model_calls():
 
     first_verify = text.index("Verify exact target before credentials")
     credentials = text.index("Resolve native reviewer credentials")
+    grok = text.index("Run trusted Grok causal lane")
+    deepseek = text.index("Run trusted DeepSeek causal lane")
     codex = text.index("Run trusted Codex causal lane")
     final_verify = text.index("Reverify exact head after model calls")
     report = text.index("Build exact-target ensemble report")
 
-    assert first_verify < credentials < codex < final_verify < report
+    assert first_verify < credentials < grok < deepseek < codex < final_verify < report
     assert text.count("python tools/causal_review_request.py") == 2
     assert text.count('--expected-pr-number "$PR_NUMBER"') == 2
     assert text.count('--expected-head-sha "$EXPECTED_HEAD_SHA"') == 2
