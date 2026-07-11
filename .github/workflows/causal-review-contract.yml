@@ -10,8 +10,10 @@ on:
       - "schemas/causal-review-v0.1.schema.json"
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
+      - "tools/causal_review_adapters.py"
       - "tests/test_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
+      - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
   push:
     branches: [main]
     paths:
@@ -21,8 +23,10 @@ on:
       - "schemas/causal-review-v0.1.schema.json"
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
+      - "tools/causal_review_adapters.py"
       - "tests/test_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
+      - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
 
 permissions:
   contents: read
@@ -48,6 +52,7 @@ jobs:
           python -m py_compile
           tools/causal_review.py
           tools/grok_causal_review.py
+          tools/causal_review_adapters.py
 
       - name: Run deterministic contract tests
         run: >-
@@ -55,9 +60,11 @@ jobs:
           python -m pytest
           tests/test_causal_review_contract.py
           tests/test_causal_review_patch_bytes.py
+          tests/test_causal_review_adapters.py
           -q
 
       - name: Check command-line interfaces
         run: |
           python tools/causal_review.py --help
           python tools/grok_causal_review.py --help
+          python tools/causal_review_adapters.py --help
