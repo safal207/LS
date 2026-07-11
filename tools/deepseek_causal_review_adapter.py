@@ -40,6 +40,7 @@ FINDING_KEYS = {
     "reproduction",
     "recommendation",
 }
+SEVERITIES = {"info", "low", "medium", "high", "critical"}
 SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 RISK_FROM_SEVERITY = {
     "info": "none",
@@ -99,6 +100,15 @@ def _string_array(value: Any, field: str) -> list[str]:
     ]
 
 
+def _severity(value: Any, field: str) -> str:
+    severity = _string(value, field)
+    if severity not in SEVERITIES:
+        raise DeepSeekAdapterError(
+            f"{field} must be one of: {', '.join(sorted(SEVERITIES))}"
+        )
+    return severity
+
+
 def _provider_local_key(finding: Mapping[str, Any]) -> str:
     source_id = _string(finding.get("source_id"), "finding.source_id")
     location = _object(finding.get("location"), "finding.location")
@@ -122,6 +132,7 @@ def _adapt_finding(
 ) -> dict[str, Any]:
     finding = _object(raw, f"findings[{index}]", allowed=FINDING_KEYS)
     source_id = _string(finding["source_id"], f"findings[{index}].source_id")
+    severity = _severity(finding["severity"], f"findings[{index}].severity")
     override = overrides.get(source_id)
     if override is None:
         dedupe_key = _provider_local_key(finding)
@@ -137,6 +148,7 @@ def _adapt_finding(
     adapted["id"] = "DEEPSEEK-" + hashlib.sha256(
         source_id.encode("utf-8")
     ).hexdigest()[:8].upper()
+    adapted["severity"] = severity
     adapted["claim_status"] = "CANDIDATE"
     adapted["dedupe_key"] = dedupe_key
     return adapted
@@ -179,6 +191,10 @@ def adapt_deepseek_lane(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise DeepSeekAdapterError(
                 f"{status} DeepSeek lane must not contain findings"
             )
+        if overrides:
+            raise DeepSeekAdapterError(
+                f"{status} DeepSeek lane must not contain dedupe overrides"
+            )
         return validate_review(
             {
                 "schema_version": "ls.causal-review.v0.1",
@@ -212,6 +228,22 @@ def adapt_deepseek_lane(payload: Mapping[str, Any]) -> dict[str, Any]:
     if provider_model != requested_model:
         raise DeepSeekAdapterError(
             f"DeepSeek model mismatch: requested {requested_model}, provider returned {provider_model}"
+        )
+
+    source_ids = [
+        _string(
+            _object(raw, f"findings[{index}]").get("source_id"),
+            f"findings[{index}].source_id",
+        )
+        for index, raw in enumerate(raw_findings)
+    ]
+    if len(source_ids) != len(set(source_ids)):
+        raise DeepSeekAdapterError("DeepSeek finding source_id values must be unique")
+    unknown_overrides = sorted(set(overrides) - set(source_ids))
+    if unknown_overrides:
+        raise DeepSeekAdapterError(
+            "dedupe_overrides contains unknown source ids: "
+            + ", ".join(unknown_overrides)
         )
 
     findings = [
