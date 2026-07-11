@@ -29,10 +29,10 @@ jobs:
       OUTPUT_DIR: /tmp/causal-review-request
 
     steps:
-      - name: Check out trusted collector implementation
+      - name: Check out trusted main collector implementation
         uses: actions/checkout@v4
         with:
-          ref: refs/heads/${{ github.event.repository.default_branch }}
+          ref: refs/heads/main
           persist-credentials: false
 
       - name: Collect exact patch and reviewer evidence
