@@ -7,17 +7,29 @@ from tools.causal_review_request import RequestError, verify_collection, write_e
 
 
 class FakeClient:
-    def __init__(self, *, sha="a" * 40, patch=b"patch-bytes", state="open", draft=False):
+    def __init__(
+        self,
+        *,
+        sha="a" * 40,
+        patch=b"patch-bytes",
+        state="open",
+        draft=False,
+        head_repository="safal207/LS",
+    ):
         self.sha = sha
         self.patch = patch
         self.state = state
         self.draft = draft
+        self.head_repository = head_repository
 
     def get_pull_request(self, repository, pr_number):
         return {
             "state": self.state,
             "draft": self.draft,
-            "head": {"sha": self.sha},
+            "head": {
+                "sha": self.sha,
+                "repo": {"full_name": self.head_repository},
+            },
         }
 
     def get_patch(self, repository, pr_number):
@@ -50,7 +62,9 @@ def write_collection(tmp_path, *, patch=b"patch-bytes", target_value=None):
             },
         },
     }
-    (tmp_path / "collection-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (tmp_path / "collection-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
     (tmp_path / "target.patch").write_bytes(patch)
     for provider in ("coderabbit", "qodo"):
         bundle = {
@@ -77,12 +91,51 @@ def test_verified_request_rechecks_exact_current_patch(tmp_path):
         tmp_path,
         "safal207/LS",
         source_run_id=123,
+        expected_pr_number=42,
     )
 
     assert request["status"] == "MATCHED"
     assert request["source_run_id"] == 123
     assert request["target"] == target(patch)
+    assert request["head_repository"] == "safal207/LS"
     assert request["patch_bytes"] == len(patch)
+
+
+def test_triggering_pr_mismatch_fails_closed(tmp_path):
+    write_collection(tmp_path)
+    with pytest.raises(RequestError, match="triggering PR mismatch"):
+        verify_collection(
+            FakeClient(),
+            tmp_path,
+            "safal207/LS",
+            source_run_id=1,
+            expected_pr_number=99,
+        )
+
+
+def test_fork_pr_is_not_authorized_by_default(tmp_path):
+    write_collection(tmp_path)
+    with pytest.raises(RequestError, match="fork PRs are not authorized"):
+        verify_collection(
+            FakeClient(head_repository="attacker/fork"),
+            tmp_path,
+            "safal207/LS",
+            source_run_id=1,
+            expected_pr_number=42,
+        )
+
+
+def test_explicit_fork_policy_can_be_enabled(tmp_path):
+    write_collection(tmp_path)
+    request = verify_collection(
+        FakeClient(head_repository="contributor/fork"),
+        tmp_path,
+        "safal207/LS",
+        source_run_id=1,
+        expected_pr_number=42,
+        require_same_repository_head=False,
+    )
+    assert request["head_repository"] == "contributor/fork"
 
 
 def test_persisted_patch_digest_mismatch_fails_closed(tmp_path):
