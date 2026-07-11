@@ -42,8 +42,15 @@ Responses API model, such as `gpt-5.6-sol`, without changing trusted workflow co
 
 ## Trust boundary
 
-Codex runs only for a non-draft PR whose head repository equals the current repository. The trusted
-workflow explicitly checks out default-branch tooling rather than the PR head.
+Codex runs from a `pull_request_target` workflow loaded from protected `main`, not from the PR's
+proposed workflow definition. The job additionally requires:
+
+- a non-draft PR targeting `main`;
+- a head repository equal to the current repository;
+- author association `OWNER`, `MEMBER`, or `COLLABORATOR`.
+
+The workflow explicitly checks out default-branch tooling with persisted credentials disabled and
+never checks out the target PR head.
 
 Before reading `OPENAI_API_KEY`, `tools/causal_review_request.py` requires:
 
@@ -56,8 +63,8 @@ Before reading `OPENAI_API_KEY`, `tools/causal_review_request.py` requires:
 - freshly fetched GitHub patch with byte-for-byte equality;
 - matching CodeRabbit and Qodo bundle targets.
 
-The runner reads only default-branch tooling and frozen patch data. It does not check out, execute,
-import, install, or test target-PR code while `OPENAI_API_KEY` is available.
+The runner reads only protected default-branch tooling and frozen patch data. It does not check out,
+execute, import, install, build, source, or test target-PR code while `OPENAI_API_KEY` is available.
 
 The exact verifier runs again after all native model calls. A force-push or branch move prevents
 ensemble report publication.
