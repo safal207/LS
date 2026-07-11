@@ -17,7 +17,7 @@ def request(repository):
 
 def test_target_environment_quotes_shell_metacharacters(tmp_path):
     marker = tmp_path / "must-not-exist"
-    repository = f"owner$(touch {marker})/repo"
+    repository = "owner$(touch${IFS}must-not-exist)/repo"
     input_dir = tmp_path / "input dir"
     input_dir.mkdir()
     env_path = tmp_path / "target.env"
@@ -39,6 +39,7 @@ def test_target_environment_quotes_shell_metacharacters(tmp_path):
         check=True,
         capture_output=True,
         text=True,
+        cwd=tmp_path,
     )
 
     assert not marker.exists()
