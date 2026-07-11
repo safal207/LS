@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$REQUEST_DIR" "$OUTPUT_DIR"
-          python tools/github_causal_review_collector.py \
+          python tools/retrying_causal_review_github.py collect \
             --repository "$GITHUB_REPOSITORY" \
             --pr-number "$PR_NUMBER" \
             --output-dir "$REQUEST_DIR"
@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python tools/causal_review_request.py \
+          python tools/retrying_causal_review_github.py verify \
             --input-dir "$REQUEST_DIR" \
             --repository "$GITHUB_REPOSITORY" \
             --source-run-id "$GITHUB_RUN_ID" \
@@ -259,7 +259,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python tools/causal_review_request.py \
+          python tools/retrying_causal_review_github.py verify \
             --input-dir "$REQUEST_DIR" \
             --repository "$GITHUB_REPOSITORY" \
             --source-run-id "$GITHUB_RUN_ID" \
