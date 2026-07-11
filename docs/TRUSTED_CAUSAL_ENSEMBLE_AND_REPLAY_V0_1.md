@@ -2,80 +2,88 @@
 
 ## Goal
 
-The first three causal pilots proved the exact collector and reporting pipeline, but all reviewer
-lanes were incomplete. This slice moves model execution behind an automatic two-workflow trust
-boundary and adds a separate exact-head replay protocol for already adjudicated historical
-findings.
+The first causal pilots proved the exact collector and reporting pipeline, but reviewer execution
+was unreliable when it depended on comments and a second `workflow_run` payload. The current design
+uses separate trust paths for same-repository and fork pull requests.
 
 ```text
-pull_request event
-  → unprivileged exact collector
-  → immutable request artifact
-  → workflow_run on trusted main
-  → bind artifact to workflow head SHA and branch
-  → re-fetch and compare exact patch bytes
+same-repository pull_request
+  → trusted default-branch workflow and tooling
+  → exact patch collection
+  → PR number + head SHA + branch + patch-byte verification
   → blind Grok, DeepSeek, and Codex causal lanes
   → observer adapters
   → second exact-head verification
   → provisional ensemble report
+
+fork pull_request
+  → unprivileged exact collector
+  → observer evidence artifact only
+  → no repository model secrets
 ```
 
-## Workflow A — unprivileged collection
+## Same-repository trusted workflow
+
+[`.github/workflows/trusted-causal-review-same-repo.yml`](../.github/workflows/trusted-causal-review-same-repo.yml)
+runs on open, synchronized, reopened, or ready-for-review non-draft pull requests targeting
+`main` when the head repository equals the current repository.
+
+The workflow explicitly checks out the repository default branch with persisted credentials
+disabled. It never checks out the target PR head. Before reading model credentials it:
+
+1. collects the current PR through GitHub API;
+2. persists the exact patch bytes and SHA-256;
+3. records CodeRabbit and Qodo source bundles;
+4. requires the artifact PR number to equal the pull-request event number;
+5. requires the artifact and current PR head to equal the event head SHA;
+6. requires the current PR branch to equal the event head branch;
+7. requires a same-repository head;
+8. re-fetches the current patch and requires byte-for-byte equality.
+
+Only after this verification does the workflow inspect `XAI_API_KEY`, `DEEPSEEK_API_KEY`, and
+`OPENAI_API_KEY`. Missing credentials create explicit `NOT_RUN` artifacts.
+
+The exact verification is repeated after all model calls. A force-push, branch move, closed PR,
+draft transition, or patch change prevents report publication.
+
+The workflow never executes, imports, installs, builds, or tests target-PR code while model secrets
+are available. All executable review tooling comes from the default branch.
+
+## Fork workflow
 
 [`.github/workflows/causal-review-collect.yml`](../.github/workflows/causal-review-collect.yml)
-runs on open, synchronized, reopened, or ready-for-review non-draft pull requests.
+runs only when the PR head repository differs from the current repository.
 
-It receives no model secrets and explicitly checks out the repository default branch rather than
-target-PR code. It collects:
+It receives read-only repository permissions and no model secrets. It collects exact patch and
+observer evidence, records `secret_access=false` and
+`native_reviewers=NOT_AUTHORIZED_FOR_FORK`, and uploads a seven-day artifact.
 
-- exact open PR head SHA;
-- exact GitHub patch bytes and SHA-256;
-- raw GitHub review-thread pages;
-- CodeRabbit and Qodo source bundles;
-- an unprivileged collection context.
+Fork evidence may later be inspected by a human, but it never automatically crosses into a
+secret-backed native reviewer run.
 
-The artifact is a request, not trusted evidence. Upload success does not authorize a model call.
+## Removed workflow bridge
 
-## Workflow B — trusted ensemble
+The previous `pull_request → artifact → workflow_run` bridge was removed. It was secure after
+revalidation but operationally brittle because optional `workflow_run` PR metadata could be empty,
+causing trusted review to skip before credential detection.
 
-[`.github/workflows/trusted-causal-review-ensemble.yml`](../.github/workflows/trusted-causal-review-ensemble.yml)
-runs only after a successful `Causal Review Collect` workflow.
+The direct same-repository workflow preserves the important security properties without requiring
+cross-run target reconstruction:
 
-`workflow_run` has a privileged token and may receive repository secrets, so it treats every
-artifact byte as untrusted. GitHub may expose an empty `workflow_run.pull_requests` array even for
-a run created by a pull-request event. The trusted workflow therefore does not use that optional
-array as an authorization boundary. It binds the request to mandatory workflow-run head metadata:
-
-- `workflow_run.head_sha`;
-- `workflow_run.head_branch`;
-- the current PR head repository returned by GitHub API.
-
-Before any model call,
-[`tools/causal_review_request.py`](../tools/causal_review_request.py):
-
-1. validates the manifest schema and repository identity;
-2. requires the artifact target head to equal `workflow_run.head_sha`;
-3. recomputes SHA-256 over the persisted patch bytes;
-4. verifies both observer bundles target the same repository, PR, head, and digest;
-5. rereads the PR identified by the manifest from GitHub;
-6. requires open and non-draft state;
-7. rejects fork heads by default;
-8. requires the current PR head SHA and branch to equal the workflow-run head metadata;
-9. re-fetches the current patch and requires byte-for-byte equality.
-
-The same verification is repeated after model calls. A force-push or branch/target mismatch during
-review prevents report publication.
-
-The trusted workflow never executes target-PR code, scripts, actions, binaries, or dependencies.
-All executable tooling comes from the default branch.
+- trusted default-branch code;
+- same-repository authorization;
+- event PR/head/branch binding;
+- current GitHub API revalidation;
+- persisted and freshly fetched patch-byte equality;
+- pre-call and post-call verification.
 
 ## Native causal reviewers
 
 ### Grok
 
-The existing Grok wrapper remains pinned to `grok-4.5` and requires `XAI_API_KEY`. Missing secret,
-provider model mismatch, invalid output, partial patch coverage, and stale target are explicit
-non-completed states.
+The Grok wrapper is pinned to `grok-4.5` and requires `XAI_API_KEY`. Missing secret, provider model
+mismatch, invalid output, partial patch coverage, and stale target are explicit non-completed
+states.
 
 ### DeepSeek
 
@@ -169,11 +177,11 @@ product-level claim still requires representative target selection and published
 
 ## Non-goals
 
-This slice does not:
+This design does not:
 
 - execute untrusted PR code with secrets;
-- treat artifact download as authorization;
-- trust optional workflow payload fields when exact head metadata is available;
+- grant native model secrets to fork PRs;
+- trust an artifact without current GitHub API revalidation;
 - infer semantic dedupe across reviewers;
 - count missing reviewers as zero findings;
 - merge or approve pull requests;
