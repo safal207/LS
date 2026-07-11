@@ -68,7 +68,13 @@ def read_bound_patch(patch_path: Path, limit: int) -> str:
             f"expected {expected_digest}, actual {actual_digest}"
         )
 
-    patch = raw.decode("utf-8", errors="replace")
+    try:
+        patch = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ContractError(
+            "PATCH_FILE must be valid UTF-8; no model verdict may be published"
+        ) from exc
+
     if len(patch) > limit:
         raise ContractError(
             "patch exceeds PATCH_LIMIT_CHARS; no model verdict may be "
