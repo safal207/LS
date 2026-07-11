@@ -93,7 +93,7 @@ def _target(payload: Mapping[str, Any], field: str = "target") -> dict[str, Any]
     }
 
 
-def _current_head(pr: Mapping[str, Any]) -> tuple[str, str, bool, str]:
+def _current_head(pr: Mapping[str, Any]) -> tuple[str, str, bool, str, str]:
     state = _string(pr.get("state"), "pull_request.state")
     draft = pr.get("draft")
     if not isinstance(draft, bool):
@@ -105,6 +105,7 @@ def _current_head(pr: Mapping[str, Any]) -> tuple[str, str, bool, str]:
         state,
         draft,
         _string(head_repo.get("full_name"), "pull_request.head.repo.full_name"),
+        _string(head.get("ref"), "pull_request.head.ref"),
     )
 
 
@@ -115,9 +116,11 @@ def verify_collection(
     *,
     source_run_id: int,
     expected_pr_number: int | None = None,
+    expected_head_sha: str | None = None,
+    expected_head_branch: str | None = None,
     require_same_repository_head: bool = True,
 ) -> dict[str, Any]:
-    """Verify exact bytes, triggering PR identity, and current GitHub state."""
+    """Verify exact bytes, triggering workflow head, and current GitHub state."""
     manifest = _read_json(input_dir / "collection-manifest.json", "collection manifest")
     if manifest.get("schema_version") != "ls.github-causal-review-collection.v0.1":
         raise RequestError("unsupported collection manifest schema_version")
@@ -131,6 +134,21 @@ def verify_collection(
             f"triggering PR mismatch: artifact targets #{target['pr_number']}, "
             f"workflow_run belongs to #{expected_pr_number}"
         )
+    normalized_expected_head = (
+        None
+        if expected_head_sha is None
+        else _sha(expected_head_sha, "expected_head_sha")
+    )
+    if normalized_expected_head is not None and target["head_sha"] != normalized_expected_head:
+        raise RequestError(
+            "workflow_run head mismatch: artifact targets "
+            f"{target['head_sha']}, workflow_run head is {normalized_expected_head}"
+        )
+    normalized_expected_branch = (
+        None
+        if expected_head_branch is None
+        else _string(expected_head_branch, "expected_head_branch")
+    )
 
     patch_path = input_dir / "target.patch"
     try:
@@ -152,7 +170,7 @@ def verify_collection(
             raise RequestError(f"{provider} bundle target mismatch")
 
     pr = client.get_pull_request(target["repository"], target["pr_number"])
-    current_sha, state, draft, head_repository = _current_head(
+    current_sha, state, draft, head_repository, head_branch = _current_head(
         _object(pr, "pull_request")
     )
     if state != "open":
@@ -163,9 +181,19 @@ def verify_collection(
         raise RequestError(
             f"fork PRs are not authorized for secret-backed review: {head_repository}"
         )
+    if normalized_expected_branch is not None and head_branch != normalized_expected_branch:
+        raise RequestError(
+            f"workflow_run branch mismatch: PR head is {head_branch}, "
+            f"workflow_run head branch is {normalized_expected_branch}"
+        )
     if current_sha != target["head_sha"]:
         raise RequestError(
             f"target head changed after collection: {target['head_sha']} -> {current_sha}"
+        )
+    if normalized_expected_head is not None and current_sha != normalized_expected_head:
+        raise RequestError(
+            f"current PR head {current_sha} does not match workflow_run head "
+            f"{normalized_expected_head}"
         )
 
     current_patch = client.get_patch(target["repository"], target["pr_number"])
@@ -186,6 +214,7 @@ def verify_collection(
         "source_run_id": source_run_id,
         "target": target,
         "head_repository": head_repository,
+        "head_branch": head_branch,
         "patch_bytes": len(patch),
         "collection_manifest_sha256": _digest(
             json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -215,6 +244,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--source-run-id", type=int, required=True)
     parser.add_argument("--expected-pr-number", type=int)
+    parser.add_argument("--expected-head-sha")
+    parser.add_argument("--expected-head-branch")
     parser.add_argument("--allow-fork", action="store_true")
     parser.add_argument("--token-env", default="GITHUB_TOKEN")
     parser.add_argument("--api-url", default="https://api.github.com")
@@ -234,6 +265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.repository,
             source_run_id=args.source_run_id,
             expected_pr_number=args.expected_pr_number,
+            expected_head_sha=args.expected_head_sha,
+            expected_head_branch=args.expected_head_branch,
             require_same_repository_head=not args.allow_fork,
         )
         Path(args.output).write_text(
