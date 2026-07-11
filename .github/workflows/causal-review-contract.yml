@@ -127,6 +127,7 @@ jobs:
           python -m pytest
           tests/test_causal_review_contract.py
           tests/test_causal_review_patch_bytes.py
+          tests/test_causal_review_env_safety.py
           tests/test_causal_review_adapters.py
           tests/test_causal_review_adapter_integrity.py
           tests/test_github_causal_review_collector.py
