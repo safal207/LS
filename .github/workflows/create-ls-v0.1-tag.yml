@@ -1,0 +1,70 @@
+name: Create LS v0.1 release tag
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/create-ls-v0.1-tag.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: create-ls-v0.1-tag
+  cancel-in-progress: false
+
+jobs:
+  create-tag:
+    name: Create and verify annotated release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TAG_NAME: ls-v0.1
+      TARGET_SHA: 14e2abdcf6d97df48fc6a2fe4887cccea3cb0501
+      TAG_MESSAGE: LS v0.1 — repeatable Change Intelligence Gate
+
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create or verify annotated tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git cat-file -e "${TARGET_SHA}^{commit}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG_NAME}" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}"
+            object_type="$(git cat-file -t "refs/tags/${TAG_NAME}")"
+            peeled_sha="$(git rev-parse "refs/tags/${TAG_NAME}^{}")"
+
+            test "${object_type}" = "tag"
+            test "${peeled_sha}" = "${TARGET_SHA}"
+            echo "Annotated tag already exists and matches ${TARGET_SHA}."
+          else
+            git tag -a "${TAG_NAME}" "${TARGET_SHA}" -m "${TAG_MESSAGE}"
+            git push origin "refs/tags/${TAG_NAME}"
+          fi
+
+      - name: Verify remote tag target
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          remote_sha="$(git ls-remote --tags origin "refs/tags/${TAG_NAME}^{}" | awk '{print $1}')"
+          test "${remote_sha}" = "${TARGET_SHA}"
+
+          echo "Verified ${TAG_NAME} -> ${TARGET_SHA}"
+          {
+            echo "## LS v0.1 tag published"
+            echo
+            echo "- Tag: \`${TAG_NAME}\`"
+            echo "- Target: \`${TARGET_SHA}\`"
+            echo "- Type: annotated tag"
+          } >> "${GITHUB_STEP_SUMMARY}"
