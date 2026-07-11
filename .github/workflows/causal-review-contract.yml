@@ -27,6 +27,7 @@ on:
       - "tools/run_native_causal_reviewers.sh"
       - "tests/test_causal_review*.py"
       - "tests/test_same_repo_causal_workflow.py"
+      - "tests/test_native_causal_runner.py"
       - "tests/test_retrying_causal_review_github.py"
       - "tests/test_codex_causal_review.py"
       - "tests/test_github_causal_review_collector.py"
@@ -64,6 +65,7 @@ on:
       - "tools/run_native_causal_reviewers.sh"
       - "tests/test_causal_review*.py"
       - "tests/test_same_repo_causal_workflow.py"
+      - "tests/test_native_causal_runner.py"
       - "tests/test_retrying_causal_review_github.py"
       - "tests/test_codex_causal_review.py"
       - "tests/test_github_causal_review_collector.py"
@@ -147,6 +149,7 @@ jobs:
           tests/test_causal_review_pilot_native.py
           tests/test_historical_causal_replay.py
           tests/test_same_repo_causal_workflow.py
+          tests/test_native_causal_runner.py
           -q
 
       - name: Check command-line interfaces
