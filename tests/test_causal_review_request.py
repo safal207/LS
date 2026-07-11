@@ -15,12 +15,14 @@ class FakeClient:
         state="open",
         draft=False,
         head_repository="safal207/LS",
+        head_branch="feature/test",
     ):
         self.sha = sha
         self.patch = patch
         self.state = state
         self.draft = draft
         self.head_repository = head_repository
+        self.head_branch = head_branch
 
     def get_pull_request(self, repository, pr_number):
         return {
@@ -28,6 +30,7 @@ class FakeClient:
             "draft": self.draft,
             "head": {
                 "sha": self.sha,
+                "ref": self.head_branch,
                 "repo": {"full_name": self.head_repository},
             },
         }
@@ -92,13 +95,30 @@ def test_verified_request_rechecks_exact_current_patch(tmp_path):
         "safal207/LS",
         source_run_id=123,
         expected_pr_number=42,
+        expected_head_sha="a" * 40,
+        expected_head_branch="feature/test",
     )
 
     assert request["status"] == "MATCHED"
     assert request["source_run_id"] == 123
     assert request["target"] == target(patch)
     assert request["head_repository"] == "safal207/LS"
+    assert request["head_branch"] == "feature/test"
     assert request["patch_bytes"] == len(patch)
+
+
+def test_workflow_head_binding_works_without_pull_request_array(tmp_path):
+    write_collection(tmp_path)
+    request = verify_collection(
+        FakeClient(),
+        tmp_path,
+        "safal207/LS",
+        source_run_id=7,
+        expected_head_sha="a" * 40,
+        expected_head_branch="feature/test",
+    )
+    assert request["target"]["pr_number"] == 42
+    assert request["target"]["head_sha"] == "a" * 40
 
 
 def test_triggering_pr_mismatch_fails_closed(tmp_path):
@@ -110,6 +130,31 @@ def test_triggering_pr_mismatch_fails_closed(tmp_path):
             "safal207/LS",
             source_run_id=1,
             expected_pr_number=99,
+        )
+
+
+def test_workflow_head_sha_mismatch_fails_closed(tmp_path):
+    write_collection(tmp_path)
+    with pytest.raises(RequestError, match="workflow_run head mismatch"):
+        verify_collection(
+            FakeClient(),
+            tmp_path,
+            "safal207/LS",
+            source_run_id=1,
+            expected_head_sha="c" * 40,
+        )
+
+
+def test_workflow_head_branch_mismatch_fails_closed(tmp_path):
+    write_collection(tmp_path)
+    with pytest.raises(RequestError, match="workflow_run branch mismatch"):
+        verify_collection(
+            FakeClient(),
+            tmp_path,
+            "safal207/LS",
+            source_run_id=1,
+            expected_head_sha="a" * 40,
+            expected_head_branch="other/branch",
         )
 
 
