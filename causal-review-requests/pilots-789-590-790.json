@@ -1,0 +1,7 @@
+{
+  "schema_version": "ls.causal-pilot-request.v0.1",
+  "targets": [789, 590, 790],
+  "measurement_class": "PILOT",
+  "authority": "provisional-only",
+  "requested_by": "repository-owner"
+}
