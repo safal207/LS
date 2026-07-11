@@ -37,9 +37,14 @@
           "minLength": 1
         },
         "model": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       }
