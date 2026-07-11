@@ -151,6 +151,17 @@ def _bind_raw_to_review(
             f"raw/review provenance mismatch at index {index}: "
             f"{provenance} != {review['execution']['provenance']}"
         )
+
+    expected_findings = (
+        raw_count - ignored_count if status == "COMPLETED" else 0
+    )
+    actual_findings = len(review["findings"])
+    if actual_findings != expected_findings:
+        raise PilotError(
+            f"raw/review finding count mismatch at index {index}: "
+            f"expected {expected_findings}, got {actual_findings}"
+        )
+
     return {
         "provider": provider,
         "status": status,
@@ -190,6 +201,16 @@ def build_pilot_report(
             zip(raw_bundles, normalized, strict=True)
         )
     ]
+    providers = [lane["provider"] for lane in lanes]
+    duplicates = sorted(
+        provider for provider in set(providers) if providers.count(provider) > 1
+    )
+    if duplicates:
+        raise PilotError(
+            "pilot report allows one lane per provider; duplicates: "
+            + ", ".join(duplicates)
+        )
+
     clusters = cluster_reviews(normalized)
     raw_count = sum(lane["raw_count"] for lane in lanes)
     ignored_count = sum(lane["ignored_count"] for lane in lanes)
