@@ -67,4 +67,4 @@ jobs:
         run: |
           python tools/causal_review.py --help
           python tools/grok_causal_review.py --help
-          python tools/causal_review_adapters.py --help
+          python -m tools.causal_review_adapters --help
