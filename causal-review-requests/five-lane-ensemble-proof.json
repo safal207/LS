@@ -1,0 +1,7 @@
+{
+  "schema_version": "ls.trusted-causal-ensemble-proof.v0.2",
+  "purpose": "prove automatic five-lane causal review execution",
+  "authority": "advisory-only",
+  "expected_lanes": ["coderabbit", "qodo", "grok", "deepseek", "codex"],
+  "credit_probe": "OPENAI_API_KEY presence and quota are reported only through the Codex lane status"
+}
