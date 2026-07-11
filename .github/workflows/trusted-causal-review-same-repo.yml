@@ -1,7 +1,7 @@
 name: Trusted Causal Review — Same Repository
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -21,6 +21,10 @@ jobs:
       ${{
         github.event.pull_request.draft == false
         && github.event.pull_request.head.repo.full_name == github.repository
+        && contains(
+          fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+          github.event.pull_request.author_association
+        )
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 42
@@ -42,7 +46,7 @@ jobs:
       OPENAI_RESPONSES_API_URL: ${{ vars.OPENAI_RESPONSES_API_URL || 'https://api.openai.com/v1/responses' }}
 
     steps:
-      - name: Check out trusted default-branch implementation
+      - name: Check out protected default-branch implementation
         uses: actions/checkout@v4
         with:
           ref: refs/heads/${{ github.event.repository.default_branch }}
