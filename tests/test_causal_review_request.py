@@ -107,7 +107,7 @@ def test_verified_request_rechecks_exact_current_patch(tmp_path):
     assert request["patch_bytes"] == len(patch)
 
 
-def test_workflow_head_binding_works_without_pull_request_array(tmp_path):
+def test_trigger_head_binding_works_without_pull_request_array(tmp_path):
     write_collection(tmp_path)
     request = verify_collection(
         FakeClient(),
@@ -133,9 +133,9 @@ def test_triggering_pr_mismatch_fails_closed(tmp_path):
         )
 
 
-def test_workflow_head_sha_mismatch_fails_closed(tmp_path):
+def test_trigger_head_sha_mismatch_fails_closed(tmp_path):
     write_collection(tmp_path)
-    with pytest.raises(RequestError, match="workflow_run head mismatch"):
+    with pytest.raises(RequestError, match="trigger context head mismatch"):
         verify_collection(
             FakeClient(),
             tmp_path,
@@ -145,9 +145,9 @@ def test_workflow_head_sha_mismatch_fails_closed(tmp_path):
         )
 
 
-def test_workflow_head_branch_mismatch_fails_closed(tmp_path):
+def test_trigger_head_branch_mismatch_fails_closed(tmp_path):
     write_collection(tmp_path)
-    with pytest.raises(RequestError, match="workflow_run branch mismatch"):
+    with pytest.raises(RequestError, match="trigger context branch mismatch"):
         verify_collection(
             FakeClient(),
             tmp_path,
