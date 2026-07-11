@@ -61,10 +61,11 @@ jobs:
           tests/test_causal_review_contract.py
           tests/test_causal_review_patch_bytes.py
           tests/test_causal_review_adapters.py
+          tests/test_causal_review_adapter_integrity.py
           -q
 
       - name: Check command-line interfaces
         run: |
           python tools/causal_review.py --help
           python tools/grok_causal_review.py --help
-          python -m tools.causal_review_adapters --help
+          python tools/causal_review_adapters.py --help
