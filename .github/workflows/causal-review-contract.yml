@@ -92,6 +92,7 @@ jobs:
           tests/test_deepseek_causal_review_adapter.py
           tests/test_deepseek_causal_review_integrity.py
           tests/test_causal_review_pilot.py
+          tests/test_causal_review_pilot_integrity.py
           -q
 
       - name: Check command-line interfaces
