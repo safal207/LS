@@ -16,6 +16,7 @@ on:
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
       - "tools/deepseek_causal_review.py"
+      - "tools/codex_causal_review.py"
       - "tools/causal_review_adapters.py"
       - "tools/github_causal_review_collector.py"
       - "tools/causal_review_request.py"
@@ -23,6 +24,7 @@ on:
       - "tools/causal_review_pilot.py"
       - "tools/historical_causal_replay.py"
       - "tests/test_causal_review*.py"
+      - "tests/test_codex_causal_review.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
       - "tests/test_historical_causal_replay.py"
@@ -31,6 +33,7 @@ on:
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
       - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
       - "docs/TRUSTED_CAUSAL_ENSEMBLE_AND_REPLAY_V0_1.md"
+      - "docs/CODEX_CAUSAL_REVIEWER_V0_1.md"
   push:
     branches: [main]
     paths:
@@ -46,6 +49,7 @@ on:
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
       - "tools/deepseek_causal_review.py"
+      - "tools/codex_causal_review.py"
       - "tools/causal_review_adapters.py"
       - "tools/github_causal_review_collector.py"
       - "tools/causal_review_request.py"
@@ -53,6 +57,7 @@ on:
       - "tools/causal_review_pilot.py"
       - "tools/historical_causal_replay.py"
       - "tests/test_causal_review*.py"
+      - "tests/test_codex_causal_review.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
       - "tests/test_historical_causal_replay.py"
@@ -61,6 +66,7 @@ on:
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
       - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
       - "docs/TRUSTED_CAUSAL_ENSEMBLE_AND_REPLAY_V0_1.md"
+      - "docs/CODEX_CAUSAL_REVIEWER_V0_1.md"
 
 permissions:
   contents: read
@@ -69,7 +75,7 @@ jobs:
   contract:
     name: Validate causal review contract
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +106,7 @@ jobs:
           tools/causal_review.py
           tools/grok_causal_review.py
           tools/deepseek_causal_review.py
+          tools/codex_causal_review.py
           tools/causal_review_adapters.py
           tools/github_causal_review_collector.py
           tools/causal_review_request.py
@@ -120,6 +127,7 @@ jobs:
           tests/test_deepseek_causal_review_adapter.py
           tests/test_deepseek_causal_review_integrity.py
           tests/test_deepseek_causal_review_runner.py
+          tests/test_codex_causal_review.py
           tests/test_causal_review_pilot.py
           tests/test_causal_review_pilot_integrity.py
           tests/test_causal_review_pilot_native.py
@@ -131,6 +139,7 @@ jobs:
           python tools/causal_review.py --help
           python tools/grok_causal_review.py --help
           python tools/deepseek_causal_review.py --help
+          python tools/codex_causal_review.py --help
           python tools/causal_review_adapters.py --help
           python tools/github_causal_review_collector.py --help
           python tools/causal_review_request.py --help
