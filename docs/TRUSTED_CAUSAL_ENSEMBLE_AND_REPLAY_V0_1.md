@@ -13,7 +13,7 @@ separate secret-free path for forks.
 ```text
 trusted same-repository pull_request_target
   → workflow definition and tools from protected main
-  → exact patch collection through GitHub API
+  → exact patch collection through retrying GitHub API boundary
   → PR number + head SHA + branch + patch-byte verification
   → blind Grok, DeepSeek, and Codex causal lanes
   → observer adapters
@@ -59,6 +59,26 @@ draft transition, or patch change prevents report publication.
 The workflow never executes, imports, installs, builds, sources, or tests target-PR code while
 model secrets are available. All executable review tooling comes from the protected default branch;
 the PR patch is processed only as untrusted data.
+
+## Bounded GitHub API retries
+
+Production collection and verification use
+[`tools/retrying_causal_review_github.py`](../tools/retrying_causal_review_github.py), a thin wrapper
+around the deterministic collector and verifier.
+
+The wrapper retries only transient conditions:
+
+- HTTP `429`, `500`, `502`, `503`, and `504`;
+- URL, DNS, socket, and timeout transport failures.
+
+It performs at most four attempts with bounded exponential backoff and honors a larger
+`Retry-After` value up to the configured delay cap. Authentication and authorization failures such
+as `401` and `403` fail immediately. Exact-target, stale-head, fork-policy, and patch-mismatch errors
+remain fail-closed; they are never converted into success.
+
+After exhaustion, diagnostics preserve the URL, attempt count, HTTP status/body snippet or final
+transport exception type. Shared verifier messages are rendered as trigger-neutral diagnostics
+rather than referring to an obsolete `workflow_run` path.
 
 ## Why ordinary `pull_request` is forbidden here
 
