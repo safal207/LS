@@ -1,0 +1,6 @@
+{
+  "schema_version": "ls.trusted-causal-ensemble-proof.v0.1",
+  "purpose": "prove automatic pull_request to workflow_run causal review execution",
+  "authority": "advisory-only",
+  "expected_lanes": ["coderabbit", "qodo", "grok", "deepseek"]
+}
