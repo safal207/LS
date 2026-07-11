@@ -1,0 +1,7 @@
+{
+  "schema_version": "ls.ensemble-canary.v0.1",
+  "purpose": "validate the installed reviewer workflow",
+  "expected_reviewers": ["coderabbit", "qodo", "grok", "deepseek", "codex"],
+  "advisory_only": true,
+  "merge_candidate": false
+}
