@@ -7,7 +7,7 @@ on:
       - ".github/workflows/grok-causal-pr-review.yml"
       - ".github/workflows/causal-review-pilot.yml"
       - ".github/workflows/causal-review-collect.yml"
-      - ".github/workflows/trusted-causal-review-ensemble.yml"
+      - ".github/workflows/trusted-causal-review-same-repo.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
@@ -24,6 +24,7 @@ on:
       - "tools/causal_review_pilot.py"
       - "tools/historical_causal_replay.py"
       - "tests/test_causal_review*.py"
+      - "tests/test_same_repo_causal_workflow.py"
       - "tests/test_codex_causal_review.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
@@ -40,7 +41,7 @@ on:
       - ".github/workflows/grok-causal-pr-review.yml"
       - ".github/workflows/causal-review-pilot.yml"
       - ".github/workflows/causal-review-collect.yml"
-      - ".github/workflows/trusted-causal-review-ensemble.yml"
+      - ".github/workflows/trusted-causal-review-same-repo.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
@@ -57,6 +58,7 @@ on:
       - "tools/causal_review_pilot.py"
       - "tools/historical_causal_replay.py"
       - "tests/test_causal_review*.py"
+      - "tests/test_same_repo_causal_workflow.py"
       - "tests/test_codex_causal_review.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
@@ -97,7 +99,7 @@ jobs:
         run: >-
           ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path) }'
           .github/workflows/causal-review-collect.yml
-          .github/workflows/trusted-causal-review-ensemble.yml
+          .github/workflows/trusted-causal-review-same-repo.yml
           .github/workflows/causal-review-contract.yml
 
       - name: Compile causal-review tooling
@@ -132,6 +134,7 @@ jobs:
           tests/test_causal_review_pilot_integrity.py
           tests/test_causal_review_pilot_native.py
           tests/test_historical_causal_replay.py
+          tests/test_same_repo_causal_workflow.py
           -q
 
       - name: Check command-line interfaces
