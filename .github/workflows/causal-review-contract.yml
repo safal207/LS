@@ -9,6 +9,7 @@ on:
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
       - "tools/causal_review.py"
+      - "tools/grok_causal_review.py"
       - "tests/test_causal_review_contract.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
   push:
@@ -19,6 +20,7 @@ on:
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
       - "tools/causal_review.py"
+      - "tools/grok_causal_review.py"
       - "tests/test_causal_review_contract.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
 
@@ -42,7 +44,10 @@ jobs:
         run: python -m pip install pytest
 
       - name: Compile causal-review tooling
-        run: python -m py_compile tools/causal_review.py
+        run: >-
+          python -m py_compile
+          tools/causal_review.py
+          tools/grok_causal_review.py
 
       - name: Run deterministic contract tests
         run: >-
@@ -51,5 +56,7 @@ jobs:
           tests/test_causal_review_contract.py
           -q
 
-      - name: Check command-line interface
-        run: python tools/causal_review.py --help
+      - name: Check command-line interfaces
+        run: |
+          python tools/causal_review.py --help
+          python tools/grok_causal_review.py --help
