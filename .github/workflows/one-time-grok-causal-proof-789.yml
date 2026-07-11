@@ -1,12 +1,8 @@
 name: One-time Grok causal proof for PR 789
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/one-time-grok-causal-proof-789.yml
   pull_request_target:
-    types: [labeled]
+    types: [opened, labeled]
 
 permissions:
   contents: read
@@ -22,9 +18,12 @@ jobs:
     name: Trusted causal proof
     if: >-
       ${{
-        github.event_name == 'push'
+        (
+          github.event.action == 'opened'
+          && github.event.pull_request.title == 'ci: trigger causal proof for PR 789'
+        )
         || (
-          github.event_name == 'pull_request_target'
+          github.event.action == 'labeled'
           && github.event.pull_request.number == 789
           && github.event.label.name == 'agent-runtime'
         )
@@ -53,7 +52,7 @@ jobs:
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             const issue_number = Number(process.env.PR_NUMBER);
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-            const body = `${marker}\n## 🧭 Trusted Grok causal proof — STARTED\n\n- Workflow run: ${runUrl}\n- Trigger commit: \`${process.env.GITHUB_SHA}\`\n- Target PR: #${issue_number}\n\n_No review evidence is claimed until the validated result artifact is published._`;
+            const body = `${marker}\n## 🧭 Trusted Grok causal proof — STARTED\n\n- Workflow run: ${runUrl}\n- Trusted base commit: \`${process.env.GITHUB_SHA}\`\n- Review target: #${issue_number}\n\n_No review evidence is claimed until the validated result artifact is published._`;
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number, per_page: 100,
             });
@@ -69,10 +68,10 @@ jobs:
       - name: Check out trusted default branch
         uses: actions/checkout@v4
         with:
-          ref: refs/heads/main
+          ref: refs/heads/${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - name: Freeze exact PR target and patch
+      - name: Freeze exact review target and patch
         id: target
         env:
           GH_TOKEN: ${{ github.token }}
