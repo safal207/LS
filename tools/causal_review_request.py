@@ -93,13 +93,19 @@ def _target(payload: Mapping[str, Any], field: str = "target") -> dict[str, Any]
     }
 
 
-def _current_head(pr: Mapping[str, Any]) -> tuple[str, str, bool]:
+def _current_head(pr: Mapping[str, Any]) -> tuple[str, str, bool, str]:
     state = _string(pr.get("state"), "pull_request.state")
     draft = pr.get("draft")
     if not isinstance(draft, bool):
         raise RequestError("pull_request.draft must be a boolean")
     head = _object(pr.get("head"), "pull_request.head")
-    return _sha(head.get("sha"), "pull_request.head.sha"), state, draft
+    head_repo = _object(head.get("repo"), "pull_request.head.repo")
+    return (
+        _sha(head.get("sha"), "pull_request.head.sha"),
+        state,
+        draft,
+        _string(head_repo.get("full_name"), "pull_request.head.repo.full_name"),
+    )
 
 
 def verify_collection(
@@ -108,8 +114,10 @@ def verify_collection(
     expected_repository: str,
     *,
     source_run_id: int,
+    expected_pr_number: int | None = None,
+    require_same_repository_head: bool = True,
 ) -> dict[str, Any]:
-    """Verify exact bytes, target identity, and current GitHub state."""
+    """Verify exact bytes, triggering PR identity, and current GitHub state."""
     manifest = _read_json(input_dir / "collection-manifest.json", "collection manifest")
     if manifest.get("schema_version") != "ls.github-causal-review-collection.v0.1":
         raise RequestError("unsupported collection manifest schema_version")
@@ -117,6 +125,11 @@ def verify_collection(
     if target["repository"] != expected_repository:
         raise RequestError(
             f"repository mismatch: {target['repository']} != {expected_repository}"
+        )
+    if expected_pr_number is not None and target["pr_number"] != expected_pr_number:
+        raise RequestError(
+            f"triggering PR mismatch: artifact targets #{target['pr_number']}, "
+            f"workflow_run belongs to #{expected_pr_number}"
         )
 
     patch_path = input_dir / "target.patch"
@@ -139,11 +152,17 @@ def verify_collection(
             raise RequestError(f"{provider} bundle target mismatch")
 
     pr = client.get_pull_request(target["repository"], target["pr_number"])
-    current_sha, state, draft = _current_head(_object(pr, "pull_request"))
+    current_sha, state, draft, head_repository = _current_head(
+        _object(pr, "pull_request")
+    )
     if state != "open":
         raise RequestError(f"target PR is not open: {state}")
     if draft:
         raise RequestError("target PR is a draft")
+    if require_same_repository_head and head_repository != expected_repository:
+        raise RequestError(
+            f"fork PRs are not authorized for secret-backed review: {head_repository}"
+        )
     if current_sha != target["head_sha"]:
         raise RequestError(
             f"target head changed after collection: {target['head_sha']} -> {current_sha}"
@@ -166,6 +185,7 @@ def verify_collection(
         "status": "MATCHED",
         "source_run_id": source_run_id,
         "target": target,
+        "head_repository": head_repository,
         "patch_bytes": len(patch),
         "collection_manifest_sha256": _digest(
             json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -194,6 +214,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--source-run-id", type=int, required=True)
+    parser.add_argument("--expected-pr-number", type=int)
+    parser.add_argument("--allow-fork", action="store_true")
     parser.add_argument("--token-env", default="GITHUB_TOKEN")
     parser.add_argument("--api-url", default="https://api.github.com")
     parser.add_argument("--output", required=True)
@@ -211,6 +233,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             Path(args.input_dir),
             args.repository,
             source_run_id=args.source_run_id,
+            expected_pr_number=args.expected_pr_number,
+            require_same_repository_head=not args.allow_fork,
         )
         Path(args.output).write_text(
             json.dumps(request, indent=2, sort_keys=True) + "\n",
