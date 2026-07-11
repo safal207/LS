@@ -14,7 +14,7 @@ if __package__ in {None, ""}:
 
 from tools.causal_review import ContractError, cluster_reviews, validate_review
 
-MEASUREMENT_CLASSES = {"DEMO", "PILOT"}
+MEASUREMENT_CLASSES = {"DEMO", "PILOT", "ENSEMBLE"}
 THREAD_PROVIDERS = {"coderabbit", "qodo"}
 
 
@@ -104,19 +104,36 @@ def _raw_identity(
     schema_version = _string(
         raw.get("schema_version"), f"{field}.schema_version"
     )
-    if schema_version != "ls.deepseek-causal-lane.v0.1":
-        raise PilotError(
-            f"{field} is neither a supported thread bundle nor a DeepSeek causal lane"
+    if schema_version == "ls.deepseek-causal-lane.v0.1":
+        findings = _array(raw.get("findings"), f"{field}.findings")
+        return (
+            "deepseek",
+            target,
+            status,
+            provenance,
+            details,
+            len(findings),
+            0,
         )
-    findings = _array(raw.get("findings"), f"{field}.findings")
-    return (
-        "deepseek",
-        target,
-        status,
-        provenance,
-        details,
-        len(findings),
-        0,
+
+    if schema_version == "ls.causal-review.v0.1":
+        review = validate_review(raw)
+        provider = _string(
+            _object(review.get("reviewer"), f"{field}.reviewer").get("id"),
+            f"{field}.reviewer.id",
+        )
+        return (
+            provider,
+            review["target"],
+            review["execution"]["status"],
+            review["execution"]["provenance"],
+            review["execution"]["details"],
+            len(review["findings"]),
+            0,
+        )
+
+    raise PilotError(
+        f"{field} is not a thread bundle, DeepSeek lane, or native causal review"
     )
 
 
