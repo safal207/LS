@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python tools/github_causal_review_collector.py \
+          python tools/retrying_causal_review_github.py collect \
             --repository "$GITHUB_REPOSITORY" \
             --pr-number "$PR_NUMBER" \
             --output-dir "$OUTPUT_DIR"
