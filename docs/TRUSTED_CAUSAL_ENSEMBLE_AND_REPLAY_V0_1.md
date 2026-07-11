@@ -12,8 +12,9 @@ pull_request event
   → unprivileged exact collector
   → immutable request artifact
   → workflow_run on trusted main
+  → bind artifact to workflow head SHA and branch
   → re-fetch and compare exact patch bytes
-  → blind Grok and DeepSeek causal lanes
+  → blind Grok, DeepSeek, and Codex causal lanes
   → observer adapters
   → second exact-head verification
   → provisional ensemble report
@@ -41,19 +42,29 @@ The artifact is a request, not trusted evidence. Upload success does not authori
 runs only after a successful `Causal Review Collect` workflow.
 
 `workflow_run` has a privileged token and may receive repository secrets, so it treats every
-artifact byte as untrusted. Before any model call,
+artifact byte as untrusted. GitHub may expose an empty `workflow_run.pull_requests` array even for
+a run created by a pull-request event. The trusted workflow therefore does not use that optional
+array as an authorization boundary. It binds the request to mandatory workflow-run head metadata:
+
+- `workflow_run.head_sha`;
+- `workflow_run.head_branch`;
+- the current PR head repository returned by GitHub API.
+
+Before any model call,
 [`tools/causal_review_request.py`](../tools/causal_review_request.py):
 
 1. validates the manifest schema and repository identity;
-2. recomputes SHA-256 over the persisted patch bytes;
-3. verifies both observer bundles target the same repository, PR, head, and digest;
-4. rereads the PR from GitHub;
-5. requires open and non-draft state;
-6. requires the current head to equal the collected head;
-7. re-fetches the current patch and requires byte-for-byte equality.
+2. requires the artifact target head to equal `workflow_run.head_sha`;
+3. recomputes SHA-256 over the persisted patch bytes;
+4. verifies both observer bundles target the same repository, PR, head, and digest;
+5. rereads the PR identified by the manifest from GitHub;
+6. requires open and non-draft state;
+7. rejects fork heads by default;
+8. requires the current PR head SHA and branch to equal the workflow-run head metadata;
+9. re-fetches the current patch and requires byte-for-byte equality.
 
-The same verification is repeated after model calls. A force-push during review prevents report
-publication.
+The same verification is repeated after model calls. A force-push or branch/target mismatch during
+review prevents report publication.
 
 The trusted workflow never executes target-PR code, scripts, actions, binaries, or dependencies.
 All executable tooling comes from the default branch.
@@ -82,7 +93,14 @@ DeepSeek chat-completions endpoint and requires:
 Missing credentials produce `NOT_RUN`, never a zero-finding success. Invalid model output produces
 `DIAGNOSTIC`, never a finding.
 
-Grok and DeepSeek run blind: neither receives the other reviewer's result.
+### Codex
+
+[`tools/codex_causal_review.py`](../tools/codex_causal_review.py) uses the OpenAI Responses API and
+requires repository secret `OPENAI_API_KEY`. Missing credentials produce `NOT_RUN`; provider quota
+or rate errors remain explicit `FAILED` evidence. See
+[`CODEX_CAUSAL_REVIEWER_V0_1.md`](CODEX_CAUSAL_REVIEWER_V0_1.md).
+
+Grok, DeepSeek, and Codex run blind: no native reviewer receives another reviewer's result.
 
 ## Observer lanes
 
@@ -92,7 +110,7 @@ evidence.
 
 ## Ensemble report
 
-`tools/causal_review_pilot.py` now accepts native `ls.causal-review.v0.1` artifacts as raw causal
+`tools/causal_review_pilot.py` accepts native `ls.causal-review.v0.1` artifacts as raw causal
 evidence in addition to CodeRabbit/Qodo bundles and the DeepSeek provider lane.
 
 One report may contain at most one lane per reviewer. Raw item count, execution status,
@@ -155,6 +173,7 @@ This slice does not:
 
 - execute untrusted PR code with secrets;
 - treat artifact download as authorization;
+- trust optional workflow payload fields when exact head metadata is available;
 - infer semantic dedupe across reviewers;
 - count missing reviewers as zero findings;
 - merge or approve pull requests;
