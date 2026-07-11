@@ -1,0 +1,8 @@
+{
+  "schema_version": "ls.trusted-causal-ensemble-proof.v0.2",
+  "purpose": "prove workflow-head-bound five-lane causal review execution",
+  "authority": "advisory-only",
+  "expected_lanes": ["coderabbit", "qodo", "grok", "deepseek", "codex"],
+  "expected_binding": ["workflow_run.head_sha", "workflow_run.head_branch", "current PR head", "exact patch bytes"],
+  "credit_probe": "Codex status distinguishes missing OPENAI_API_KEY, exhausted quota, and completed review"
+}
