@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -46,6 +47,26 @@ def _paths() -> tuple[Path, Path, Path]:
         Path(_required_env("REVIEW_MD_FILE")),
         Path(_required_env("RAW_RESPONSE_FILE")),
     )
+
+
+def read_bound_patch(patch_path: Path, limit: int) -> str:
+    """Return the exact declared patch text or fail closed."""
+    raw = patch_path.read_bytes()
+    actual_digest = "sha256:" + hashlib.sha256(raw).hexdigest()
+    expected_digest = _target()["patch_sha256"]
+    if actual_digest != expected_digest:
+        raise ContractError(
+            "PATCH_FILE digest does not match TARGET_PATCH_SHA256: "
+            f"expected {expected_digest}, actual {actual_digest}"
+        )
+
+    patch = raw.decode("utf-8", errors="replace")
+    if len(patch) > limit:
+        raise ContractError(
+            "patch exceeds PATCH_LIMIT_CHARS; no model verdict may be "
+            f"published for partial coverage ({len(patch)} > {limit})"
+        )
+    return patch
 
 
 def write_review(
@@ -95,14 +116,10 @@ def run_review() -> int:
     _, _, raw_path = _paths()
     requested_model = os.environ.get("XAI_MODEL", "grok-4.5").strip()
     limit = int(os.environ.get("PATCH_LIMIT_CHARS", "60000"))
+    provider_matched = False
 
     try:
-        patch = patch_path.read_text(encoding="utf-8", errors="replace")
-        if len(patch) > limit:
-            patch = patch[:limit] + (
-                "\n\n[PATCH TRUNCATED FOR COST/CONTEXT LIMITS]"
-            )
-
+        patch = read_bound_patch(patch_path, limit)
         instruction = prompt_path.read_text(encoding="utf-8")
         target = _target()
         user_prompt = (
@@ -183,6 +200,7 @@ def run_review() -> int:
             )
             return 0
 
+        provider_matched = True
         model_payload = parse_model_json(text)
         write_review(
             status="COMPLETED",
@@ -196,13 +214,16 @@ def run_review() -> int:
         return 0
 
     except (ContractError, json.JSONDecodeError) as exc:
+        provenance = "MATCHED" if provider_matched else "UNVERIFIED"
+        prefix = (
+            "Provider identity matched, but causal output failed validation"
+            if provider_matched
+            else "Causal review preflight failed before a trusted verdict"
+        )
         write_review(
             status="DIAGNOSTIC",
-            provenance="MATCHED",
-            details=(
-                "Provider identity matched, but causal output failed "
-                f"validation: {exc}"
-            ),
+            provenance=provenance,
+            details=f"{prefix}: {exc}",
         )
         return 0
     except Exception:
