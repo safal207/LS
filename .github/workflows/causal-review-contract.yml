@@ -6,45 +6,61 @@ on:
     paths:
       - ".github/workflows/grok-causal-pr-review.yml"
       - ".github/workflows/causal-review-pilot.yml"
+      - ".github/workflows/causal-review-collect.yml"
+      - ".github/workflows/trusted-causal-review-ensemble.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
       - "schemas/deepseek-causal-lane-v0.1.schema.json"
+      - "schemas/historical-causal-replay-v0.1.schema.json"
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
+      - "tools/deepseek_causal_review.py"
       - "tools/causal_review_adapters.py"
       - "tools/github_causal_review_collector.py"
+      - "tools/causal_review_request.py"
       - "tools/deepseek_causal_review_adapter.py"
       - "tools/causal_review_pilot.py"
+      - "tools/historical_causal_replay.py"
       - "tests/test_causal_review*.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
+      - "tests/test_historical_causal_replay.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
       - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
       - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
+      - "docs/TRUSTED_CAUSAL_ENSEMBLE_AND_REPLAY_V0_1.md"
   push:
     branches: [main]
     paths:
       - ".github/workflows/grok-causal-pr-review.yml"
       - ".github/workflows/causal-review-pilot.yml"
+      - ".github/workflows/causal-review-collect.yml"
+      - ".github/workflows/trusted-causal-review-ensemble.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
       - "schemas/deepseek-causal-lane-v0.1.schema.json"
+      - "schemas/historical-causal-replay-v0.1.schema.json"
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
+      - "tools/deepseek_causal_review.py"
       - "tools/causal_review_adapters.py"
       - "tools/github_causal_review_collector.py"
+      - "tools/causal_review_request.py"
       - "tools/deepseek_causal_review_adapter.py"
       - "tools/causal_review_pilot.py"
+      - "tools/historical_causal_replay.py"
       - "tests/test_causal_review*.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
+      - "tests/test_historical_causal_replay.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
       - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
       - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
+      - "docs/TRUSTED_CAUSAL_ENSEMBLE_AND_REPLAY_V0_1.md"
 
 permissions:
   contents: read
@@ -53,7 +69,7 @@ jobs:
   contract:
     name: Validate causal review contract
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
 
     steps:
       - uses: actions/checkout@v4
@@ -69,16 +85,27 @@ jobs:
         run: |
           python -m json.tool schemas/causal-review-v0.1.schema.json >/dev/null
           python -m json.tool schemas/deepseek-causal-lane-v0.1.schema.json >/dev/null
+          python -m json.tool schemas/historical-causal-replay-v0.1.schema.json >/dev/null
+
+      - name: Parse trusted workflow YAML
+        run: >-
+          ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path) }'
+          .github/workflows/causal-review-collect.yml
+          .github/workflows/trusted-causal-review-ensemble.yml
+          .github/workflows/causal-review-contract.yml
 
       - name: Compile causal-review tooling
         run: >-
           python -m py_compile
           tools/causal_review.py
           tools/grok_causal_review.py
+          tools/deepseek_causal_review.py
           tools/causal_review_adapters.py
           tools/github_causal_review_collector.py
+          tools/causal_review_request.py
           tools/deepseek_causal_review_adapter.py
           tools/causal_review_pilot.py
+          tools/historical_causal_replay.py
 
       - name: Run deterministic contract tests
         run: >-
@@ -89,17 +116,24 @@ jobs:
           tests/test_causal_review_adapters.py
           tests/test_causal_review_adapter_integrity.py
           tests/test_github_causal_review_collector.py
+          tests/test_causal_review_request.py
           tests/test_deepseek_causal_review_adapter.py
           tests/test_deepseek_causal_review_integrity.py
+          tests/test_deepseek_causal_review_runner.py
           tests/test_causal_review_pilot.py
           tests/test_causal_review_pilot_integrity.py
+          tests/test_causal_review_pilot_native.py
+          tests/test_historical_causal_replay.py
           -q
 
       - name: Check command-line interfaces
         run: |
           python tools/causal_review.py --help
           python tools/grok_causal_review.py --help
+          python tools/deepseek_causal_review.py --help
           python tools/causal_review_adapters.py --help
           python tools/github_causal_review_collector.py --help
+          python tools/causal_review_request.py --help
           python tools/deepseek_causal_review_adapter.py --help
           python tools/causal_review_pilot.py --help
+          python tools/historical_causal_replay.py --help
