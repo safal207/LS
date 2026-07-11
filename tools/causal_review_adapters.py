@@ -337,14 +337,23 @@ def build_noise_report(
         _bind_bundle_to_review(_object(bundle, f"bundles[{index}]"), review, index)
 
     clusters = cluster_reviews(normalized)
-    raw_count = sum(len(_array(bundle.get("threads", []), "threads")) for bundle in bundles)
-    ignored_count = sum(
-        1
-        for bundle in bundles
-        for raw in _array(bundle.get("threads", []), "threads")
-        if bool(_object(raw, "thread").get("is_resolved", False))
-        or bool(_object(raw, "thread").get("is_outdated", False))
-    )
+    raw_count = 0
+    ignored_count = 0
+    for bundle_index, bundle in enumerate(bundles):
+        threads = _array(bundle.get("threads", []), f"bundles[{bundle_index}].threads")
+        raw_count += len(threads)
+        for thread_index, raw in enumerate(threads):
+            thread = _object(raw, f"bundles[{bundle_index}].threads[{thread_index}]")
+            resolved = _boolean(
+                thread.get("is_resolved", False),
+                f"bundles[{bundle_index}].threads[{thread_index}].is_resolved",
+            )
+            outdated = _boolean(
+                thread.get("is_outdated", False),
+                f"bundles[{bundle_index}].threads[{thread_index}].is_outdated",
+            )
+            ignored_count += int(resolved or outdated)
+
     evidence_count = sum(
         len(review["findings"])
         for review in normalized
