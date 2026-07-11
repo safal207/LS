@@ -1,3 +1,5 @@
+import json
+import subprocess
 from pathlib import Path
 
 
@@ -5,6 +7,23 @@ ROOT = Path(__file__).resolve().parents[1]
 SAME_REPO = ROOT / ".github/workflows/trusted-causal-review-same-repo.yml"
 FORK_COLLECTOR = ROOT / ".github/workflows/causal-review-collect.yml"
 OLD_BRIDGE = ROOT / ".github/workflows/trusted-causal-review-ensemble.yml"
+
+
+def parsed_yaml(path: Path):
+    result = subprocess.run(
+        [
+            "ruby",
+            "-rjson",
+            "-ryaml",
+            "-e",
+            "doc = YAML.load_file(ARGV[0]); puts JSON.generate(doc)",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
 
 
 def test_same_repo_workflow_is_loaded_from_protected_base_context():
@@ -17,10 +36,49 @@ def test_same_repo_workflow_is_loaded_from_protected_base_context():
     assert "OWNER" in text
     assert "MEMBER" in text
     assert "COLLABORATOR" in text
-    assert "ref: refs/heads/${{ github.event.repository.default_branch }}" in text
+    assert "ref: refs/heads/main" in text
     assert "persist-credentials: false" in text
     assert "ref: ${{ github.event.pull_request.head.sha }}" not in text
     assert "actions/checkout@v4" in text
+    assert "NEVER check out the pull request head" in text
+
+
+def test_privileged_workflow_structure_keeps_secrets_after_verification():
+    workflow = parsed_yaml(SAME_REPO)
+    jobs = workflow["jobs"]
+    ensemble = jobs["ensemble"]
+    steps = ensemble["steps"]
+
+    checkouts = [step for step in steps if str(step.get("uses", "")).startswith("actions/checkout")]
+    assert len(checkouts) == 1
+    assert checkouts[0]["with"] == {
+        "ref": "refs/heads/main",
+        "persist-credentials": False,
+    }
+
+    verify_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Verify exact target before credentials"
+    )
+    secret_indices = [
+        index
+        for index, step in enumerate(steps)
+        if "secrets." in json.dumps(step, sort_keys=True)
+    ]
+    assert secret_indices
+    assert all(index > verify_index for index in secret_indices)
+
+    for step in steps:
+        uses = str(step.get("uses", ""))
+        assert "${{" not in uses
+        if str(step.get("name", "")).startswith("Run trusted "):
+            condition = str(step.get("if", ""))
+            assert "steps.request.outcome == 'success'" in condition
+
+    skip_job = jobs["report-untrusted-same-repo"]
+    assert "secrets." not in json.dumps(skip_job, sort_keys=True)
+    assert "NOT AUTHORIZED" in json.dumps(skip_job)
 
 
 def test_same_repo_workflow_never_executes_target_pr_code():
@@ -32,10 +90,14 @@ def test_same_repo_workflow_never_executes_target_pr_code():
         "npm install",
         "npm ci",
         "pip install",
+        "pip3 install",
+        "uv pip",
         "poetry install",
         "bundle install",
         "cargo build",
         "go test",
+        "curl | sh",
+        "curl -s |",
         "make ",
         "bash target.patch",
         "source target.patch",
