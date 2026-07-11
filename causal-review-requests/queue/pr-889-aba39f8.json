@@ -1,0 +1,10 @@
+{
+  "schema_version": "ls.causal-review-request.v0.1",
+  "request_id": "pr-889-aba39f8",
+  "repository": "safal207/LS",
+  "pr_number": 889,
+  "head_sha": "aba39f8d3dbc3a6f3517f609496b1134e510af46",
+  "head_branch": "ci/prove-protected-five-lane-ensemble",
+  "reviewers": ["grok", "deepseek", "codex"],
+  "authority": "advisory-only"
+}
