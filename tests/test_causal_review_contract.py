@@ -11,7 +11,11 @@ from tools.causal_review import (
     render_markdown,
     validate_review,
 )
-from tools.grok_causal_review import build_user_message, read_bound_patch
+from tools.grok_causal_review import (
+    build_user_message,
+    read_bound_patch,
+    validate_model_payload,
+)
 
 
 def review_payload(reviewer_id="grok", dedupe_key="ci.force-push.head-race"):
@@ -71,6 +75,16 @@ def review_payload(reviewer_id="grok", dedupe_key="ci.force-push.head-race"):
         "human_decision_points": [
             "Decide whether a stale-head mismatch should fail or remain advisory."
         ],
+    }
+
+
+def model_payload():
+    return {
+        "verdict": "COMMENT",
+        "risk_level": "low",
+        "findings": [],
+        "tests_to_run": [],
+        "human_decision_points": [],
     }
 
 
@@ -144,6 +158,20 @@ def test_fenced_model_json_is_parsed():
     payload = {"verdict": "COMMENT", "findings": []}
     parsed = parse_model_json("```json\n" + json.dumps(payload) + "\n```")
     assert parsed == payload
+
+
+def test_model_output_rejects_unknown_properties():
+    payload = model_payload()
+    payload["explanation"] = "must not be silently dropped"
+    with pytest.raises(ContractError, match="unknown properties: explanation"):
+        validate_model_payload(payload)
+
+
+def test_model_output_rejects_missing_properties():
+    payload = model_payload()
+    del payload["tests_to_run"]
+    with pytest.raises(ContractError, match="missing required properties: tests_to_run"):
+        validate_model_payload(payload)
 
 
 def test_same_root_cause_clusters_across_reviewers():
