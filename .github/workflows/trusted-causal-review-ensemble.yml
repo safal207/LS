@@ -22,7 +22,6 @@ jobs:
       ${{
         github.event.workflow_run.conclusion == 'success'
         && github.event.workflow_run.event == 'pull_request'
-        && github.event.workflow_run.pull_requests[0].number != null
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 42
@@ -31,7 +30,8 @@ jobs:
       REQUEST_DIR: /tmp/causal-review-request
       OUTPUT_DIR: /tmp/causal-review-ensemble
       TARGET_ENV_FILE: /tmp/causal-review-ensemble/target.env
-      EXPECTED_PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+      EXPECTED_SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      EXPECTED_SOURCE_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
       CAUSAL_PROMPT_FILE: .github/prompts/causal-review-v0.1.md
       PATCH_LIMIT_CHARS: "60000"
       XAI_MODEL: grok-4.5
@@ -70,7 +70,8 @@ jobs:
             --input-dir "$REQUEST_DIR" \
             --repository "$GITHUB_REPOSITORY" \
             --source-run-id "${{ github.event.workflow_run.id }}" \
-            --expected-pr-number "$EXPECTED_PR_NUMBER" \
+            --expected-head-sha "$EXPECTED_SOURCE_HEAD_SHA" \
+            --expected-head-branch "$EXPECTED_SOURCE_HEAD_BRANCH" \
             --output "$OUTPUT_DIR/trusted-request.json" \
             --env-file "$TARGET_ENV_FILE" \
             2>&1 | tee "$OUTPUT_DIR/request-verification.txt"
@@ -255,7 +256,8 @@ jobs:
             --input-dir "$REQUEST_DIR" \
             --repository "$GITHUB_REPOSITORY" \
             --source-run-id "${{ github.event.workflow_run.id }}" \
-            --expected-pr-number "$EXPECTED_PR_NUMBER" \
+            --expected-head-sha "$EXPECTED_SOURCE_HEAD_SHA" \
+            --expected-head-branch "$EXPECTED_SOURCE_HEAD_BRANCH" \
             --output "$OUTPUT_DIR/final-trusted-request.json" \
             --env-file "$OUTPUT_DIR/final-target.env" \
             2>&1 | tee "$OUTPUT_DIR/final-verification.txt"
