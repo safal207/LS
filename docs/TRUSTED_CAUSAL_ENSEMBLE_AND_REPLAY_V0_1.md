@@ -3,13 +3,17 @@
 ## Goal
 
 The first causal pilots proved the exact collector and reporting pipeline, but reviewer execution
-was unreliable when it depended on comments and a second `workflow_run` payload. The current design
-uses separate trust paths for same-repository and fork pull requests.
+was unreliable when it depended on comments and a second `workflow_run` payload. A first direct
+`pull_request` attempt executed successfully but exposed a critical boundary: a same-repository PR
+could edit the workflow definition that received model secrets.
+
+The corrected design uses a protected base-branch workflow for trusted same-repository review and a
+separate secret-free path for forks.
 
 ```text
-same-repository pull_request
-  → trusted default-branch workflow and tooling
-  → exact patch collection
+trusted same-repository pull_request_target
+  → workflow definition and tools from protected main
+  → exact patch collection through GitHub API
   → PR number + head SHA + branch + patch-byte verification
   → blind Grok, DeepSeek, and Codex causal lanes
   → observer adapters
@@ -22,19 +26,25 @@ fork pull_request
   → no repository model secrets
 ```
 
-## Same-repository trusted workflow
+## Protected same-repository workflow
 
 [`.github/workflows/trusted-causal-review-same-repo.yml`](../.github/workflows/trusted-causal-review-same-repo.yml)
-runs on open, synchronized, reopened, or ready-for-review non-draft pull requests targeting
-`main` when the head repository equals the current repository.
+runs through `pull_request_target` for open, synchronized, reopened, or ready-for-review non-draft
+pull requests targeting `main` only when:
 
-The workflow explicitly checks out the repository default branch with persisted credentials
-disabled. It never checks out the target PR head. Before reading model credentials it:
+- the head repository equals the current repository; and
+- the PR author association is `OWNER`, `MEMBER`, or `COLLABORATOR`.
+
+`pull_request_target` loads the workflow from the protected base/default branch. The workflow also
+explicitly checks out the default branch with persisted credentials disabled. It never checks out
+the target PR head.
+
+Before reading model credentials it:
 
 1. collects the current PR through GitHub API;
 2. persists the exact patch bytes and SHA-256;
 3. records CodeRabbit and Qodo source bundles;
-4. requires the artifact PR number to equal the pull-request event number;
+4. requires the artifact PR number to equal the event PR number;
 5. requires the artifact and current PR head to equal the event head SHA;
 6. requires the current PR branch to equal the event head branch;
 7. requires a same-repository head;
@@ -46,8 +56,21 @@ Only after this verification does the workflow inspect `XAI_API_KEY`, `DEEPSEEK_
 The exact verification is repeated after all model calls. A force-push, branch move, closed PR,
 draft transition, or patch change prevents report publication.
 
-The workflow never executes, imports, installs, builds, or tests target-PR code while model secrets
-are available. All executable review tooling comes from the default branch.
+The workflow never executes, imports, installs, builds, sources, or tests target-PR code while
+model secrets are available. All executable review tooling comes from the protected default branch;
+the PR patch is processed only as untrusted data.
+
+## Why ordinary `pull_request` is forbidden here
+
+A workflow triggered by ordinary `pull_request` may use the PR's proposed workflow definition. A
+same-repository collaborator could therefore modify a secret-bearing reviewer workflow and
+exfiltrate model credentials even when a later checkout step selects `main`.
+
+This failure was reproduced by the first direct ensemble proof: Grok completed successfully and
+raised a critical finding against the workflow trigger itself. The fix moves the workflow
+definition boundary to protected `main` and adds deterministic tests that require
+`pull_request_target`, default-branch checkout, trusted association, and absence of target-code
+execution commands.
 
 ## Fork workflow
 
@@ -67,15 +90,16 @@ The previous `pull_request → artifact → workflow_run` bridge was removed. It
 revalidation but operationally brittle because optional `workflow_run` PR metadata could be empty,
 causing trusted review to skip before credential detection.
 
-The direct same-repository workflow preserves the important security properties without requiring
-cross-run target reconstruction:
+The protected direct workflow preserves the important security properties without cross-run target
+reconstruction:
 
-- trusted default-branch code;
-- same-repository authorization;
+- protected base-branch workflow definition and tooling;
+- same-repository and trusted-author authorization;
 - event PR/head/branch binding;
 - current GitHub API revalidation;
 - persisted and freshly fetched patch-byte equality;
-- pre-call and post-call verification.
+- pre-call and post-call verification;
+- no target-code execution.
 
 ## Native causal reviewers
 
@@ -180,7 +204,8 @@ product-level claim still requires representative target selection and published
 This design does not:
 
 - execute untrusted PR code with secrets;
-- grant native model secrets to fork PRs;
+- grant native model secrets to fork PRs or untrusted author associations;
+- load a secret-bearing workflow definition from the PR branch;
 - trust an artifact without current GitHub API revalidation;
 - infer semantic dedupe across reviewers;
 - count missing reviewers as zero findings;
