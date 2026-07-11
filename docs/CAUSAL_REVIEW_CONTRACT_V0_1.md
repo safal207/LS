@@ -73,6 +73,16 @@ Reviewer agents must run blind. They may share:
 They must not see another reviewer's findings before producing their own causal artifact. This
 prevents anchoring and false consensus.
 
+## Exact patch boundary
+
+Before a model call, the runner recomputes the SHA-256 of the patch bytes and compares it with the
+wrapper-owned `target.patch_sha256`. A mismatch fails closed.
+
+The causal lane must not publish a `COMPLETED` verdict for partial patch coverage. When the patch
+exceeds the configured context/cost boundary, the runner emits `DIAGNOSTIC` with no verdict and no
+findings. Future chunking must bind every chunk and an aggregate coverage manifest to the same
+exact target before a complete verdict is allowed.
+
 ## Root-cause clustering
 
 LS clusters only findings with the same explicit `dedupe_key`. The key represents the root cause
@@ -85,6 +95,16 @@ ci.force-push.exact-head-binding
 api.retry.idempotency-boundary
 auth.role-check.missing-server-enforcement
 ```
+
+One clustering batch must share the same:
+
+- repository;
+- PR number;
+- exact head SHA;
+- patch SHA-256.
+
+This prevents similarly named root causes from different commits or repositories from becoming
+false corroboration.
 
 Consequences:
 
@@ -106,8 +126,8 @@ the causal links.
 | `FAILED` | no | no |
 | `DIAGNOSTIC` | no | no |
 
-This preserves the LS v0.1 rule that green orchestration cannot launder an unexecuted reviewer
-lane into positive evidence.
+This preserves the LS v0.1 rule that green orchestration cannot launder an unexecuted reviewer,
+partial patch, or invalid provenance lane into positive evidence.
 
 ## Measuring noise
 
@@ -142,7 +162,8 @@ and causal review on the same frozen PR heads.
 
 - deterministic schema, validator, renderer, and clusterer;
 - independent Grok causal lane;
-- exact-head and patch-digest binding;
+- exact-head and exact-patch binding;
+- fail-closed behavior for partial patch coverage;
 - opt-in execution through `/grok-causal-review` or workflow dispatch;
 - separate artifact and comment marker, so flat and causal outputs can be compared.
 
