@@ -42,7 +42,7 @@ def test_label_workflow_is_loaded_from_protected_base_context():
     assert "ref: refs/heads/main" in text
     assert "persist-credentials: false" in text
     assert "ref: ${{ github.event.pull_request.head.sha }}" not in text
-    assert "NEVER checks out" in text
+    assert "Never checks out" in text
 
 
 def test_privileged_workflow_structure_keeps_secrets_after_verification():
