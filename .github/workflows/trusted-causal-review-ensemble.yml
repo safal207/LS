@@ -25,7 +25,7 @@ jobs:
         && github.event.workflow_run.pull_requests[0].number != null
       }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 42
 
     env:
       REQUEST_DIR: /tmp/causal-review-request
@@ -37,6 +37,9 @@ jobs:
       XAI_MODEL: grok-4.5
       DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-reasoner' }}
       DEEPSEEK_API_URL: ${{ vars.DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions' }}
+      CODEX_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-terra' }}
+      CODEX_MAX_OUTPUT_TOKENS: ${{ vars.CODEX_MAX_OUTPUT_TOKENS || '12000' }}
+      OPENAI_RESPONSES_API_URL: ${{ vars.OPENAI_RESPONSES_API_URL || 'https://api.openai.com/v1/responses' }}
 
     steps:
       - name: Check out trusted ensemble implementation
@@ -90,6 +93,7 @@ jobs:
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         shell: bash
         run: |
           if [[ -n "$XAI_API_KEY" ]]; then
@@ -101,6 +105,11 @@ jobs:
             echo "deepseek=true" >> "$GITHUB_OUTPUT"
           else
             echo "deepseek=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ -n "$OPENAI_API_KEY" ]]; then
+            echo "codex=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "codex=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run trusted Grok causal lane
@@ -167,6 +176,37 @@ jobs:
             --provenance UNVERIFIED \
             --details "Repository secret DEEPSEEK_API_KEY is unavailable. No DeepSeek model call was made."
 
+      - name: Run trusted Codex causal lane
+        if: ${{ steps.request.outcome == 'success' && steps.credentials.outputs.codex == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 12
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REVIEW_JSON_FILE: ${{ env.OUTPUT_DIR }}/codex-review.json
+          REVIEW_MD_FILE: ${{ env.OUTPUT_DIR }}/codex-review.md
+          RAW_RESPONSE_FILE: ${{ env.OUTPUT_DIR }}/codex-response.raw.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          python tools/codex_causal_review.py review
+
+      - name: Record Codex NOT_RUN lane
+        if: ${{ steps.request.outcome == 'success' && steps.credentials.outputs.codex != 'true' }}
+        env:
+          REVIEW_JSON_FILE: ${{ env.OUTPUT_DIR }}/codex-review.json
+          REVIEW_MD_FILE: ${{ env.OUTPUT_DIR }}/codex-review.md
+          RAW_RESPONSE_FILE: ${{ env.OUTPUT_DIR }}/codex-response.raw.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          : > "$RAW_RESPONSE_FILE"
+          python tools/codex_causal_review.py diagnostic \
+            --status NOT_RUN \
+            --provenance UNVERIFIED \
+            --details "Repository secret OPENAI_API_KEY is unavailable. No Codex model call was made."
+
       - name: Ensure native reviewer artifacts exist
         if: ${{ always() && steps.request.outcome == 'success' }}
         shell: bash
@@ -191,6 +231,15 @@ jobs:
             python tools/deepseek_causal_review.py diagnostic \
               --status FAILED --provenance UNVERIFIED \
               --details "DeepSeek runner ended without a validated artifact."
+          fi
+          if [[ ! -s "$OUTPUT_DIR/codex-review.json" ]]; then
+            export REVIEW_JSON_FILE="$OUTPUT_DIR/codex-review.json"
+            export REVIEW_MD_FILE="$OUTPUT_DIR/codex-review.md"
+            export RAW_RESPONSE_FILE="$OUTPUT_DIR/codex-response.raw.json"
+            : > "$RAW_RESPONSE_FILE"
+            python tools/codex_causal_review.py diagnostic \
+              --status FAILED --provenance UNVERIFIED \
+              --details "Codex runner ended without a validated artifact."
           fi
 
       - name: Reverify exact head after model calls
@@ -222,11 +271,13 @@ jobs:
               "$REQUEST_DIR/qodo-bundle.json" \
               "$OUTPUT_DIR/grok-review.json" \
               "$OUTPUT_DIR/deepseek-lane.json" \
+              "$OUTPUT_DIR/codex-review.json" \
             --reviews \
               "$OUTPUT_DIR/coderabbit-review.json" \
               "$OUTPUT_DIR/qodo-review.json" \
               "$OUTPUT_DIR/grok-review.json" \
               "$OUTPUT_DIR/deepseek-review.json" \
+              "$OUTPUT_DIR/codex-review.json" \
             --measurement-class ENSEMBLE \
             --output "$OUTPUT_DIR/ensemble-report.json"
 
