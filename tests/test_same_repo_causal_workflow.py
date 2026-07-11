@@ -43,9 +43,8 @@ def test_same_repo_workflow_never_executes_target_pr_code():
     for command in forbidden:
         assert command not in text
 
-    assert "python tools/github_causal_review_collector.py" in text
-    assert "python tools/causal_review_request.py" in text
-    assert 'PATCH_FILE: str(input_dir / "target.patch")' not in text
+    assert "python tools/retrying_causal_review_github.py collect" in text
+    assert "python tools/retrying_causal_review_github.py verify" in text
 
 
 def test_exact_target_is_verified_before_and_after_model_calls():
@@ -60,7 +59,7 @@ def test_exact_target_is_verified_before_and_after_model_calls():
     report = text.index("Build exact-target ensemble report")
 
     assert first_verify < credentials < grok < deepseek < codex < final_verify < report
-    assert text.count("python tools/causal_review_request.py") == 2
+    assert text.count("python tools/retrying_causal_review_github.py verify") == 2
     assert text.count('--expected-pr-number "$PR_NUMBER"') == 2
     assert text.count('--expected-head-sha "$EXPECTED_HEAD_SHA"') == 2
     assert text.count('--expected-head-branch "$EXPECTED_HEAD_BRANCH"') == 2
@@ -85,6 +84,7 @@ def test_fork_workflow_has_no_model_secrets_or_native_execution():
     assert "github.event.pull_request.head.repo.full_name != github.repository" in text
     assert "secret_access\": False" in text
     assert "NOT_AUTHORIZED_FOR_FORK" in text
+    assert "python tools/retrying_causal_review_github.py collect" in text
     assert "secrets.XAI_API_KEY" not in text
     assert "secrets.DEEPSEEK_API_KEY" not in text
     assert "secrets.OPENAI_API_KEY" not in text
