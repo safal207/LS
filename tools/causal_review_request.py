@@ -120,7 +120,7 @@ def verify_collection(
     expected_head_branch: str | None = None,
     require_same_repository_head: bool = True,
 ) -> dict[str, Any]:
-    """Verify exact bytes, triggering workflow head, and current GitHub state."""
+    """Verify exact bytes, triggering context, and current GitHub state."""
     manifest = _read_json(input_dir / "collection-manifest.json", "collection manifest")
     if manifest.get("schema_version") != "ls.github-causal-review-collection.v0.1":
         raise RequestError("unsupported collection manifest schema_version")
@@ -132,7 +132,7 @@ def verify_collection(
     if expected_pr_number is not None and target["pr_number"] != expected_pr_number:
         raise RequestError(
             f"triggering PR mismatch: artifact targets #{target['pr_number']}, "
-            f"workflow_run belongs to #{expected_pr_number}"
+            f"trigger context belongs to #{expected_pr_number}"
         )
     normalized_expected_head = (
         None
@@ -141,8 +141,8 @@ def verify_collection(
     )
     if normalized_expected_head is not None and target["head_sha"] != normalized_expected_head:
         raise RequestError(
-            "workflow_run head mismatch: artifact targets "
-            f"{target['head_sha']}, workflow_run head is {normalized_expected_head}"
+            "trigger context head mismatch: artifact targets "
+            f"{target['head_sha']}, expected head is {normalized_expected_head}"
         )
     normalized_expected_branch = (
         None
@@ -183,8 +183,8 @@ def verify_collection(
         )
     if normalized_expected_branch is not None and head_branch != normalized_expected_branch:
         raise RequestError(
-            f"workflow_run branch mismatch: PR head is {head_branch}, "
-            f"workflow_run head branch is {normalized_expected_branch}"
+            f"trigger context branch mismatch: PR head is {head_branch}, "
+            f"expected branch is {normalized_expected_branch}"
         )
     if current_sha != target["head_sha"]:
         raise RequestError(
@@ -192,7 +192,7 @@ def verify_collection(
         )
     if normalized_expected_head is not None and current_sha != normalized_expected_head:
         raise RequestError(
-            f"current PR head {current_sha} does not match workflow_run head "
+            f"current PR head {current_sha} does not match expected trigger head "
             f"{normalized_expected_head}"
         )
 
