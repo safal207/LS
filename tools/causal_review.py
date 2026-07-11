@@ -295,6 +295,21 @@ def validate_review(payload: Mapping[str, Any]) -> dict[str, Any]:
 def cluster_reviews(payloads: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     """Cluster evidence-bound findings by explicit root-cause dedupe key."""
     reviews = [validate_review(payload) for payload in payloads]
+    target_identities = {
+        (
+            review["target"]["repository"],
+            review["target"]["pr_number"],
+            review["target"]["head_sha"],
+            review["target"]["patch_sha256"],
+        )
+        for review in reviews
+    }
+    if len(target_identities) > 1:
+        raise ContractError(
+            "all reviews in one clustering batch must share repository, "
+            "PR number, exact head SHA, and patch digest"
+        )
+
     clusters: dict[str, dict[str, Any]] = {}
 
     for review in reviews:
@@ -354,6 +369,7 @@ def cluster_reviews(payloads: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
 
     return {
         "schema_version": "ls.causal-review-clusters.v0.1",
+        "target": reviews[0]["target"] if reviews else None,
         "review_count": len(reviews),
         "completed_review_count": sum(
             review["execution"]["status"] == "COMPLETED" for review in reviews
