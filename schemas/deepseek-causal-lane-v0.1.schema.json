@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/deepseek-causal-lane-v0.1.schema.json",
+  "title": "LS DeepSeek Causal Lane v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "target",
+    "model",
+    "execution",
+    "findings",
+    "dedupe_overrides",
+    "tests_to_run",
+    "human_decision_points"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ls.deepseek-causal-lane.v0.1"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "pr_number", "head_sha", "patch_sha256"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 3},
+        "pr_number": {"type": "integer", "minimum": 1},
+        "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "patch_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested", "provider"],
+      "properties": {
+        "requested": {"type": "string", "minLength": 1},
+        "provider": {
+          "anyOf": [
+            {"type": "string", "minLength": 1},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "provenance", "details"],
+      "properties": {
+        "status": {
+          "enum": ["COMPLETED", "NOT_RUN", "FAILED", "DIAGNOSTIC"]
+        },
+        "provenance": {
+          "enum": ["MATCHED", "MISSING", "MISMATCH", "UNVERIFIED"]
+        },
+        "details": {"type": "string"}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id",
+          "severity",
+          "title",
+          "location",
+          "causal_chain",
+          "evidence",
+          "confidence",
+          "reproduction",
+          "recommendation"
+        ],
+        "properties": {
+          "source_id": {"type": "string", "minLength": 1},
+          "severity": {
+            "enum": ["info", "low", "medium", "high", "critical"]
+          },
+          "title": {"type": "string", "minLength": 1},
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "line"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "line": {
+                "anyOf": [
+                  {"type": "integer", "minimum": 1},
+                  {"type": "null"}
+                ]
+              }
+            }
+          },
+          "causal_chain": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "change",
+              "root_cause",
+              "failure_mechanism",
+              "observable_effect",
+              "impact"
+            ],
+            "properties": {
+              "change": {"type": "string", "minLength": 1},
+              "root_cause": {"type": "string", "minLength": 1},
+              "failure_mechanism": {"type": "string", "minLength": 1},
+              "observable_effect": {"type": "string", "minLength": 1},
+              "impact": {"type": "string", "minLength": 1}
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "reference", "excerpt"],
+              "properties": {
+                "type": {
+                  "enum": ["patch", "test", "workflow", "spec", "runtime", "other"]
+                },
+                "reference": {"type": "string", "minLength": 1},
+                "excerpt": {"type": "string"}
+              }
+            }
+          },
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+          "reproduction": {"type": "string"},
+          "recommendation": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "dedupe_overrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(?!external\\.)[a-z0-9][a-z0-9._:/-]{2,127}$"
+      }
+    },
+    "tests_to_run": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "human_decision_points": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution": {
+            "properties": {"status": {"const": "COMPLETED"}},
+            "required": ["status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {"provenance": {"const": "MATCHED"}}
+          },
+          "model": {
+            "properties": {"provider": {"type": "string", "minLength": 1}}
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "findings": {"maxItems": 0}
+        }
+      }
+    }
+  ]
+}
