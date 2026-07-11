@@ -15,7 +15,7 @@ sentence-transformers>=2.2.2
 # CI runners do not have enough disk for CUDA-enabled PyTorch wheels.
 # Keep the default install CPU-only; GPU builds should be opt-in in a separate profile.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.10.0+cpu
+torch==2.13.0+cpu
 cryptography>=46.0.7
 Pillow>=12.2.0
 
