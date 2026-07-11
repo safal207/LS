@@ -10,7 +10,7 @@ on:
       - "schemas/causal-review-v0.1.schema.json"
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
-      - "tests/test_causal_review_contract.py"
+      - "tests/test_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
   push:
     branches: [main]
@@ -21,7 +21,7 @@ on:
       - "schemas/causal-review-v0.1.schema.json"
       - "tools/causal_review.py"
       - "tools/grok_causal_review.py"
-      - "tests/test_causal_review_contract.py"
+      - "tests/test_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
 
 permissions:
@@ -54,6 +54,7 @@ jobs:
           PYTHONPATH=.
           python -m pytest
           tests/test_causal_review_contract.py
+          tests/test_causal_review_patch_bytes.py
           -q
 
       - name: Check command-line interfaces
