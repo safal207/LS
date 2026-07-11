@@ -7,7 +7,7 @@ on:
       - ".github/workflows/grok-causal-pr-review.yml"
       - ".github/workflows/causal-review-pilot.yml"
       - ".github/workflows/causal-review-collect.yml"
-      - ".github/workflows/trusted-causal-review-same-repo.yml"
+      - ".github/workflows/trusted-causal-review-label.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
@@ -24,6 +24,7 @@ on:
       - "tools/deepseek_causal_review_adapter.py"
       - "tools/causal_review_pilot.py"
       - "tools/historical_causal_replay.py"
+      - "tools/run_native_causal_reviewers.sh"
       - "tests/test_causal_review*.py"
       - "tests/test_same_repo_causal_workflow.py"
       - "tests/test_retrying_causal_review_github.py"
@@ -43,7 +44,7 @@ on:
       - ".github/workflows/grok-causal-pr-review.yml"
       - ".github/workflows/causal-review-pilot.yml"
       - ".github/workflows/causal-review-collect.yml"
-      - ".github/workflows/trusted-causal-review-same-repo.yml"
+      - ".github/workflows/trusted-causal-review-label.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
@@ -60,6 +61,7 @@ on:
       - "tools/deepseek_causal_review_adapter.py"
       - "tools/causal_review_pilot.py"
       - "tools/historical_causal_replay.py"
+      - "tools/run_native_causal_reviewers.sh"
       - "tests/test_causal_review*.py"
       - "tests/test_same_repo_causal_workflow.py"
       - "tests/test_retrying_causal_review_github.py"
@@ -103,8 +105,11 @@ jobs:
         run: >-
           ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path) }'
           .github/workflows/causal-review-collect.yml
-          .github/workflows/trusted-causal-review-same-repo.yml
+          .github/workflows/trusted-causal-review-label.yml
           .github/workflows/causal-review-contract.yml
+
+      - name: Parse trusted shell runner
+        run: bash -n tools/run_native_causal_reviewers.sh
 
       - name: Compile causal-review tooling
         run: >-
