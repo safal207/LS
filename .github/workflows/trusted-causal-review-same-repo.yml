@@ -1,37 +1,46 @@
-name: Trusted Causal Review Ensemble
+# SECURITY BOUNDARY:
+# - This workflow intentionally uses pull_request_target so its definition comes from protected main.
+# - NEVER check out the pull request head, run pull request code, install its dependencies, or use
+#   an action supplied by the pull request while repository model secrets are available.
+# - The pull request patch is untrusted data and may be read only through the verified GitHub API path.
+name: Trusted Causal Review — Same Repository
 
 on:
-  workflow_run:
-    workflows: ["Causal Review Collect"]
-    types: [completed]
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  actions: read
   contents: read
   pull-requests: read
   issues: write
 
 concurrency:
-  group: trusted-causal-ensemble-${{ github.event.workflow_run.id }}
-  cancel-in-progress: false
+  group: trusted-causal-same-repo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   ensemble:
-    name: Verify and run trusted causal reviewers
+    name: Verify and run same-repo causal reviewers
     if: >-
       ${{
-        github.event.workflow_run.conclusion == 'success'
-        && github.event.workflow_run.event == 'pull_request'
+        github.event.pull_request.draft == false
+        && github.event.pull_request.head.repo.full_name == github.repository
+        && contains(
+          fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+          github.event.pull_request.author_association
+        )
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 42
 
     env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      EXPECTED_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
       REQUEST_DIR: /tmp/causal-review-request
       OUTPUT_DIR: /tmp/causal-review-ensemble
       TARGET_ENV_FILE: /tmp/causal-review-ensemble/target.env
-      EXPECTED_SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-      EXPECTED_SOURCE_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
       CAUSAL_PROMPT_FILE: .github/prompts/causal-review-v0.1.md
       PATCH_LIMIT_CHARS: "60000"
       XAI_MODEL: grok-4.5
@@ -42,22 +51,25 @@ jobs:
       OPENAI_RESPONSES_API_URL: ${{ vars.OPENAI_RESPONSES_API_URL || 'https://api.openai.com/v1/responses' }}
 
     steps:
-      - name: Check out trusted ensemble implementation
+      - name: Check out protected main implementation
         uses: actions/checkout@v4
         with:
-          ref: refs/heads/${{ github.event.repository.default_branch }}
+          ref: refs/heads/main
           persist-credentials: false
 
-      - name: Download unprivileged collection artifact
-        uses: actions/download-artifact@v4
-        with:
-          pattern: causal-review-request-pr-*
-          path: ${{ env.REQUEST_DIR }}
-          merge-multiple: true
-          github-token: ${{ github.token }}
-          run-id: ${{ github.event.workflow_run.id }}
+      - name: Collect exact patch and observer evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REQUEST_DIR" "$OUTPUT_DIR"
+          python tools/retrying_causal_review_github.py collect \
+            --repository "$GITHUB_REPOSITORY" \
+            --pr-number "$PR_NUMBER" \
+            --output-dir "$REQUEST_DIR"
 
-      - name: Verify request across the secret boundary
+      - name: Verify exact target before credentials
         id: request
         continue-on-error: true
         env:
@@ -65,13 +77,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$OUTPUT_DIR"
-          python tools/causal_review_request.py \
+          python tools/retrying_causal_review_github.py verify \
             --input-dir "$REQUEST_DIR" \
             --repository "$GITHUB_REPOSITORY" \
-            --source-run-id "${{ github.event.workflow_run.id }}" \
-            --expected-head-sha "$EXPECTED_SOURCE_HEAD_SHA" \
-            --expected-head-branch "$EXPECTED_SOURCE_HEAD_BRANCH" \
+            --source-run-id "$GITHUB_RUN_ID" \
+            --expected-pr-number "$PR_NUMBER" \
+            --expected-head-sha "$EXPECTED_HEAD_SHA" \
+            --expected-head-branch "$EXPECTED_HEAD_BRANCH" \
             --output "$OUTPUT_DIR/trusted-request.json" \
             --env-file "$TARGET_ENV_FILE" \
             2>&1 | tee "$OUTPUT_DIR/request-verification.txt"
@@ -252,12 +264,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python tools/causal_review_request.py \
+          python tools/retrying_causal_review_github.py verify \
             --input-dir "$REQUEST_DIR" \
             --repository "$GITHUB_REPOSITORY" \
-            --source-run-id "${{ github.event.workflow_run.id }}" \
-            --expected-head-sha "$EXPECTED_SOURCE_HEAD_SHA" \
-            --expected-head-branch "$EXPECTED_SOURCE_HEAD_BRANCH" \
+            --source-run-id "$GITHUB_RUN_ID" \
+            --expected-pr-number "$PR_NUMBER" \
+            --expected-head-sha "$EXPECTED_HEAD_SHA" \
+            --expected-head-branch "$EXPECTED_HEAD_BRANCH" \
             --output "$OUTPUT_DIR/final-trusted-request.json" \
             --env-file "$OUTPUT_DIR/final-target.env" \
             2>&1 | tee "$OUTPUT_DIR/final-verification.txt"
@@ -283,16 +296,16 @@ jobs:
             --measurement-class ENSEMBLE \
             --output "$OUTPUT_DIR/ensemble-report.json"
 
-      - name: Upload trusted ensemble evidence
+      - name: Upload exact ensemble evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: trusted-causal-ensemble-run-${{ github.run_id }}
+          name: trusted-causal-same-repo-pr-${{ env.PR_NUMBER }}-${{ env.EXPECTED_HEAD_SHA }}
           path: |
             ${{ env.REQUEST_DIR }}
             ${{ env.OUTPUT_DIR }}
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Publish trusted ensemble comment
         if: ${{ always() }}
@@ -300,32 +313,35 @@ jobs:
         uses: actions/github-script@v7
         env:
           OUTPUT_DIR: ${{ env.OUTPUT_DIR }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
         with:
           script: |
             const fs = require('fs');
             const marker = '<!-- trusted-causal-review-ensemble -->';
             const requestPath = `${process.env.OUTPUT_DIR}/trusted-request.json`;
             const reportPath = `${process.env.OUTPUT_DIR}/ensemble-report.json`;
-            if (!fs.existsSync(requestPath)) {
-              core.notice('Trusted request was not established; no target comment can be published.');
-              return;
-            }
-            const request = JSON.parse(fs.readFileSync(requestPath, 'utf8'));
-            const target = request.target;
-            const [owner, repo] = target.repository.split('/');
-            const issue_number = Number(target.pr_number);
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            const issue_number = Number(process.env.PR_NUMBER);
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+
             let body;
-            if (!fs.existsSync(reportPath)) {
-              body = `${marker}\n## 🧭 Trusted causal ensemble — STALE/FAILED\n\nThe request crossed the initial trust boundary, but the final exact-head verification or report build failed. No model findings are valid for publication.\n\n- Reviewed head: \`${target.head_sha}\`\n- Patch: \`${target.patch_sha256}\`\n- Workflow run: ${runUrl}`;
+            if (!fs.existsSync(requestPath)) {
+              body = `${marker}\n## 🧭 Trusted causal ensemble — REJECTED\n\nThe exact target could not be verified before credentials. No model result is valid.\n\n- Workflow run: ${runUrl}`;
             } else {
-              const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-              const rate = value => value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`;
-              const incomplete = report.incomplete_lanes.length
-                ? report.incomplete_lanes.map(lane => `- \`${lane.provider}\`: ${lane.status} / ${lane.provenance}`).join('\n')
-                : '_None_';
-              body = `${marker}\n## 🧭 Trusted causal ensemble — PROVISIONAL\n\n- Exact head: \`${target.head_sha}\`\n- Patch: \`${target.patch_sha256}\`\n- Raw findings: **${report.raw_finding_count}**\n- Evidence-bound findings: **${report.evidence_bound_count}**\n- Root-cause clusters: **${report.root_cause_cluster_count}**\n- Corroborated clusters: **${report.corroborated_cluster_count}**\n- Human adjudication items: **${report.adjudication_item_count}**\n- Provisional queue reduction: **${rate(report.human_queue_reduction)}**\n\n### Incomplete lanes\n${incomplete}\n\n⚠️ Advisory only. Human adjudication is pending; this ensemble cannot approve, block, or merge.\n\n- Workflow run: ${runUrl}`;
+              const request = JSON.parse(fs.readFileSync(requestPath, 'utf8'));
+              const target = request.target;
+              if (!fs.existsSync(reportPath)) {
+                body = `${marker}\n## 🧭 Trusted causal ensemble — STALE/FAILED\n\nInitial verification passed, but final exact-head verification or report construction failed. No model finding is valid for publication.\n\n- Exact head: \`${target.head_sha}\`\n- Patch: \`${target.patch_sha256}\`\n- Workflow run: ${runUrl}`;
+              } else {
+                const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+                const rate = value => value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`;
+                const incomplete = report.incomplete_lanes.length
+                  ? report.incomplete_lanes.map(lane => `- \`${lane.provider}\`: ${lane.status} / ${lane.provenance}`).join('\n')
+                  : '_None_';
+                body = `${marker}\n## 🧭 Trusted causal ensemble — PROVISIONAL\n\n- Exact head: \`${target.head_sha}\`\n- Patch: \`${target.patch_sha256}\`\n- Raw findings: **${report.raw_finding_count}**\n- Evidence-bound findings: **${report.evidence_bound_count}**\n- Root-cause clusters: **${report.root_cause_cluster_count}**\n- Corroborated clusters: **${report.corroborated_cluster_count}**\n- Human adjudication items: **${report.adjudication_item_count}**\n- Provisional queue reduction: **${rate(report.human_queue_reduction)}**\n\n### Incomplete lanes\n${incomplete}\n\n⚠️ Advisory only. Human adjudication is pending; this ensemble cannot approve, block, or merge.\n\n- Workflow run: ${runUrl}`;
+              }
             }
+
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number, per_page: 100,
             });
@@ -338,4 +354,50 @@ jobs:
               });
             } else {
               await github.rest.issues.createComment({owner, repo, issue_number, body});
+            }
+
+  report-untrusted-same-repo:
+    name: Explain skipped untrusted same-repo review
+    if: >-
+      ${{
+        github.event.pull_request.draft == false
+        && github.event.pull_request.head.repo.full_name == github.repository
+        && !contains(
+          fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+          github.event.pull_request.author_association
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish explicit skip reason
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- trusted-causal-review-skipped -->';
+            const association = context.payload.pull_request?.author_association || 'UNKNOWN';
+            const body = `${marker}\n## 🧭 Trusted causal ensemble — NOT AUTHORIZED\n\nThis same-repository PR was not granted model-secret access because its author association is \`${association}\`. No Grok, DeepSeek, or Codex API call was made. Fork-style observer collection is not used for same-repository branches.\n\nA repository owner, member, or collaborator must intentionally reproduce the change on an authorized branch to run native reviewers.`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
             }

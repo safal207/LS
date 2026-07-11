@@ -19,7 +19,7 @@ Implementation:
 
 - [`tools/codex_causal_review.py`](../tools/codex_causal_review.py)
 - [`tests/test_codex_causal_review.py`](../tests/test_codex_causal_review.py)
-- [`.github/workflows/trusted-causal-review-ensemble.yml`](../.github/workflows/trusted-causal-review-ensemble.yml)
+- [`.github/workflows/trusted-causal-review-same-repo.yml`](../.github/workflows/trusted-causal-review-same-repo.yml)
 
 ## Configuration
 
@@ -42,20 +42,34 @@ Responses API model, such as `gpt-5.6-sol`, without changing trusted workflow co
 
 ## Trust boundary
 
-Codex runs only after `tools/causal_review_request.py` has:
+Codex runs from a `pull_request_target` workflow loaded from protected `main`, not from the PR's
+proposed workflow definition. The job additionally requires:
 
-- bound the artifact to the PR carried by `workflow_run`;
-- rejected fork PRs by default;
-- checked open and non-draft state;
-- matched exact head SHA;
-- recomputed the persisted patch SHA-256;
-- re-fetched the current patch and required byte-for-byte equality.
+- a non-draft PR targeting `main`;
+- a head repository equal to the current repository;
+- author association `OWNER`, `MEMBER`, or `COLLABORATOR`.
 
-The runner checks only default-branch tooling and the frozen patch data. It does not check out,
-execute, import, install, or test target-PR code while `OPENAI_API_KEY` is available.
+The workflow explicitly checks out default-branch tooling with persisted credentials disabled and
+never checks out the target PR head.
 
-The exact-head verifier runs again after all native model calls. A force-push prevents ensemble
-report publication.
+Before reading `OPENAI_API_KEY`, `tools/causal_review_request.py` requires:
+
+- artifact PR number equal to the pull-request event number;
+- artifact and current PR head equal to the event head SHA;
+- current PR branch equal to the event head branch;
+- same-repository head provenance;
+- open and non-draft PR state;
+- persisted patch SHA-256 and byte count;
+- freshly fetched GitHub patch with byte-for-byte equality;
+- matching CodeRabbit and Qodo bundle targets.
+
+The runner reads only protected default-branch tooling and frozen patch data. It does not check out,
+execute, import, install, build, source, or test target-PR code while `OPENAI_API_KEY` is available.
+
+The exact verifier runs again after all native model calls. A force-push or branch move prevents
+ensemble report publication.
+
+Fork PRs use the unprivileged collector only and never receive `OPENAI_API_KEY`.
 
 ## Execution states
 
