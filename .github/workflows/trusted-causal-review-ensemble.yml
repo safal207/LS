@@ -1,0 +1,284 @@
+name: Trusted Causal Review Ensemble
+
+on:
+  workflow_run:
+    workflows: ["Causal Review Collect"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: trusted-causal-ensemble-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  ensemble:
+    name: Verify and run trusted causal reviewers
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success'
+        && github.event.workflow_run.event == 'pull_request'
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      REQUEST_DIR: /tmp/causal-review-request
+      OUTPUT_DIR: /tmp/causal-review-ensemble
+      TARGET_ENV_FILE: /tmp/causal-review-ensemble/target.env
+      CAUSAL_PROMPT_FILE: .github/prompts/causal-review-v0.1.md
+      PATCH_LIMIT_CHARS: "60000"
+      XAI_MODEL: grok-4.5
+      DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-reasoner' }}
+      DEEPSEEK_API_URL: ${{ vars.DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions' }}
+
+    steps:
+      - name: Check out trusted ensemble implementation
+        uses: actions/checkout@v4
+        with:
+          ref: refs/heads/${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Download unprivileged collection artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: causal-review-request-pr-*
+          path: ${{ env.REQUEST_DIR }}
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Verify request across the secret boundary
+        id: request
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUTPUT_DIR"
+          python tools/causal_review_request.py \
+            --input-dir "$REQUEST_DIR" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-run-id "${{ github.event.workflow_run.id }}" \
+            --output "$OUTPUT_DIR/trusted-request.json" \
+            --env-file "$TARGET_ENV_FILE" \
+            2>&1 | tee "$OUTPUT_DIR/request-verification.txt"
+
+      - name: Adapt collected observer lanes
+        if: ${{ steps.request.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/causal_review_adapters.py adapt \
+            "$REQUEST_DIR/coderabbit-bundle.json" \
+            --output "$OUTPUT_DIR/coderabbit-review.json"
+          python tools/causal_review_adapters.py adapt \
+            "$REQUEST_DIR/qodo-bundle.json" \
+            --output "$OUTPUT_DIR/qodo-review.json"
+
+      - name: Resolve native reviewer credentials
+        id: credentials
+        if: ${{ steps.request.outcome == 'success' }}
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        shell: bash
+        run: |
+          if [[ -n "$XAI_API_KEY" ]]; then
+            echo "grok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "grok=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ -n "$DEEPSEEK_API_KEY" ]]; then
+            echo "deepseek=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deepseek=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run trusted Grok causal lane
+        if: ${{ steps.request.outcome == 'success' && steps.credentials.outputs.grok == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          REVIEW_JSON_FILE: ${{ env.OUTPUT_DIR }}/grok-review.json
+          REVIEW_MD_FILE: ${{ env.OUTPUT_DIR }}/grok-review.md
+          RAW_RESPONSE_FILE: ${{ env.OUTPUT_DIR }}/grok-response.raw.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          python tools/grok_causal_review.py review
+
+      - name: Record Grok NOT_RUN lane
+        if: ${{ steps.request.outcome == 'success' && steps.credentials.outputs.grok != 'true' }}
+        env:
+          REVIEW_JSON_FILE: ${{ env.OUTPUT_DIR }}/grok-review.json
+          REVIEW_MD_FILE: ${{ env.OUTPUT_DIR }}/grok-review.md
+          RAW_RESPONSE_FILE: ${{ env.OUTPUT_DIR }}/grok-response.raw.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          : > "$RAW_RESPONSE_FILE"
+          python tools/grok_causal_review.py diagnostic \
+            --status NOT_RUN \
+            --provenance UNVERIFIED \
+            --details "Repository secret XAI_API_KEY is unavailable. No Grok model call was made."
+
+      - name: Run trusted DeepSeek causal lane
+        if: ${{ steps.request.outcome == 'success' && steps.credentials.outputs.deepseek == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_LANE_FILE: ${{ env.OUTPUT_DIR }}/deepseek-lane.json
+          REVIEW_JSON_FILE: ${{ env.OUTPUT_DIR }}/deepseek-review.json
+          REVIEW_MD_FILE: ${{ env.OUTPUT_DIR }}/deepseek-review.md
+          RAW_RESPONSE_FILE: ${{ env.OUTPUT_DIR }}/deepseek-response.raw.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          python tools/deepseek_causal_review.py review
+
+      - name: Record DeepSeek NOT_RUN lane
+        if: ${{ steps.request.outcome == 'success' && steps.credentials.outputs.deepseek != 'true' }}
+        env:
+          DEEPSEEK_LANE_FILE: ${{ env.OUTPUT_DIR }}/deepseek-lane.json
+          REVIEW_JSON_FILE: ${{ env.OUTPUT_DIR }}/deepseek-review.json
+          REVIEW_MD_FILE: ${{ env.OUTPUT_DIR }}/deepseek-review.md
+          RAW_RESPONSE_FILE: ${{ env.OUTPUT_DIR }}/deepseek-response.raw.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          : > "$RAW_RESPONSE_FILE"
+          python tools/deepseek_causal_review.py diagnostic \
+            --status NOT_RUN \
+            --provenance UNVERIFIED \
+            --details "Repository secret DEEPSEEK_API_KEY is unavailable. No DeepSeek model call was made."
+
+      - name: Ensure native reviewer artifacts exist
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          if [[ ! -s "$OUTPUT_DIR/grok-review.json" ]]; then
+            export REVIEW_JSON_FILE="$OUTPUT_DIR/grok-review.json"
+            export REVIEW_MD_FILE="$OUTPUT_DIR/grok-review.md"
+            export RAW_RESPONSE_FILE="$OUTPUT_DIR/grok-response.raw.txt"
+            : > "$RAW_RESPONSE_FILE"
+            python tools/grok_causal_review.py diagnostic \
+              --status FAILED --provenance UNVERIFIED \
+              --details "Grok runner ended without a validated artifact."
+          fi
+          if [[ ! -s "$OUTPUT_DIR/deepseek-review.json" || ! -s "$OUTPUT_DIR/deepseek-lane.json" ]]; then
+            export DEEPSEEK_LANE_FILE="$OUTPUT_DIR/deepseek-lane.json"
+            export REVIEW_JSON_FILE="$OUTPUT_DIR/deepseek-review.json"
+            export REVIEW_MD_FILE="$OUTPUT_DIR/deepseek-review.md"
+            export RAW_RESPONSE_FILE="$OUTPUT_DIR/deepseek-response.raw.txt"
+            : > "$RAW_RESPONSE_FILE"
+            python tools/deepseek_causal_review.py diagnostic \
+              --status FAILED --provenance UNVERIFIED \
+              --details "DeepSeek runner ended without a validated artifact."
+          fi
+
+      - name: Reverify exact head after model calls
+        id: final_request
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/causal_review_request.py \
+            --input-dir "$REQUEST_DIR" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-run-id "${{ github.event.workflow_run.id }}" \
+            --output "$OUTPUT_DIR/final-trusted-request.json" \
+            --env-file "$OUTPUT_DIR/final-target.env" \
+            2>&1 | tee "$OUTPUT_DIR/final-verification.txt"
+
+      - name: Build exact-target ensemble report
+        if: ${{ steps.request.outcome == 'success' && steps.final_request.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/causal_review_pilot.py \
+            --raw \
+              "$REQUEST_DIR/coderabbit-bundle.json" \
+              "$REQUEST_DIR/qodo-bundle.json" \
+              "$OUTPUT_DIR/grok-review.json" \
+              "$OUTPUT_DIR/deepseek-lane.json" \
+            --reviews \
+              "$OUTPUT_DIR/coderabbit-review.json" \
+              "$OUTPUT_DIR/qodo-review.json" \
+              "$OUTPUT_DIR/grok-review.json" \
+              "$OUTPUT_DIR/deepseek-review.json" \
+            --measurement-class ENSEMBLE \
+            --output "$OUTPUT_DIR/ensemble-report.json"
+
+      - name: Upload trusted ensemble evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trusted-causal-ensemble-run-${{ github.run_id }}
+          path: |
+            ${{ env.REQUEST_DIR }}
+            ${{ env.OUTPUT_DIR }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish trusted ensemble comment
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          OUTPUT_DIR: ${{ env.OUTPUT_DIR }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- trusted-causal-review-ensemble -->';
+            const requestPath = `${process.env.OUTPUT_DIR}/trusted-request.json`;
+            const reportPath = `${process.env.OUTPUT_DIR}/ensemble-report.json`;
+            if (!fs.existsSync(requestPath)) {
+              core.notice('Trusted request was not established; no target comment can be published.');
+              return;
+            }
+            const request = JSON.parse(fs.readFileSync(requestPath, 'utf8'));
+            const target = request.target;
+            const [owner, repo] = target.repository.split('/');
+            const issue_number = Number(target.pr_number);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            let body;
+            if (!fs.existsSync(reportPath)) {
+              body = `${marker}\n## 🧭 Trusted causal ensemble — STALE/FAILED\n\nThe request crossed the initial trust boundary, but the final exact-head verification or report build failed. No model findings are valid for publication.\n\n- Reviewed head: \`${target.head_sha}\`\n- Patch: \`${target.patch_sha256}\`\n- Workflow run: ${runUrl}`;
+            } else {
+              const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+              const rate = value => value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`;
+              const incomplete = report.incomplete_lanes.length
+                ? report.incomplete_lanes.map(lane => `- \`${lane.provider}\`: ${lane.status} / ${lane.provenance}`).join('\n')
+                : '_None_';
+              body = `${marker}\n## 🧭 Trusted causal ensemble — PROVISIONAL\n\n- Exact head: \`${target.head_sha}\`\n- Patch: \`${target.patch_sha256}\`\n- Raw findings: **${report.raw_finding_count}**\n- Evidence-bound findings: **${report.evidence_bound_count}**\n- Root-cause clusters: **${report.root_cause_cluster_count}**\n- Corroborated clusters: **${report.corroborated_cluster_count}**\n- Human adjudication items: **${report.adjudication_item_count}**\n- Provisional queue reduction: **${rate(report.human_queue_reduction)}**\n\n### Incomplete lanes\n${incomplete}\n\n⚠️ Advisory only. Human adjudication is pending; this ensemble cannot approve, block, or merge.\n\n- Workflow run: ${runUrl}`;
+            }
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({owner, repo, issue_number, body});
+            }
