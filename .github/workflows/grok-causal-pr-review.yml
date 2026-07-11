@@ -1,23 +1,6 @@
 name: Grok Causal PR Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - ".github/workflows/grok-causal-pr-review.yml"
-      - ".github/workflows/causal-review-contract.yml"
-      - ".github/prompts/causal-review-v0.1.md"
-      - "schemas/causal-review-v0.1.schema.json"
-      - "tools/causal_review.py"
-      - "tools/grok_causal_review.py"
-      - "tests/test_causal_review_contract.py"
-      - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: "Pull request number to review causally"
-        required: true
-        type: number
   issue_comment:
     types: [created]
 
@@ -27,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: grok-causal-pr-review-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || github.run_id }}
+  group: grok-causal-pr-review-${{ github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -37,17 +20,12 @@ jobs:
     timeout-minutes: 20
     if: >-
       ${{
-        github.event_name == 'workflow_dispatch'
-        || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
-        || (
-          github.event_name == 'issue_comment'
-          && github.event.issue.pull_request != null
-          && startsWith(github.event.comment.body, '/grok-causal-review')
-        )
+        github.event.issue.pull_request != null
+        && startsWith(github.event.comment.body, '/grok-causal-review')
       }}
 
     env:
-      PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+      PR_NUMBER: ${{ github.event.issue.number }}
       XAI_MODEL: grok-4.5
       PATCH_LIMIT_CHARS: "60000"
       PATCH_FILE: /tmp/causal-review.patch
@@ -58,46 +36,39 @@ jobs:
       TARGET_ENV_FILE: /tmp/causal-review-target.env
 
     steps:
-      - name: Check out causal-review implementation
+      - name: Check out trusted causal-review implementation
         uses: actions/checkout@v4
+        with:
+          ref: refs/heads/${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
-      - name: Resolve review request
+      - name: Resolve trusted review command
         id: request
         timeout-minutes: 2
         uses: actions/github-script@v7
-        env:
-          PR_NUMBER: ${{ env.PR_NUMBER }}
         with:
           script: |
-            const eventName = context.eventName;
+            const issue = context.payload.issue || {};
+            const comment = context.payload.comment || {};
+            const body = String(comment.body || '').trim();
+            const association = comment.author_association || 'NONE';
+            const trusted = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(association);
             let accepted = true;
             let reason = '';
-            let prNumber = String(process.env.PR_NUMBER || '');
 
-            if (eventName === 'issue_comment') {
-              const issue = context.payload.issue || {};
-              const comment = context.payload.comment || {};
-              const body = String(comment.body || '').trim();
-              const association = comment.author_association || 'NONE';
-              const trusted = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(association);
-              prNumber = String(issue.number || prNumber);
-
-              if (!issue.pull_request) {
-                accepted = false;
-                reason = 'The command was posted on an issue, not a pull request.';
-              } else if (!body.startsWith('/grok-causal-review')) {
-                accepted = false;
-                reason = 'The comment is not a /grok-causal-review command.';
-              } else if (!trusted) {
-                accepted = false;
-                reason = `Untrusted command author. author_association=${association}`;
-              }
+            if (!issue.pull_request) {
+              accepted = false;
+              reason = 'The command was posted on an issue, not a pull request.';
+            } else if (!body.startsWith('/grok-causal-review')) {
+              accepted = false;
+              reason = 'The comment is not a /grok-causal-review command.';
+            } else if (!trusted) {
+              accepted = false;
+              reason = `Untrusted command author. author_association=${association}`;
             }
 
             core.setOutput('accepted', String(accepted));
-            core.setOutput('pr_number', prNumber);
             core.setOutput('reason', reason);
-
             if (!accepted) {
               core.notice(`Causal review request ignored: ${reason}`);
             }
@@ -108,7 +79,6 @@ jobs:
         timeout-minutes: 4
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
         shell: bash
         run: |
           set -euo pipefail
@@ -203,7 +173,7 @@ jobs:
             --provenance UNVERIFIED \
             --details "Repository secret XAI_API_KEY is unavailable. No model call was made."
 
-      - name: Run independent Grok causal review
+      - name: Run trusted independent Grok causal review
         if: >-
           ${{
             steps.request.outputs.accepted == 'true'
@@ -225,7 +195,6 @@ jobs:
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
         shell: bash
         run: |
           set -euo pipefail
@@ -237,10 +206,18 @@ jobs:
             --jq '.headRefOid')"
 
           if [[ "$current_sha" != "$TARGET_HEAD_SHA" ]]; then
-            python tools/grok_causal_review.py diagnostic \
-              --status DIAGNOSTIC \
-              --provenance MATCHED \
-              --details "The PR head changed before publication. Reviewed $TARGET_HEAD_SHA; current $current_sha. Model findings were discarded."
+            if [[ -s "$REVIEW_JSON_FILE" ]] \
+              && jq -e '.execution.status == "COMPLETED" and .execution.provenance == "MATCHED"' \
+                "$REVIEW_JSON_FILE" >/dev/null; then
+              python tools/grok_causal_review.py diagnostic \
+                --status DIAGNOSTIC \
+                --provenance MATCHED \
+                --details "The PR head changed before publication. Reviewed $TARGET_HEAD_SHA; current $current_sha. Completed model findings were discarded."
+            elif [[ -s "$REVIEW_MD_FILE" ]]; then
+              printf '\n\n%s\n' \
+                "⚠️ The PR head changed before publication: reviewed $TARGET_HEAD_SHA; current $current_sha. The existing non-completed lane status was preserved." \
+                >> "$REVIEW_MD_FILE"
+            fi
           fi
 
       - name: Ensure review artifacts exist
@@ -288,7 +265,7 @@ jobs:
         timeout-minutes: 2
         uses: actions/upload-artifact@v4
         with:
-          name: grok-causal-pr-review-${{ steps.request.outputs.pr_number }}
+          name: grok-causal-pr-review-${{ env.PR_NUMBER }}
           path: |
             ${{ env.REVIEW_JSON_FILE }}
             ${{ env.REVIEW_MD_FILE }}
@@ -303,7 +280,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           REVIEW_MD_FILE: ${{ env.REVIEW_MD_FILE }}
-          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
         with:
           script: |
             const fs = require('fs');
@@ -311,7 +288,7 @@ jobs:
             const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
             const issue_number = Number(process.env.PR_NUMBER);
             const review = fs.readFileSync(process.env.REVIEW_MD_FILE, 'utf8').trim();
-            const body = `${marker}\n## 🧭 Grok causal PR review — advisory\n\n${review}\n\n---\n_Mode: independent causal review. Advisory only; human adjudication remains required._`;
+            const body = `${marker}\n## 🧭 Grok causal PR review — advisory\n\n${review}\n\n---\n_Mode: trusted independent causal review. Advisory only; human adjudication remains required._`;
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,
