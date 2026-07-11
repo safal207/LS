@@ -16,7 +16,7 @@ on:
       - "tools/deepseek_causal_review_adapter.py"
       - "tests/test_causal_review*.py"
       - "tests/test_github_causal_review_collector.py"
-      - "tests/test_deepseek_causal_review_adapter.py"
+      - "tests/test_deepseek_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
       - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
@@ -35,7 +35,7 @@ on:
       - "tools/deepseek_causal_review_adapter.py"
       - "tests/test_causal_review*.py"
       - "tests/test_github_causal_review_collector.py"
-      - "tests/test_deepseek_causal_review_adapter.py"
+      - "tests/test_deepseek_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
       - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
@@ -78,6 +78,7 @@ jobs:
           tests/test_causal_review_adapter_integrity.py
           tests/test_github_causal_review_collector.py
           tests/test_deepseek_causal_review_adapter.py
+          tests/test_deepseek_causal_review_integrity.py
           -q
 
       - name: Check command-line interfaces
