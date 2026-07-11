@@ -1,0 +1,7 @@
+{
+  "schema_version": "ls.causal-review-request.v0.1",
+  "target_pr": 789,
+  "purpose": "first trusted production proof of the merged causal-review contract",
+  "authority": "advisory-only",
+  "requested_by": "repository-owner"
+}
