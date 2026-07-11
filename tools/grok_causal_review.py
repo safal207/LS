@@ -24,6 +24,14 @@ from tools.causal_review import (
     validate_review,
 )
 
+MODEL_OUTPUT_KEYS = {
+    "verdict",
+    "risk_level",
+    "findings",
+    "tests_to_run",
+    "human_decision_points",
+}
+
 
 def _required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
@@ -83,6 +91,24 @@ def build_user_message(
     return json.dumps(envelope, ensure_ascii=False, separators=(",", ":"))
 
 
+def validate_model_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Require the exact model-owned envelope before wrapper facts are added."""
+    if not isinstance(payload, Mapping):
+        raise ContractError("model output must be an object")
+    keys = set(payload)
+    extra = sorted(keys - MODEL_OUTPUT_KEYS)
+    missing = sorted(MODEL_OUTPUT_KEYS - keys)
+    if extra:
+        raise ContractError(
+            "model output contains unknown properties: " + ", ".join(extra)
+        )
+    if missing:
+        raise ContractError(
+            "model output is missing required properties: " + ", ".join(missing)
+        )
+    return dict(payload)
+
+
 def write_review(
     *,
     status: str,
@@ -91,7 +117,7 @@ def write_review(
     model_payload: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write one validated JSON artifact and its Markdown rendering."""
-    model_payload = dict(model_payload or {})
+    owned = validate_model_payload(model_payload) if model_payload is not None else {}
     requested_model = os.environ.get("XAI_MODEL", "grok-4.5").strip()
     payload = {
         "schema_version": "ls.causal-review.v0.1",
@@ -106,13 +132,11 @@ def write_review(
             "provenance": provenance,
             "details": details,
         },
-        "verdict": model_payload.get("verdict"),
-        "risk_level": model_payload.get("risk_level", "none"),
-        "findings": model_payload.get("findings", []),
-        "tests_to_run": model_payload.get("tests_to_run", []),
-        "human_decision_points": model_payload.get(
-            "human_decision_points", []
-        ),
+        "verdict": owned.get("verdict"),
+        "risk_level": owned.get("risk_level", "none"),
+        "findings": owned.get("findings", []),
+        "tests_to_run": owned.get("tests_to_run", []),
+        "human_decision_points": owned.get("human_decision_points", []),
     }
     normalized = validate_review(payload)
     json_path, markdown_path, _ = _paths()
@@ -206,7 +230,7 @@ def run_review() -> int:
             return 0
 
         provider_matched = True
-        model_payload = parse_model_json(text)
+        model_payload = validate_model_payload(parse_model_json(text))
         write_review(
             status="COMPLETED",
             provenance="MATCHED",
