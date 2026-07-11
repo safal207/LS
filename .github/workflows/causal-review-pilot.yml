@@ -3,6 +3,8 @@ name: Causal Review Pilot
 on:
   issue_comment:
     types: [created]
+  pull_request_review:
+    types: [submitted]
 
 permissions:
   contents: read
@@ -10,7 +12,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: causal-review-pilot-${{ github.event.issue.number || github.run_id }}
+  group: causal-review-pilot-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -20,12 +22,19 @@ jobs:
     timeout-minutes: 15
     if: >-
       ${{
-        github.event.issue.pull_request != null
-        && startsWith(github.event.comment.body, '/causal-review-pilot')
+        (
+          github.event_name == 'issue_comment'
+          && github.event.issue.pull_request != null
+          && startsWith(github.event.comment.body, '/causal-review-pilot')
+        )
+        || (
+          github.event_name == 'pull_request_review'
+          && startsWith(github.event.review.body, '/causal-review-pilot')
+        )
       }}
 
     env:
-      PR_NUMBER: ${{ github.event.issue.number }}
+      PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
       OUTPUT_DIR: /tmp/causal-review-pilot
       DEEPSEEK_MODEL: deepseek/deepseek-r1
 
@@ -35,12 +44,17 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const comment = context.payload.comment || {};
-            const association = comment.author_association || 'NONE';
+            const source = context.eventName === 'pull_request_review'
+              ? (context.payload.review || {})
+              : (context.payload.comment || {});
+            const association = source.author_association || 'NONE';
+            const body = source.body || '';
             const trusted = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(association);
-            core.setOutput('accepted', String(trusted));
-            if (!trusted) {
-              core.notice(`Pilot command ignored: untrusted author_association=${association}`);
+            const command = body.trim().startsWith('/causal-review-pilot');
+            const accepted = trusted && command;
+            core.setOutput('accepted', String(accepted));
+            if (!accepted) {
+              core.notice(`Pilot command ignored: trusted=${trusted}, command=${command}, author_association=${association}`);
             }
 
       - name: Check out trusted default branch
