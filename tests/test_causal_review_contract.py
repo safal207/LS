@@ -10,6 +10,7 @@ from tools.causal_review import (
     render_markdown,
     validate_review,
 )
+from tools.grok_causal_review import read_bound_patch
 
 
 def review_payload(reviewer_id="grok", dedupe_key="ci.force-push.head-race"):
@@ -167,3 +168,44 @@ def test_markdown_renders_the_causal_chain():
     assert "Failure mechanism:" in markdown
     assert "Observable effect:" in markdown
     assert "Root-cause key:" in markdown
+
+
+def test_cluster_reviews_rejects_different_targets():
+    first = review_payload("grok")
+    second = review_payload("qodo")
+    second["target"]["head_sha"] = "c" * 40
+    second["findings"][0]["id"] = "QODO-003"
+
+    with pytest.raises(ContractError, match="must share repository"):
+        cluster_reviews([first, second])
+
+
+def _set_target_env(monkeypatch, patch_digest):
+    monkeypatch.setenv("TARGET_REPOSITORY", "safal207/example")
+    monkeypatch.setenv("TARGET_PR_NUMBER", "57")
+    monkeypatch.setenv("TARGET_HEAD_SHA", "a" * 40)
+    monkeypatch.setenv("TARGET_PATCH_SHA256", patch_digest)
+
+
+def test_bound_patch_rejects_digest_mismatch(tmp_path, monkeypatch):
+    patch_path = tmp_path / "review.patch"
+    patch_path.write_bytes(b"actual patch")
+    _set_target_env(monkeypatch, "sha256:" + "b" * 64)
+
+    with pytest.raises(ContractError, match="digest does not match"):
+        read_bound_patch(patch_path, 1000)
+
+
+def test_bound_patch_rejects_partial_coverage(tmp_path, monkeypatch):
+    import hashlib
+
+    patch_path = tmp_path / "review.patch"
+    raw = b"x" * 101
+    patch_path.write_bytes(raw)
+    _set_target_env(
+        monkeypatch,
+        "sha256:" + hashlib.sha256(raw).hexdigest(),
+    )
+
+    with pytest.raises(ContractError, match="exceeds PATCH_LIMIT_CHARS"):
+        read_bound_patch(patch_path, 100)
