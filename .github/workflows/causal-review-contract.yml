@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/grok-causal-pr-review.yml"
+      - ".github/workflows/causal-review-pilot.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
@@ -14,16 +15,19 @@ on:
       - "tools/causal_review_adapters.py"
       - "tools/github_causal_review_collector.py"
       - "tools/deepseek_causal_review_adapter.py"
+      - "tools/causal_review_pilot.py"
       - "tests/test_causal_review*.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
       - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
+      - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
   push:
     branches: [main]
     paths:
       - ".github/workflows/grok-causal-pr-review.yml"
+      - ".github/workflows/causal-review-pilot.yml"
       - ".github/workflows/causal-review-contract.yml"
       - ".github/prompts/causal-review-v0.1.md"
       - "schemas/causal-review-v0.1.schema.json"
@@ -33,12 +37,14 @@ on:
       - "tools/causal_review_adapters.py"
       - "tools/github_causal_review_collector.py"
       - "tools/deepseek_causal_review_adapter.py"
+      - "tools/causal_review_pilot.py"
       - "tests/test_causal_review*.py"
       - "tests/test_github_causal_review_collector.py"
       - "tests/test_deepseek_causal_review*.py"
       - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
       - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
       - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
+      - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
 
 permissions:
   contents: read
@@ -72,6 +78,7 @@ jobs:
           tools/causal_review_adapters.py
           tools/github_causal_review_collector.py
           tools/deepseek_causal_review_adapter.py
+          tools/causal_review_pilot.py
 
       - name: Run deterministic contract tests
         run: >-
@@ -84,6 +91,8 @@ jobs:
           tests/test_github_causal_review_collector.py
           tests/test_deepseek_causal_review_adapter.py
           tests/test_deepseek_causal_review_integrity.py
+          tests/test_causal_review_pilot.py
+          tests/test_causal_review_pilot_integrity.py
           -q
 
       - name: Check command-line interfaces
@@ -93,3 +102,4 @@ jobs:
           python tools/causal_review_adapters.py --help
           python tools/github_causal_review_collector.py --help
           python tools/deepseek_causal_review_adapter.py --help
+          python tools/causal_review_pilot.py --help
