@@ -73,10 +73,25 @@ Reviewer agents must run blind. They may share:
 They must not see another reviewer's findings before producing their own causal artifact. This
 prevents anchoring and false consensus.
 
+## Trusted execution boundary
+
+The model-backed Grok lane is invoked only through a trusted `/grok-causal-review` issue comment.
+GitHub loads `issue_comment` workflows from the repository default branch, and the workflow checks
+out that default branch explicitly with persisted Git credentials disabled.
+
+The target PR contributes only untrusted diff bytes fetched through the GitHub API. The workflow
+does not execute reviewer scripts, actions, or other code from the target PR while `XAI_API_KEY` is
+available. Contract tests may run on ordinary `pull_request` events because they receive no model
+secret.
+
 ## Exact patch boundary
 
 Before a model call, the runner recomputes the SHA-256 of the patch bytes and compares it with the
 wrapper-owned `target.patch_sha256`. A mismatch fails closed.
+
+The patch is transported inside a JSON data envelope rather than a Markdown fence. Triple
+backticks or instruction-like strings inside the diff remain data and cannot terminate the wrapper
+framing.
 
 The causal lane must not publish a `COMPLETED` verdict for partial patch coverage. When the patch
 exceeds the configured context/cost boundary, the runner emits `DIAGNOSTIC` with no verdict and no
@@ -129,6 +144,9 @@ the causal links.
 This preserves the LS v0.1 rule that green orchestration cannot launder an unexecuted reviewer,
 partial patch, or invalid provenance lane into positive evidence.
 
+A final head mismatch discards only a previously completed model result. Existing `NOT_RUN`,
+`FAILED`, or `DIAGNOSTIC` status is preserved and is never upgraded to matched provenance.
+
 ## Measuring noise
 
 For a pilot containing independent reviewer artifacts:
@@ -162,9 +180,9 @@ and causal review on the same frozen PR heads.
 
 - deterministic schema, validator, renderer, and clusterer;
 - independent Grok causal lane;
+- trusted default-branch execution through `/grok-causal-review`;
 - exact-head and exact-patch binding;
 - fail-closed behavior for partial patch coverage;
-- opt-in execution through `/grok-causal-review` or workflow dispatch;
 - separate artifact and comment marker, so flat and causal outputs can be compared.
 
 ### Slice B — external reviewer adapters
