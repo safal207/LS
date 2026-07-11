@@ -1,0 +1,340 @@
+name: Grok Causal PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - ".github/workflows/grok-causal-pr-review.yml"
+      - ".github/workflows/causal-review-contract.yml"
+      - ".github/prompts/causal-review-v0.1.md"
+      - "schemas/causal-review-v0.1.schema.json"
+      - "tools/causal_review.py"
+      - "tools/grok_causal_review.py"
+      - "tests/test_causal_review_contract.py"
+      - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to review causally"
+        required: true
+        type: number
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: grok-causal-pr-review-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  causal-review:
+    name: Advisory Grok causal review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch'
+        || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
+        || (
+          github.event_name == 'issue_comment'
+          && github.event.issue.pull_request != null
+          && startsWith(github.event.comment.body, '/grok-causal-review')
+        )
+      }}
+
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+      XAI_MODEL: grok-4.5
+      PATCH_LIMIT_CHARS: "60000"
+      PATCH_FILE: /tmp/causal-review.patch
+      CAUSAL_PROMPT_FILE: .github/prompts/causal-review-v0.1.md
+      RAW_RESPONSE_FILE: /tmp/causal-review.raw.txt
+      REVIEW_JSON_FILE: /tmp/causal-review.json
+      REVIEW_MD_FILE: /tmp/causal-review.md
+      TARGET_ENV_FILE: /tmp/causal-review-target.env
+
+    steps:
+      - name: Check out causal-review implementation
+        uses: actions/checkout@v4
+
+      - name: Resolve review request
+        id: request
+        timeout-minutes: 2
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+        with:
+          script: |
+            const eventName = context.eventName;
+            let accepted = true;
+            let reason = '';
+            let prNumber = String(process.env.PR_NUMBER || '');
+
+            if (eventName === 'issue_comment') {
+              const issue = context.payload.issue || {};
+              const comment = context.payload.comment || {};
+              const body = String(comment.body || '').trim();
+              const association = comment.author_association || 'NONE';
+              const trusted = ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(association);
+              prNumber = String(issue.number || prNumber);
+
+              if (!issue.pull_request) {
+                accepted = false;
+                reason = 'The command was posted on an issue, not a pull request.';
+              } else if (!body.startsWith('/grok-causal-review')) {
+                accepted = false;
+                reason = 'The comment is not a /grok-causal-review command.';
+              } else if (!trusted) {
+                accepted = false;
+                reason = `Untrusted command author. author_association=${association}`;
+              }
+            }
+
+            core.setOutput('accepted', String(accepted));
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('reason', reason);
+
+            if (!accepted) {
+              core.notice(`Causal review request ignored: ${reason}`);
+            }
+
+      - name: Freeze exact target and patch
+        id: target
+        if: ${{ steps.request.outputs.accepted == 'true' }}
+        timeout-minutes: 4
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          before_json="$(gh pr view "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json number,state,isDraft,headRefOid)"
+          state="$(jq -r '.state' <<<"$before_json")"
+          draft="$(jq -r '.isDraft' <<<"$before_json")"
+          before_sha="$(jq -r '.headRefOid' <<<"$before_json")"
+
+          if [[ "$state" != "OPEN" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Target PR is not open: $state" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$draft" == "true" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Target PR is a draft" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! "$before_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Target head SHA is invalid" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          gh pr diff "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --patch > "$PATCH_FILE"
+
+          after_sha="$(gh pr view "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json headRefOid \
+            --jq '.headRefOid')"
+
+          if [[ "$before_sha" != "$after_sha" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Target head changed while the patch was fetched" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! -s "$PATCH_FILE" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "reason=Target patch is empty" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          patch_hex="$(sha256sum "$PATCH_FILE" | awk '{print $1}')"
+          patch_digest="sha256:${patch_hex}"
+
+          {
+            printf 'export TARGET_REPOSITORY=%q\n' "$GITHUB_REPOSITORY"
+            printf 'export TARGET_PR_NUMBER=%q\n' "$PR_NUMBER"
+            printf 'export TARGET_HEAD_SHA=%q\n' "$before_sha"
+            printf 'export TARGET_PATCH_SHA256=%q\n' "$patch_digest"
+          } > "$TARGET_ENV_FILE"
+
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$before_sha" >> "$GITHUB_OUTPUT"
+          echo "patch_sha256=$patch_digest" >> "$GITHUB_OUTPUT"
+          echo "Frozen target: $before_sha" >> "$GITHUB_STEP_SUMMARY"
+          echo "Patch digest: $patch_digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check xAI API key
+        id: api_key
+        if: ${{ steps.request.outputs.accepted == 'true' && steps.target.outputs.available == 'true' }}
+        timeout-minutes: 1
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        shell: bash
+        run: |
+          if [[ -n "$XAI_API_KEY" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Record NOT_RUN lane
+        if: >-
+          ${{
+            steps.request.outputs.accepted == 'true'
+            && steps.target.outputs.available == 'true'
+            && steps.api_key.outputs.available != 'true'
+          }}
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          python tools/grok_causal_review.py diagnostic \
+            --status NOT_RUN \
+            --provenance UNVERIFIED \
+            --details "Repository secret XAI_API_KEY is unavailable. No model call was made."
+
+      - name: Run independent Grok causal review
+        if: >-
+          ${{
+            steps.request.outputs.accepted == 'true'
+            && steps.target.outputs.available == 'true'
+            && steps.api_key.outputs.available == 'true'
+          }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+          python tools/grok_causal_review.py review
+
+      - name: Recheck exact head before publication
+        if: ${{ always() && steps.request.outputs.accepted == 'true' && steps.target.outputs.available == 'true' }}
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$TARGET_ENV_FILE"
+
+          current_sha="$(gh pr view "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json headRefOid \
+            --jq '.headRefOid')"
+
+          if [[ "$current_sha" != "$TARGET_HEAD_SHA" ]]; then
+            python tools/grok_causal_review.py diagnostic \
+              --status DIAGNOSTIC \
+              --provenance MATCHED \
+              --details "The PR head changed before publication. Reviewed $TARGET_HEAD_SHA; current $current_sha. Model findings were discarded."
+          fi
+
+      - name: Ensure review artifacts exist
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
+        timeout-minutes: 2
+        env:
+          TARGET_REASON: ${{ steps.target.outputs.reason }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ steps.target.outputs.available }}" == "true" ]]; then
+            source "$TARGET_ENV_FILE"
+            if [[ ! -s "$REVIEW_JSON_FILE" || ! -s "$REVIEW_MD_FILE" ]]; then
+              python tools/grok_causal_review.py diagnostic \
+                --status FAILED \
+                --provenance UNVERIFIED \
+                --details "The reviewer process ended without a complete causal artifact."
+            fi
+          elif [[ ! -s "$REVIEW_MD_FILE" ]]; then
+            printf '%s\n\n%s\n' \
+              '⚠️ Grok causal review did not run.' \
+              "${TARGET_REASON:-The target or patch could not be frozen.}" \
+              > "$REVIEW_MD_FILE"
+          fi
+
+          if [[ ! -e "$RAW_RESPONSE_FILE" ]]; then
+            : > "$RAW_RESPONSE_FILE"
+          fi
+
+      - name: Write causal review to job summary
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          {
+            echo "## Grok causal PR review"
+            echo
+            cat "$REVIEW_MD_FILE"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload causal review artifacts
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: grok-causal-pr-review-${{ steps.request.outputs.pr_number }}
+          path: |
+            ${{ env.REVIEW_JSON_FILE }}
+            ${{ env.REVIEW_MD_FILE }}
+            ${{ env.RAW_RESPONSE_FILE }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upsert causal review comment
+        if: ${{ always() && steps.request.outputs.accepted == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/github-script@v7
+        env:
+          REVIEW_MD_FILE: ${{ env.REVIEW_MD_FILE }}
+          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- grok-causal-pr-reviewer -->';
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            const issue_number = Number(process.env.PR_NUMBER);
+            const review = fs.readFileSync(process.env.REVIEW_MD_FILE, 'utf8').trim();
+            const body = `${marker}\n## 🧭 Grok causal PR review — advisory\n\n${review}\n\n---\n_Mode: independent causal review. Advisory only; human adjudication remains required._`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
