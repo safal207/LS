@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/causal-review-v0.1.schema.json",
+  "title": "LS Causal Review v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "reviewer",
+    "target",
+    "execution",
+    "verdict",
+    "risk_level",
+    "findings",
+    "tests_to_run",
+    "human_decision_points"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ls.causal-review.v0.1"
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "display_name",
+        "model"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "pr_number",
+        "head_sha",
+        "patch_sha256"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 3
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "patch_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "provenance",
+        "details"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "COMPLETED",
+            "NOT_RUN",
+            "FAILED",
+            "DIAGNOSTIC"
+          ]
+        },
+        "provenance": {
+          "enum": [
+            "MATCHED",
+            "MISSING",
+            "MISMATCH",
+            "UNVERIFIED"
+          ]
+        },
+        "details": {
+          "type": "string"
+        }
+      }
+    },
+    "verdict": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "APPROVE",
+        "COMMENT",
+        "REQUEST_CHANGES",
+        null
+      ]
+    },
+    "risk_level": {
+      "enum": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity",
+          "title",
+          "claim_status",
+          "location",
+          "causal_chain",
+          "evidence",
+          "confidence",
+          "reproduction",
+          "recommendation",
+          "dedupe_key"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claim_status": {
+            "enum": [
+              "CANDIDATE",
+              "REPRODUCED",
+              "CONFIRMED",
+              "REJECTED",
+              "REQUIRES_HUMAN_DECISION"
+            ]
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "line"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              }
+            }
+          },
+          "causal_chain": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "change",
+              "root_cause",
+              "failure_mechanism",
+              "observable_effect",
+              "impact"
+            ],
+            "properties": {
+              "change": {
+                "type": "string",
+                "minLength": 1
+              },
+              "root_cause": {
+                "type": "string",
+                "minLength": 1
+              },
+              "failure_mechanism": {
+                "type": "string",
+                "minLength": 1
+              },
+              "observable_effect": {
+                "type": "string",
+                "minLength": 1
+              },
+              "impact": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "reference",
+                "excerpt"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "patch",
+                    "test",
+                    "workflow",
+                    "spec",
+                    "runtime",
+                    "other"
+                  ]
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "excerpt": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "reproduction": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dedupe_key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._:/-]{2,127}$"
+          }
+        }
+      }
+    },
+    "tests_to_run": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "human_decision_points": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
