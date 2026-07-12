@@ -12,6 +12,7 @@ from ls_audit_cli import (
     validate_network_boundary,
     validate_output_boundary,
     policy_verdict,
+    cleanup_unsealed,
 )
 
 HEAD = "a" * 40
@@ -72,6 +73,19 @@ class PolicyTests(unittest.TestCase):
                 "schema_version": "ls.exact-head-audit.v0.1", "authority": "advisory-only"
             }))
             validate_output_boundary(output, True)
+
+    def test_cleanup_removes_only_unsealed_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            unsealed = Path(temp) / "unsealed"
+            unsealed.mkdir()
+            (unsealed / "partial").write_text("x")
+            cleanup_unsealed(unsealed)
+            self.assertFalse(unsealed.exists())
+            sealed = Path(temp) / "sealed"
+            sealed.mkdir()
+            (sealed / "manifest.json").write_text("{}")
+            cleanup_unsealed(sealed)
+            self.assertTrue(sealed.exists())
 
     def test_final_head_states(self) -> None:
         ref = Ref("github.com", "acme", "repo", 1)
