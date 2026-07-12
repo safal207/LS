@@ -2,7 +2,7 @@
 
 **Product claim:** LS reduces the risk of accepting AI-generated pull requests by binding every review result to reproducible evidence: an exact commit, an identified reviewer/model, explicit execution status, adjudicated findings, and a human-readable verdict.
 
-**Release status:** **RELEASE DECISION READY.** Two external pilots and the Grok 4.5 provenance gate are verified. LS v0.1 releases the repeatable evidence-and-adjudication contract; it does not certify every reviewed target as safe.
+**Release status:** **RELEASED.** Two external pilots and the Grok 4.5 provenance gate are verified. The annotated tag `ls-v0.1` is published and resolves exactly to release commit `14e2abdcf6d97df48fc6a2fe4887cccea3cb0501`. LS v0.1 releases the repeatable evidence-and-adjudication contract; it does not certify every reviewed target as safe.
 
 ## Repeatable review contract
 
@@ -87,13 +87,14 @@ The DeepSeek model job was skipped because this bootstrap workflow did not yet e
 - **Why target HOLD is not a release blocker:** a correct HOLD is the expected product output for a risky target; turning it into PASS would invalidate the proof.
 - **Accepted incomplete lane:** DeepSeek remains `NOT_RUN` and is explicitly excluded from positive evidence. This is a documented scope decision, not a waiver that upgrades the lane.
 
-## Release evidence audit — 2026-07-10
+## Release evidence audit — 2026-07-12
 
 - [x] Vulnerable target, carrier, and fix SHAs resolve and match the frozen files.
 - [x] Vulnerable-head and fix-head workflow jobs were inspected individually; skipped model jobs remain `NOT_RUN`.
 - [x] Grok run #198 artifact digest and `requested=provider=grok-4.5` header were verified.
 - [x] CodeRabbit, Qodo, and Grok findings were reconciled with confirmed, rejected, scoped, and unresolved outcomes in LS #861.
 - [x] README relative link and bilingual release-proof entry were checked.
+- [x] Annotated tag `ls-v0.1` is published and verified identical to release commit `14e2abdcf6d97df48fc6a2fe4887cccea3cb0501` in PR #865.
 
 ## Two-case comparison
 
@@ -121,7 +122,7 @@ The cases differ in repository, domain, evidence shape, and final verdict. Both 
 | DeepSeek model lane | **ACCEPTED INCOMPLETE — `NOT_RUN`, zero positive weight** |
 | Human adjudication record | **COMPLETE in LS #861** |
 | Two-case comparison | **PASS** |
-| README product entry | **READY in release PR** |
-| LS v0.1 tag | **READY after the release PR lands** |
+| README product entry | **PUBLISHED** |
+| LS v0.1 annotated tag | **PUBLISHED — `ls-v0.1` → `14e2abdcf6d97df48fc6a2fe4887cccea3cb0501`** |
 
 The product-level success criterion is not “the AI found many bugs.” It is: evidence is reproducible; SHA and reviewer identity are exact; incomplete execution is visible; findings can be confirmed or rejected; and a person can understand the decision without knowing LS internals.
