@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/experiments/multi-session-coordination/pilot-result.schema.json",
+  "title": "LS Multi-Session Pilot Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "scenario_hash",
+    "route_id",
+    "verdict",
+    "violations",
+    "metrics"
+  ],
+  "properties": {
+    "schema": {"const": "ls.multi-session.pilot-result.v0.1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "scenario_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "route_id": {"const": "receipt-gated-event-route"},
+    "verdict": {
+      "enum": [
+        "PASS_SAFE_ROUTE_CONFIRMED",
+        "FAIL_STALE_ACTION",
+        "FAIL_UNVERIFIED_RELEASE",
+        "FAIL_UNAUTHORIZED_EVENT",
+        "FAIL_DUPLICATE_EFFECT",
+        "INCONCLUSIVE_MISSING_SESSION",
+        "INCONCLUSIVE_TRACE_GAP",
+        "INCONCLUSIVE_UNBOUND_TRACE"
+      ]
+    },
+    "violations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "metrics": {"type": "object"}
+  }
+}
