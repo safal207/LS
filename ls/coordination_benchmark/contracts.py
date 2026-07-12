@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, Optional, Set
 
 ReleaseDecision = Literal[
     "AUTHORIZED",
@@ -100,7 +100,7 @@ def validate_scenario(payload: Mapping[str, Any]) -> None:
 
 
 def validate_coordination_event(
-    payload: Mapping[str, Any], *, known_sessions: set[str] | None = None
+    payload: Mapping[str, Any], *, known_sessions: Optional[Set[str]] = None
 ) -> None:
     payload = _require_mapping(payload, "coordination event")
     if payload.get("schema") != "ls.multi-session.coordination-event.v0.1":
@@ -131,7 +131,7 @@ def validate_coordination_event(
 
 
 def validate_lifecycle_receipt(
-    payload: Mapping[str, Any], *, scenario: Mapping[str, Any] | None = None
+    payload: Mapping[str, Any], *, scenario: Optional[Mapping[str, Any]] = None
 ) -> None:
     payload = _require_mapping(payload, "lifecycle receipt")
     if payload.get("schema") != "ls.multi-session.lifecycle-receipt.v0.1":
@@ -214,7 +214,7 @@ def validate_route_result(payload: Mapping[str, Any]) -> None:
 
 
 def classify_dependency_release(
-    receipt: Mapping[str, Any] | None,
+    receipt: Optional[Mapping[str, Any]],
     *, expected_producer_session: str,
     expected_generation: int,
 ) -> ReleaseDecision:
