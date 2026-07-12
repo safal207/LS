@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/experiments/multi-session-coordination/coordination-event.schema.json",
+  "title": "LS Coordination Event v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "event_id",
+    "sequence",
+    "event_type",
+    "producer_session",
+    "generation",
+    "affected_sessions",
+    "payload"
+  ],
+  "properties": {
+    "schema": {"const": "ls.multi-session.coordination-event.v0.1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "event_type": {"type": "string", "minLength": 1},
+    "producer_session": {"type": "string", "minLength": 1},
+    "generation": {"type": "integer", "minimum": 0},
+    "affected_sessions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "payload": {"type": "object"}
+  }
+}
