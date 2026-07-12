@@ -3,10 +3,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ls_audit import InputError
-from ls_audit_cli import harden_scorecard, review_submission_state, validate_finding_dispositions
+from ls_audit import ApiError, InputError, Ref
+from ls_audit_cli import (
+    harden_scorecard,
+    record_final_head,
+    review_submission_state,
+    validate_finding_dispositions,
+    validate_network_boundary,
+    validate_output_boundary,
+)
 
 HEAD = "a" * 40
+
+
+class Client:
+    def __init__(self, observed=HEAD, error=False):
+        self.observed = observed
+        self.error = error
+
+    def get(self, endpoint):
+        if self.error:
+            raise ApiError(endpoint, 503, "unavailable")
+        return {"head": {"sha": self.observed}}
 
 
 class PolicyTests(unittest.TestCase):
@@ -25,7 +43,37 @@ class PolicyTests(unittest.TestCase):
         ]
         self.assertEqual(review_submission_state(reviews, HEAD), "FAIL")
 
-    def test_harden_scorecard_holds_changes_requested(self) -> None:
+    def test_network_boundary_protects_token_target(self) -> None:
+        self.assertEqual(validate_network_boundary(Ref("github.com", "a", "b", 1), None), "https://api.github.com")
+        with self.assertRaises(InputError):
+            validate_network_boundary(Ref("evil.example", "a", "b", 1), None)
+        with self.assertRaises(InputError):
+            validate_network_boundary(Ref("github.com", "a", "b", 1), "https://evil.example")
+
+    def test_overwrite_requires_ls_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "data"
+            output.mkdir()
+            with self.assertRaises(InputError):
+                validate_output_boundary(output, True)
+            (output / "manifest.json").write_text(json.dumps({
+                "schema_version": "ls.exact-head-audit.v0.1", "authority": "advisory-only"
+            }))
+            validate_output_boundary(output, True)
+
+    def test_final_head_states(self) -> None:
+        ref = Ref("github.com", "acme", "repo", 1)
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            (output / "evidence").mkdir()
+            state, _ = record_final_head(Client(), ref, HEAD, output)
+            self.assertEqual(state, "PASS")
+            state, _ = record_final_head(Client("b" * 40), ref, HEAD, output)
+            self.assertEqual(state, "FAIL")
+            state, _ = record_final_head(Client(error=True), ref, HEAD, output)
+            self.assertEqual(state, "INCOMPLETE")
+
+    def test_harden_scorecard_holds_changes_requested_and_binds_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)
             evidence = output / "evidence"
@@ -33,6 +81,13 @@ class PolicyTests(unittest.TestCase):
             (evidence / "reviews.json").write_text(json.dumps([
                 {"commit_id": HEAD, "state": "CHANGES_REQUESTED"}
             ]))
+            (evidence / "pr.json").write_text(json.dumps({"changed_files": 0}))
+            (evidence / "files.json").write_text("[]")
+            (output / "manifest.json").write_text(json.dumps({
+                "schema_version": "ls.exact-head-audit.v0.1",
+                "authority": "advisory-only",
+                "evidence_digests": {},
+            }))
             (output / "scorecard.json").write_text(json.dumps({
                 "target": {"expected_head": HEAD, "pr_url": "https://github.com/acme/repo/pull/1"},
                 "lanes": {"exact_head": "PASS", "exact_head_reviews": "PASS", "human_adjudication": "NOT_RUN"},
@@ -41,11 +96,15 @@ class PolicyTests(unittest.TestCase):
                 "interpretation": "",
                 "verdict": "INCOMPLETE",
             }))
-            result = harden_scorecard(output)
+            final = {"expected_head": HEAD, "observed_head": HEAD, "status": "PASS"}
+            digest = __import__("ls_audit").write_json(evidence / "final-head.json", final)
+            result = harden_scorecard(output, "PASS", digest)
             self.assertEqual(result.verdict, "HOLD")
             card = json.loads((output / "scorecard.json").read_text())
+            manifest = json.loads((output / "manifest.json").read_text())
             self.assertEqual(card["lanes"]["exact_head_review_submissions"], "FAIL")
-            self.assertNotIn("exact_head_reviews", card["lanes"])
+            self.assertEqual(card["lanes"]["final_exact_head"], "PASS")
+            self.assertIn("scorecard_digests", manifest)
 
     def test_invalid_finding_disposition_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
