@@ -62,12 +62,30 @@ def review_submission_state(reviews: list[dict[str, Any]] | None, expected_head:
     exact = [review for review in reviews if review.get("commit_id") == expected_head]
     if not exact:
         return "INCOMPLETE"
-    states = {str(review.get("state") or "").upper() for review in exact}
+
+    latest_by_reviewer: dict[str, dict[str, Any]] = {}
+    for review in exact:
+        reviewer = str(review.get("reviewer") or f"anonymous:{review.get('id')}")
+        key = (str(review.get("submitted_at") or ""), int(review.get("id") or 0))
+        current = latest_by_reviewer.get(reviewer)
+        current_key = (str(current.get("submitted_at") or ""), int(current.get("id") or 0)) if current else ("", -1)
+        if current is None or key > current_key:
+            latest_by_reviewer[reviewer] = review
+
+    states = {str(review.get("state") or "").upper() for review in latest_by_reviewer.values()}
     if "CHANGES_REQUESTED" in states:
         return "FAIL"
     if "APPROVED" in states:
         return "PASS"
     return "INCOMPLETE"
+
+
+def policy_verdict(lanes: dict[str, str], human: dict[str, Any] | None) -> str:
+    if "FAIL" in lanes.values():
+        return "HOLD"
+    if lanes.get("exact_head") != "PASS" or lanes.get("final_exact_head") != "PASS":
+        return "INCONCLUSIVE — EXACT-HEAD EVIDENCE INCOMPLETE"
+    return core.verdict(lanes, human)
 
 
 def read_json(path: Path, expected_type: type[Any]) -> Any | None:
@@ -158,7 +176,7 @@ def harden_scorecard(output: Path, final_head_state: str, final_head_digest: str
     card["evidence_digests"] = digests
     bundle_digest = hashlib.sha256(core.canonical(sorted(digests.items()))).hexdigest()
     card["bundle_digest"] = f"sha256:{bundle_digest}"
-    card["verdict"] = core.verdict(lanes, card.get("adjudication"))
+    card["verdict"] = policy_verdict(lanes, card.get("adjudication"))
 
     review_state = lanes["exact_head_review_submissions"]
     if final_head_state == "FAIL":
