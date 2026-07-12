@@ -1,0 +1,17 @@
+{
+  "schema": "ls.multi-session.route-profile.v0.1",
+  "route_id": "shared-mutable-state",
+  "transport": "shared_mutable_state",
+  "durable_history": false,
+  "per_session_offsets": false,
+  "invalidates_cached_plans": true,
+  "validates_producer": false,
+  "validates_generation": false,
+  "deduplicates_event_ids": false,
+  "requires_verified_receipt": false,
+  "replays_on_recovery": true,
+  "human_relay": false,
+  "recovery_time_ms": 5000,
+  "event_to_replan_latency_ms": 2000,
+  "implementation_complexity_units": 2
+}
