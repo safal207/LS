@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/experiments/multi-session-coordination/pilot-record.schema.json",
+  "title": "LS Multi-Session Pilot Record v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "record_id",
+    "run_id",
+    "scenario_hash",
+    "route_id",
+    "session_id",
+    "sequence",
+    "record_type",
+    "evidence_refs",
+    "details"
+  ],
+  "properties": {
+    "schema": {"const": "ls.multi-session.pilot-record.v0.1"},
+    "record_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "scenario_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "route_id": {"const": "receipt-gated-event-route"},
+    "session_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "record_type": {
+      "enum": [
+        "SESSION_STARTED",
+        "EVENT_EMITTED",
+        "EVENT_ACCEPTED",
+        "EVENT_BLOCKED",
+        "EVENT_DEDUPLICATED",
+        "PLAN_INVALIDATED",
+        "SESSION_COMPACTED",
+        "SESSION_REPLACED",
+        "SESSION_RECOVERED",
+        "REPLAN_COMPLETED",
+        "RECEIPT_VERIFIED",
+        "DEPENDENCY_RELEASED",
+        "ACTION_EXECUTED",
+        "SESSION_FINISHED"
+      ]
+    },
+    "event_id": {"type": "string", "minLength": 1},
+    "producer_session": {"type": "string", "minLength": 1},
+    "generation": {"type": "integer", "minimum": 0},
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "details": {"type": "object"}
+  }
+}
