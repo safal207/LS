@@ -36,7 +36,7 @@ adjudication-template.json
 evidence/
 ```
 
-Read [`SCORECARD.md`](packages/ls-audit-cli/README.md) first. The evidence directory is the reproducible support for the verdict, not the customer-facing summary.
+Read the generated `SCORECARD.md` first. The evidence directory is the reproducible support for the verdict, not the customer-facing summary. See the [CLI package documentation](packages/ls-audit-cli/README.md) for the full operator boundary.
 
 ## Verdict boundary
 
