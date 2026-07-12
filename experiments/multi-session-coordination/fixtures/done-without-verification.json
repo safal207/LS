@@ -1,0 +1,12 @@
+{
+  "schema": "ls.multi-session.lifecycle-receipt.v0.1",
+  "event_id": "evt-endpoint-generation-2",
+  "producer_session": "migration",
+  "transition": "infra.endpoint.changed",
+  "generation": 2,
+  "previous_state_hash": "sha256:old-endpoint-state",
+  "new_state_hash": "sha256:new-endpoint-state",
+  "affected_sessions": ["database", "search", "dashboard"],
+  "dependency_id": "migration-before-database",
+  "verification": {"status": "NOT_RUN"}
+}
