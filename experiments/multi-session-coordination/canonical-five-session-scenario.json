@@ -1,0 +1,64 @@
+{
+  "schema": "ls.multi-session.scenario.v0.1",
+  "scenario_id": "claude-code-five-session-endpoint-change-v0.1",
+  "sessions": [
+    {"session_id": "migration", "role": "infrastructure", "initial_plan_generation": 1},
+    {"session_id": "database", "role": "database", "initial_plan_generation": 1},
+    {"session_id": "search", "role": "search", "initial_plan_generation": 1},
+    {"session_id": "dashboard", "role": "dashboard", "initial_plan_generation": 1},
+    {"session_id": "coordinator", "role": "coordination", "initial_plan_generation": 1}
+  ],
+  "dependencies": [
+    {
+      "dependency_id": "migration-before-database",
+      "producer_session": "migration",
+      "consumer_session": "database"
+    },
+    {
+      "dependency_id": "migration-before-search",
+      "producer_session": "migration",
+      "consumer_session": "search"
+    },
+    {
+      "dependency_id": "migration-before-dashboard",
+      "producer_session": "migration",
+      "consumer_session": "dashboard"
+    }
+  ],
+  "events": [
+    {
+      "schema": "ls.multi-session.coordination-event.v0.1",
+      "event_id": "evt-endpoint-generation-2",
+      "sequence": 1,
+      "event_type": "infra.endpoint.changed",
+      "producer_session": "migration",
+      "generation": 2,
+      "affected_sessions": ["database", "search", "dashboard"],
+      "payload": {
+        "key": "SERVER_IP",
+        "previous_value": "192.0.2.10",
+        "new_value": "198.51.100.20"
+      }
+    },
+    {
+      "schema": "ls.multi-session.coordination-event.v0.1",
+      "event_id": "evt-search-compaction",
+      "sequence": 2,
+      "event_type": "session.compacting",
+      "producer_session": "search",
+      "generation": 1,
+      "affected_sessions": ["coordinator"],
+      "payload": {"last_consumed_offset": 0}
+    },
+    {
+      "schema": "ls.multi-session.coordination-event.v0.1",
+      "event_id": "evt-dashboard-replaced",
+      "sequence": 3,
+      "event_type": "session.replaced",
+      "producer_session": "coordinator",
+      "generation": 1,
+      "affected_sessions": ["dashboard"],
+      "payload": {"replacement_has_context": false}
+    }
+  ]
+}
