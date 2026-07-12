@@ -43,9 +43,9 @@
   },
   {
     "metrics": {
-      "blocked_transition_count": 12,
+      "blocked_transition_count": 10,
       "conflict_count": 0,
-      "deduplicated_event_count": 4,
+      "deduplicated_event_count": 3,
       "dependency_violation_count": 0,
       "duplicate_side_effect_count": 0,
       "event_to_replan_latency_ms": 700,
