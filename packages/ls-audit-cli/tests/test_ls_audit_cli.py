@@ -11,6 +11,7 @@ from ls_audit_cli import (
     validate_finding_dispositions,
     validate_network_boundary,
     validate_output_boundary,
+    policy_verdict,
 )
 
 HEAD = "a" * 40
@@ -36,12 +37,23 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "APPROVED"}], HEAD), "PASS")
         self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "CHANGES_REQUESTED"}], HEAD), "FAIL")
 
-    def test_changes_requested_overrides_approval(self) -> None:
-        reviews = [
-            {"commit_id": HEAD, "state": "APPROVED"},
-            {"commit_id": HEAD, "state": "CHANGES_REQUESTED"},
+    def test_latest_review_per_reviewer_controls_state(self) -> None:
+        resolved = [
+            {"id": 1, "reviewer": "alice", "submitted_at": "2026-01-01T00:00:00Z", "commit_id": HEAD, "state": "CHANGES_REQUESTED"},
+            {"id": 2, "reviewer": "alice", "submitted_at": "2026-01-02T00:00:00Z", "commit_id": HEAD, "state": "APPROVED"},
         ]
-        self.assertEqual(review_submission_state(reviews, HEAD), "FAIL")
+        self.assertEqual(review_submission_state(resolved, HEAD), "PASS")
+        blocked = list(reversed(resolved))
+        blocked[0] = {"id": 3, "reviewer": "alice", "submitted_at": "2026-01-03T00:00:00Z", "commit_id": HEAD, "state": "CHANGES_REQUESTED"}
+        self.assertEqual(review_submission_state(blocked, HEAD), "FAIL")
+
+    def test_identity_lanes_are_not_human_waivable(self) -> None:
+        human = {
+            "decision": "PASS",
+            "accepted_incomplete_lanes": [{"lane": "final_exact_head", "reason": "manual acceptance"}],
+        }
+        lanes = {"exact_head": "PASS", "final_exact_head": "INCOMPLETE", "human_adjudication": "PASS"}
+        self.assertEqual(policy_verdict(lanes, human), "INCONCLUSIVE — EXACT-HEAD EVIDENCE INCOMPLETE")
 
     def test_network_boundary_protects_token_target(self) -> None:
         self.assertEqual(validate_network_boundary(Ref("github.com", "a", "b", 1), None), "https://api.github.com")
