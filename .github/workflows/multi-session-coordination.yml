@@ -6,7 +6,9 @@ on:
       - "ls/coordination_benchmark/**"
       - "experiments/multi-session-coordination/**"
       - "scripts/run_multi_session_coordination_*.py"
+      - "scripts/run_observed_coordination_pilot.py"
       - "tests/test_multi_session_coordination_*.py"
+      - "tests/test_observed_coordination_pilot_runtime.py"
       - ".github/workflows/multi-session-coordination.yml"
   workflow_dispatch:
 
@@ -21,7 +23,7 @@ jobs:
   contracts-simulator-pilot:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +51,8 @@ jobs:
             tests/test_multi_session_coordination_contracts.py \
             tests/test_multi_session_coordination_simulator.py \
             tests/test_multi_session_coordination_pilot.py \
-            tests/test_multi_session_coordination_pilot_cli.py
+            tests/test_multi_session_coordination_pilot_cli.py \
+            tests/test_observed_coordination_pilot_runtime.py
 
       - name: Run deterministic pilot CLI smoke
         run: |
