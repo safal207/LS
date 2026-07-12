@@ -9,10 +9,11 @@ from .contracts import (
     validate_route_result,
     validate_scenario,
 )
-from .pilot import (
+from .pilot_runtime import (
     PilotViolation,
     build_manifest,
     generate_safe_dry_run,
+    inconclusive_result,
     load_records,
     make_record,
     next_sequence,
@@ -39,6 +40,7 @@ __all__ = [
     "canonical_sha256",
     "classify_dependency_release",
     "generate_safe_dry_run",
+    "inconclusive_result",
     "load_records",
     "make_record",
     "next_sequence",
