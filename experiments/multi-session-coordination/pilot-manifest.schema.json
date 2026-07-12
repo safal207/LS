@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/experiments/multi-session-coordination/pilot-manifest.schema.json",
+  "title": "LS Multi-Session Pilot Manifest v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "scenario_hash",
+    "scenario_id",
+    "route_id",
+    "expected_sessions",
+    "dependent_sessions",
+    "expected_event_id",
+    "expected_producer_session",
+    "expected_generation",
+    "forged_event_id",
+    "stale_event_id"
+  ],
+  "properties": {
+    "schema": {"const": "ls.multi-session.pilot-manifest.v0.1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "scenario_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "route_id": {"const": "receipt-gated-event-route"},
+    "expected_sessions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "dependent_sessions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "expected_event_id": {"type": "string", "minLength": 1},
+    "expected_producer_session": {"type": "string", "minLength": 1},
+    "expected_generation": {"type": "integer", "minimum": 0},
+    "forged_event_id": {"type": "string", "minLength": 1},
+    "stale_event_id": {"type": "string", "minLength": 1}
+  }
+}
