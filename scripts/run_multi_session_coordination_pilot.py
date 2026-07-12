@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ls.coordination_benchmark import (
+    PilotViolation,
     build_manifest,
     generate_safe_dry_run,
+    inconclusive_result,
     load_records,
     make_record,
     next_sequence,
@@ -53,7 +55,10 @@ def _render_instructions(manifest: Mapping[str, Any], run_dir: Path) -> str:
         "```",
         "",
         "Attach `--event-id`, `--producer-session`, `--generation`,",
-        "`--evidence-ref`, and `--details-json` when the transition requires them.",
+        "`--evidence-ref`, and `--details-json` when required.",
+        "Dependent actions must bind to the exact coordinator records:",
+        "`coordinator:2:RECEIPT_VERIFIED` and",
+        "`coordinator:3:DEPENDENCY_RELEASED`.",
         "",
         "## Verify after all five sessions finish",
         "",
@@ -63,7 +68,8 @@ def _render_instructions(manifest: Mapping[str, Any], run_dir: Path) -> str:
         "```",
         "",
         "A real pilot is valid only when the final verdict is",
-        "`PASS_SAFE_ROUTE_CONFIRMED`. Dry-run output must never be represented",
+        "`PASS_SAFE_ROUTE_CONFIRMED` with evidence mode",
+        "`OBSERVED_SESSION_TRACE`. Dry-run output must never be represented",
         "as observed Claude Code evidence.",
         "",
     ]
@@ -118,11 +124,20 @@ def command_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def _verify_run(run_dir: Path, evidence_mode: str) -> dict:
+    manifest = _load_manifest(run_dir)
+    try:
+        records = load_records(run_dir / "traces", manifest)
+        result = verify_pilot(manifest, records)
+    except PilotViolation as exc:
+        result = inconclusive_result(manifest, str(exc))
+    result["evidence_mode"] = evidence_mode
+    _write_json(run_dir / "pilot-result.json", result)
+    return result
+
+
 def command_verify(args: argparse.Namespace) -> int:
-    manifest = _load_manifest(args.run_dir)
-    records = load_records(args.run_dir / "traces", manifest)
-    result = verify_pilot(manifest, records)
-    _write_json(args.run_dir / "pilot-result.json", result)
+    result = _verify_run(args.run_dir, "OBSERVED_SESSION_TRACE")
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["verdict"] == "PASS_SAFE_ROUTE_CONFIRMED" else 1
 
@@ -136,10 +151,10 @@ def command_dry_run(args: argparse.Namespace) -> int:
     for session_records in traces.values():
         for payload in session_records:
             write_record(trace_dir, payload)
-    records = load_records(trace_dir, manifest)
-    result = verify_pilot(manifest, records)
-    result["evidence_mode"] = "DETERMINISTIC_DRY_RUN_NOT_OBSERVED"
-    _write_json(args.run_dir / "pilot-result.json", result)
+    result = _verify_run(
+        args.run_dir,
+        "DETERMINISTIC_DRY_RUN_NOT_OBSERVED",
+    )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["verdict"] == "PASS_SAFE_ROUTE_CONFIRMED" else 1
 
