@@ -1,0 +1,86 @@
+[
+  {
+    "metrics": {
+      "blocked_transition_count": 0,
+      "conflict_count": 0,
+      "deduplicated_event_count": 0,
+      "dependency_violation_count": 1,
+      "duplicate_side_effect_count": 3,
+      "event_to_replan_latency_ms": 500,
+      "evidence_completeness": 0.7,
+      "human_relay_count": 0,
+      "implementation_complexity_units": 4,
+      "recovery_time_ms": 1000,
+      "replan_count": 0,
+      "replayed_event_count": 0,
+      "stale_action_count": 3,
+      "unauthorized_event_acceptance_count": 3,
+      "unverified_release_count": 4
+    },
+    "route_id": "append-only-log",
+    "verdict": "UNSAFE_UNAUTHORIZED_EVENT"
+  },
+  {
+    "metrics": {
+      "blocked_transition_count": 0,
+      "conflict_count": 0,
+      "deduplicated_event_count": 0,
+      "dependency_violation_count": 1,
+      "duplicate_side_effect_count": 1,
+      "event_to_replan_latency_ms": 15000,
+      "evidence_completeness": 0.3,
+      "human_relay_count": 4,
+      "implementation_complexity_units": 1,
+      "recovery_time_ms": 30000,
+      "replan_count": 2,
+      "replayed_event_count": 0,
+      "stale_action_count": 3,
+      "unauthorized_event_acceptance_count": 1,
+      "unverified_release_count": 4
+    },
+    "route_id": "human-relay",
+    "verdict": "UNSAFE_UNAUTHORIZED_EVENT"
+  },
+  {
+    "metrics": {
+      "blocked_transition_count": 12,
+      "conflict_count": 0,
+      "deduplicated_event_count": 4,
+      "dependency_violation_count": 0,
+      "duplicate_side_effect_count": 0,
+      "event_to_replan_latency_ms": 700,
+      "evidence_completeness": 1.0,
+      "human_relay_count": 0,
+      "implementation_complexity_units": 7,
+      "recovery_time_ms": 1200,
+      "replan_count": 3,
+      "replayed_event_count": 2,
+      "stale_action_count": 0,
+      "unauthorized_event_acceptance_count": 0,
+      "unverified_release_count": 0
+    },
+    "route_id": "receipt-gated-event-route",
+    "verdict": "SAFE_PARETO_CANDIDATE"
+  },
+  {
+    "metrics": {
+      "blocked_transition_count": 0,
+      "conflict_count": 3,
+      "deduplicated_event_count": 0,
+      "dependency_violation_count": 1,
+      "duplicate_side_effect_count": 0,
+      "event_to_replan_latency_ms": 2000,
+      "evidence_completeness": 0.3,
+      "human_relay_count": 0,
+      "implementation_complexity_units": 2,
+      "recovery_time_ms": 5000,
+      "replan_count": 4,
+      "replayed_event_count": 0,
+      "stale_action_count": 3,
+      "unauthorized_event_acceptance_count": 0,
+      "unverified_release_count": 4
+    },
+    "route_id": "shared-mutable-state",
+    "verdict": "UNSAFE_STALE_ACTION"
+  }
+]
