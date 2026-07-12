@@ -18,6 +18,12 @@
     "run_id": {"type": "string", "minLength": 1},
     "scenario_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "route_id": {"const": "receipt-gated-event-route"},
+    "evidence_mode": {
+      "enum": [
+        "OBSERVED_SESSION_TRACE",
+        "DETERMINISTIC_DRY_RUN_NOT_OBSERVED"
+      ]
+    },
     "verdict": {
       "enum": [
         "PASS_SAFE_ROUTE_CONFIRMED",
