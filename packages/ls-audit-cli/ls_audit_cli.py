@@ -13,6 +13,23 @@ ALLOWED_DISPOSITIONS = {"confirmed", "rejected", "scoped", "unresolved"}
 GITHUB_API = "https://api.github.com"
 
 
+class ValidatedClient(core.Client):
+    def get(self, endpoint: str) -> Any:
+        value = super().get(endpoint)
+        parts = endpoint.split("?", 1)[0].strip("/").split("/")
+        is_pr = len(parts) == 5 and parts[0] == "repos" and parts[3] == "pulls" and parts[4].isdigit()
+        is_object_endpoint = is_pr or endpoint.endswith("/status") or "/check-runs" in endpoint
+        if is_object_endpoint and not isinstance(value, dict):
+            raise core.ApiError(endpoint, None, "Expected a JSON object response")
+        return value
+
+
+def cleanup_unsealed(output: Path) -> None:
+    if output.is_symlink() or not output.exists() or (output / "manifest.json").exists():
+        return
+    core.shutil.rmtree(output, ignore_errors=True)
+
+
 def validate_finding_dispositions(path: Path | None) -> None:
     if path is None:
         return
@@ -107,7 +124,10 @@ def record_final_head(
     output: Path,
 ) -> tuple[str, str]:
     endpoint = f"/repos/{ref.owner}/{ref.repo}/pulls/{ref.number}"
-    payload: dict[str, Any] = {"expected_head": expected_head}
+    payload: dict[str, Any] = {
+        "expected_head": expected_head,
+        "checked_at": core.datetime.now(core.timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
     try:
         pr = client.get(endpoint)
         if not isinstance(pr, dict):
@@ -229,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
             f"ls-audit-{ref.owner}-{ref.repo}-pr-{ref.number}-{expected[:12]}"
         )
         validate_output_boundary(output, args.overwrite)
-        client = core.Client(base, os.environ.get(args.token_env), args.timeout)
+        client = ValidatedClient(base, os.environ.get(args.token_env), args.timeout)
         core.run(
             args.pr_url,
             expected,
@@ -243,11 +263,18 @@ def main(argv: list[str] | None = None) -> int:
     except core.InputError as exc:
         parser.error(str(exc))
     except core.ApiError as exc:
+        if "output" in locals():
+            cleanup_unsealed(output)
         print(
             f"ls-audit: GitHub API failure at {exc.endpoint}: {exc.message}",
             file=sys.stderr,
         )
         return 4
+    except OSError as exc:
+        if "output" in locals():
+            cleanup_unsealed(output)
+        print(f"ls-audit: local filesystem failure: {exc}", file=sys.stderr)
+        return 5
 
     print(
         f"Bundle: {result.output}\n"
