@@ -45,15 +45,15 @@ The CLI verifies the expected head twice:
 1. before secondary evidence collection;
 2. after evidence collection completes.
 
-If either observed head differs from the supplied SHA, the verdict is `HOLD`. If the final recheck cannot run, it is `INCOMPLETE`; the bundle cannot support PASS.
+If either observed head differs from the supplied SHA, the verdict is `HOLD`. If the final recheck cannot run, it is `INCOMPLETE`; the bundle cannot support PASS. Initial and final exact-head identity are non-waivable gates.
 
-If the head remains stable, available changed-file, review, commit-status, and check-run evidence is frozen. Missing API access and truncated collection boundaries become `INCOMPLETE`, never success.
+If the head remains stable, available changed-file, review, commit-status, and check-run evidence is frozen. Missing API access and detected pagination/truncation boundaries become `INCOMPLETE`, never success.
 
-Review submission semantics are exact-head and fail-closed:
+Review submission semantics are exact-head and fail-closed. The latest submission per reviewer determines that reviewer's current state:
 
-- `CHANGES_REQUESTED` → `FAIL / HOLD`;
-- `APPROVED` → positive review signal;
-- `COMMENTED`, stale-head, missing, or unavailable review evidence → `INCOMPLETE` or `NOT_RUN`.
+- current `CHANGES_REQUESTED` → `FAIL / HOLD`;
+- current `APPROVED` → positive review signal;
+- `COMMENTED`, stale-head, missing, dismissed, or unavailable review evidence → `INCOMPLETE` or `NOT_RUN`.
 
 ## Human adjudication
 
@@ -68,11 +68,13 @@ ls-audit https://github.com/OWNER/REPO/pull/123 \
 
 A human `PASS` cannot silently upgrade incomplete evidence. Every accepted `NOT_RUN` or `INCOMPLETE` lane must be named in `accepted_incomplete_lanes` with a non-empty reason. Finding dispositions are limited to `confirmed`, `rejected`, `scoped`, and `unresolved`.
 
-## Data and overwrite boundary
+## Data, overwrite, and failure boundary
 
 `evidence/files.json` can contain source patches. Keep the output local and store it according to the target repository's data policy.
 
 Do not edit a completed bundle in place. `--overwrite` is allowed only for a directory containing a valid advisory LS audit manifest. Symbolic-link output paths are rejected so the CLI cannot be used to delete an unrelated directory through the overwrite path.
+
+A hard primary API or local filesystem failure cleans up only an unsealed partial directory. Once `manifest.json` exists, automatic failure cleanup does not remove the bundle.
 
 ## Local verification
 
@@ -95,3 +97,4 @@ The path-scoped GitHub workflow also installs the package on a clean Python 3.11
 | `2` | Invalid operator input, target boundary, overwrite target, or adjudication. |
 | `3` | Initial or final exact-head mismatch; the audit is fail-closed. |
 | `4` | Primary GitHub API request failed. |
+| `5` | Local filesystem operation failed. |
