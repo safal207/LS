@@ -34,7 +34,8 @@ class RouteProfile:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RouteProfile":
-        if payload.get("schema") != "ls.multi-session.route-profile.v0.1":
+        expected_schema = "ls.multi-session.route-profile.v0.1"
+        if payload.get("schema") != expected_schema:
             raise ValueError("unsupported route profile schema")
         fields = {name: payload[name] for name in cls.__dataclass_fields__}
         return cls(**fields)
@@ -152,7 +153,6 @@ def _consume_event(
         return
 
     session.seen_event_ids.add(event_id)
-    session.last_offset += 1
     if profile.invalidates_cached_plans:
         session.needs_replan = True
         session.plan_generation = int(event["generation"])
@@ -220,11 +220,13 @@ def _deliver(
         return
 
     event_log.append(event)
+    log_offset = len(event_log)
     _trace(
         trace,
         "publish_event",
         "APPENDED",
         event_id=event["event_id"],
+        offset=log_offset,
     )
     for session_id in event["affected_sessions"]:
         session = sessions[session_id]
@@ -238,6 +240,7 @@ def _deliver(
                 expected_producer=expected_producer,
                 expected_generation=expected_generation,
             )
+            session.last_offset = log_offset
 
 
 def _sync_before_action(
@@ -263,7 +266,11 @@ def _sync_before_action(
             expected_generation=expected_generation,
         )
     elif profile.durable_history and profile.per_session_offsets:
-        for event in list(event_log)[session.last_offset :]:
+        log_items = list(event_log)
+        for offset, event in enumerate(
+            log_items[session.last_offset :],
+            start=session.last_offset + 1,
+        ):
             if session.session_id in event["affected_sessions"]:
                 _consume_event(
                     session,
@@ -274,6 +281,7 @@ def _sync_before_action(
                     expected_producer=expected_producer,
                     expected_generation=expected_generation,
                 )
+            session.last_offset = offset
 
     if session.needs_replan:
         session.needs_replan = False
