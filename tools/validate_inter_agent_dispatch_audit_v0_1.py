@@ -39,6 +39,8 @@ RFC3339_CONTRACT_CASES = {
     "2026-07-13T10:00:00.123456789Z": True,
     "2026-07-13T10:00:00+00:00": True,
     "2026-07-13T13:00:00+03:00": True,
+    "2026-07-13T10:00:60Z": False,
+    "2016-12-31T23:59:60Z": False,
     "2026-W29-1T10:00:00Z": False,
     "20260713T100000Z": False,
     "not-a-timeZ": False,
@@ -49,6 +51,8 @@ UTC_CONTRACT_CASES = {
     "2026-07-13T10:00:00+00:00": True,
     "2026-07-13T13:00:00+03:00": False,
     "2026-07-13T10:00:00-00:00": False,
+    "2026-07-13T10:00:60Z": False,
+    "2016-12-31T23:59:60Z": False,
     "2026-W29-1T10:00:00Z": False,
     "20260713T100000Z": False,
 }
@@ -74,7 +78,12 @@ def sha256_text(value: str) -> str:
 
 
 def match_rfc3339(value: Any) -> re.Match[str] | None:
-    """Return a strict RFC3339-shaped match after calendar and offset checks."""
+    """Return a strict RFC3339-profile match after calendar and offset checks.
+
+    The dependency-free v0.1 profile rejects all leap-second ``:60`` forms
+    because it has no maintained trusted leap-second table with which to
+    distinguish real insertions from malformed timestamps.
+    """
     if not isinstance(value, str):
         return None
     match = RFC3339_PATTERN.fullmatch(value)
@@ -84,7 +93,7 @@ def match_rfc3339(value: Any) -> re.Match[str] | None:
     parts = {name: int(match.group(name)) for name in (
         "year", "month", "day", "hour", "minute", "second"
     )}
-    if parts["hour"] > 23 or parts["minute"] > 59 or parts["second"] > 60:
+    if parts["hour"] > 23 or parts["minute"] > 59 or parts["second"] > 59:
         return None
     try:
         datetime(parts["year"], parts["month"], parts["day"])
@@ -101,12 +110,12 @@ def match_rfc3339(value: Any) -> re.Match[str] | None:
 
 
 def is_rfc3339_datetime(value: Any) -> bool:
-    """Return whether *value* conforms to the RFC3339 date-time shape."""
+    """Return whether *value* conforms to the dependency-free v0.1 profile."""
     return match_rfc3339(value) is not None
 
 
 def is_utc_timestamp(value: Any) -> bool:
-    """Return whether *value* is an RFC3339 timestamp with a known UTC offset."""
+    """Return whether *value* is an RFC3339-profile timestamp with known UTC."""
     match = match_rfc3339(value)
     return match is not None and match.group("zone") in {"Z", "z", "+00:00"}
 
@@ -266,7 +275,7 @@ def validate_schema_instance(
             issues.append(f"{path}: string does not match {pattern!r}")
         format_name = schema.get("format")
         if format_name == "date-time" and not is_rfc3339_datetime(instance):
-            issues.append(f"{path}: invalid RFC3339 date-time")
+            issues.append(f"{path}: invalid RFC3339 date-time for v0.1 profile")
         if format_name == "uri":
             parsed = urlparse(instance)
             if not parsed.scheme or not parsed.netloc:
@@ -364,7 +373,7 @@ def validate_record(record: Any) -> list[dict[str, str]]:
                 error(errors, "DISPATCH_PARTICIPANT_DRIFT", location, "sender and recipient must remain stable within the fixture chain")
 
         if not is_utc_timestamp(dispatch.get("timestamp")):
-            error(errors, "TIMESTAMP_INVALID", f"{location}.timestamp", "valid RFC3339 UTC timestamp is required")
+            error(errors, "TIMESTAMP_INVALID", f"{location}.timestamp", "valid RFC3339-profile UTC timestamp is required")
 
         payload = dispatch.get("payload")
         if not isinstance(payload, dict):
@@ -407,7 +416,7 @@ def validate_record(record: Any) -> list[dict[str, str]]:
     if not isinstance(output_digest, str) or SHA256_PATTERN.fullmatch(output_digest) is None:
         error(errors, "RESULT_DIGEST_INVALID", "result.output_digest", "64-hex SHA-256 result digest is required")
     if not is_utc_timestamp(result.get("timestamp")):
-        error(errors, "RESULT_TIMESTAMP_INVALID", "result.timestamp", "valid RFC3339 UTC result timestamp is required")
+        error(errors, "RESULT_TIMESTAMP_INVALID", "result.timestamp", "valid RFC3339-profile UTC result timestamp is required")
 
     return errors
 
