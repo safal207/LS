@@ -138,4 +138,5 @@ jobs:
           report = json.loads(result.stdout)
           codes = {item["code"] for item in report["fixture_errors"]}
           assert "REQUIRED_MUTATION_INVALID" in codes, report
+          assert "SCHEMA_VALIDATION_FAILED" in codes, report
           PY
