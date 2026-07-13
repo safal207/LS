@@ -4,17 +4,21 @@ on:
   pull_request:
     paths:
       - "spec/operational-continuity-fixtures-v0.1.md"
+      - "spec/inter-agent-dispatch-audit-v0.1.md"
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
       - "tools/validate_recovered_evidence_v0_2.py"
+      - "tools/validate_inter_agent_dispatch_audit_v0_1.py"
   push:
     branches:
       - main
     paths:
       - "spec/operational-continuity-fixtures-v0.1.md"
+      - "spec/inter-agent-dispatch-audit-v0.1.md"
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
       - "tools/validate_recovered_evidence_v0_2.py"
+      - "tools/validate_inter_agent_dispatch_audit_v0_1.py"
 
 permissions:
   contents: read
@@ -39,3 +43,8 @@ jobs:
           python tools/validate_recovered_evidence_v0_2.py \
             fixtures/operational-continuity/shared-envelope/resumed_constraint_defer_v0.2.json \
             fixtures/operational-continuity/shared-envelope/schema-v0.2.json
+      - name: Validate inter-agent dispatch audit v0.1
+        run: |
+          python tools/validate_inter_agent_dispatch_audit_v0_1.py \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json
