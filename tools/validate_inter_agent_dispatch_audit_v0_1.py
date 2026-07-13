@@ -26,12 +26,12 @@ RFC3339_PATTERN = re.compile(
     r"(?P<fraction>\.\d+)?(?P<zone>[Zz]|[+-]\d{2}:\d{2})$"
 )
 REQUIRED_NEGATIVE_CASES = {
-    "missing_authorized_exact_content",
-    "ui_only_without_machine_readable_audit",
-    "missing_followup_parent_link",
-    "ambiguous_followup_order",
-    "result_omits_effective_followup",
-    "authorized_content_changed_without_digest_update",
+    "missing_authorized_exact_content": "AUTHORIZED_EXACT_CONTENT_MISSING",
+    "ui_only_without_machine_readable_audit": "AUDIT_SURFACE_MISSING",
+    "missing_followup_parent_link": "PARENT_DISPATCH_MISSING",
+    "ambiguous_followup_order": "DISPATCH_SEQUENCE_INVALID",
+    "result_omits_effective_followup": "RESULT_DISPATCH_BINDING_INCOMPLETE",
+    "authorized_content_changed_without_digest_update": "CONTENT_DIGEST_MISMATCH",
 }
 RFC3339_CONTRACT_CASES = {
     "2026-07-13T10:00:00Z": True,
@@ -515,6 +515,15 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             if not isinstance(expected_code, str) or not expected_code:
                 error(fixture_errors, "EXPECTED_ERROR_CODE_MISSING", f"{location}.expected_error_code", "expected error code is required")
                 continue
+            required_code = REQUIRED_NEGATIVE_CASES.get(case)
+            if required_code is not None and expected_code != required_code:
+                error(
+                    fixture_errors,
+                    "EXPECTED_ERROR_CODE_INVALID",
+                    f"{location}.expected_error_code",
+                    f"mandatory case {case} must expect {required_code}",
+                )
+                continue
             try:
                 mutated = apply_mutation(canonical, vector.get("mutation", {}))
                 observed_errors = validate_record(mutated)
@@ -537,7 +546,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             if not rejected:
                 error(fixture_errors, "NEGATIVE_VECTOR_NOT_REJECTED", location, f"expected {expected_code}, observed {observed_codes}")
 
-    missing_cases = sorted(REQUIRED_NEGATIVE_CASES - seen_cases)
+    missing_cases = sorted(REQUIRED_NEGATIVE_CASES.keys() - seen_cases)
     if missing_cases:
         error(
             fixture_errors,
