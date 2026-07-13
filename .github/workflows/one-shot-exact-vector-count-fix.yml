@@ -34,16 +34,17 @@ jobs:
           validator_path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
           validator = validator_path.read_text(encoding="utf-8")
 
-          unexpected_block = '''    unexpected_cases = sorted(seen_cases - REQUIRED_VECTOR_CONTRACTS.keys())
-          if unexpected_cases:
-              error(
-                  fixture_errors,
-                  "UNEXPECTED_NEGATIVE_CASES",
-                  "negative_vectors",
-                  f"unexpected v0.1 cases: {unexpected_cases}",
-              )
-
-          '''
+          unexpected_block = (
+              "    unexpected_cases = sorted(seen_cases - REQUIRED_VECTOR_CONTRACTS.keys())\n"
+              "    if unexpected_cases:\n"
+              "        error(\n"
+              "            fixture_errors,\n"
+              "            \"UNEXPECTED_NEGATIVE_CASES\",\n"
+              "            \"negative_vectors\",\n"
+              "            f\"unexpected v0.1 cases: {unexpected_cases}\",\n"
+              "        )\n"
+              "\n"
+          )
           marker = '    expected = fixture.get("expected", {})\n'
           if "UNEXPECTED_NEGATIVE_CASES" not in validator:
               if marker not in validator:
