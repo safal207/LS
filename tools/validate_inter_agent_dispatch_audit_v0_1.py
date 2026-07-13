@@ -619,7 +619,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
                 continue
             required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)
             if required_contract is not None:
-                if vector.get("mutation") != required_contract["mutation"]:
+                if json.dumps(vector.get("mutation"), sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False) != json.dumps(required_contract["mutation"], sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False):
                     error(
                         fixture_errors,
                         "REQUIRED_MUTATION_INVALID",
