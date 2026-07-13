@@ -1,0 +1,135 @@
+{
+  "_meta": {
+    "role": "Vendor-neutral conformance fixture for encrypted inter-agent dispatch auditability.",
+    "contract_version": "inter-agent-dispatch-audit/v0.1",
+    "related_issue": "https://github.com/openai/codex/issues/32753",
+    "boundary_invariants": [
+      "Encrypted or redacted default storage does not remove authorized exact-message observability.",
+      "Streaming output, lifecycle interception, and inter-agent causal audit are independent surfaces.",
+      "Every initial task and follow-up is mechanically recorded with stable sender, recipient, order, and parent linkage.",
+      "A subagent result is accepted only when it binds to the complete effective dispatch sequence.",
+      "A model-generated paraphrase is never a substitute for the mechanically dispatched exact content."
+    ]
+  },
+  "fixture_id": "encrypted_inter_agent_dispatch_chain",
+  "contract_version": "inter-agent-dispatch-audit/v0.1",
+  "canonical_record": {
+    "security": {
+      "rollout_storage": "encrypted",
+      "operator_access": "authorized",
+      "default_transcript_visibility": "redacted"
+    },
+    "machine_readable_audit": {
+      "available": true,
+      "surface": "audit_export",
+      "format": "json"
+    },
+    "dispatches": [
+      {
+        "dispatch_id": "dispatch-root-child-001",
+        "operation": "spawn_agent",
+        "sender_thread_id": "thread-root-001",
+        "recipient_thread_id": "thread-child-001",
+        "sequence": 1,
+        "timestamp": "2026-07-13T10:00:00Z",
+        "parent_dispatch_id": null,
+        "payload": {
+          "storage_mode": "encrypted",
+          "content_digest": "sha256:416f33212c219a5647a8102a0e65f8e5b6d680babb2f6ccafd6538aeeb88726e",
+          "authorized_view": {
+            "access": "granted",
+            "exact_content": "SUBAGENT_AUDIT_SENTINEL_12345. Reply exactly: DONE."
+          }
+        }
+      },
+      {
+        "dispatch_id": "dispatch-root-child-002",
+        "operation": "followup_task",
+        "sender_thread_id": "thread-root-001",
+        "recipient_thread_id": "thread-child-001",
+        "sequence": 2,
+        "timestamp": "2026-07-13T10:00:05Z",
+        "parent_dispatch_id": "dispatch-root-child-001",
+        "payload": {
+          "storage_mode": "encrypted",
+          "content_digest": "sha256:d10d853e1c546aaef855d81d18865881c070aa623ca72414cdf0bbf5dfa46080",
+          "authorized_view": {
+            "access": "granted",
+            "exact_content": "FOLLOWUP_AUDIT_SENTINEL_67890."
+          }
+        }
+      }
+    ],
+    "result": {
+      "result_id": "result-child-001",
+      "actor_thread_id": "thread-child-001",
+      "status": "completed",
+      "effective_dispatch_ids": [
+        "dispatch-root-child-001",
+        "dispatch-root-child-002"
+      ],
+      "output_digest": "sha256:283e91eb85d58ffc2ad922884b644c41b54140660f6d1fda3c403d543eedd839",
+      "timestamp": "2026-07-13T10:00:10Z"
+    }
+  },
+  "negative_vectors": [
+    {
+      "case": "missing_authorized_exact_content",
+      "mutation": {
+        "op": "delete",
+        "path": "dispatches[0].payload.authorized_view.exact_content"
+      },
+      "expected_error_code": "AUTHORIZED_EXACT_CONTENT_MISSING"
+    },
+    {
+      "case": "ui_only_without_machine_readable_audit",
+      "mutation": {
+        "op": "set",
+        "path": "machine_readable_audit.available",
+        "value": false
+      },
+      "expected_error_code": "AUDIT_SURFACE_MISSING"
+    },
+    {
+      "case": "missing_followup_parent_link",
+      "mutation": {
+        "op": "delete",
+        "path": "dispatches[1].parent_dispatch_id"
+      },
+      "expected_error_code": "PARENT_DISPATCH_MISSING"
+    },
+    {
+      "case": "ambiguous_followup_order",
+      "mutation": {
+        "op": "set",
+        "path": "dispatches[1].sequence",
+        "value": 1
+      },
+      "expected_error_code": "DISPATCH_SEQUENCE_INVALID"
+    },
+    {
+      "case": "result_omits_effective_followup",
+      "mutation": {
+        "op": "set",
+        "path": "result.effective_dispatch_ids",
+        "value": [
+          "dispatch-root-child-001"
+        ]
+      },
+      "expected_error_code": "RESULT_DISPATCH_BINDING_INCOMPLETE"
+    },
+    {
+      "case": "authorized_content_changed_without_digest_update",
+      "mutation": {
+        "op": "set",
+        "path": "dispatches[1].payload.authorized_view.exact_content",
+        "value": "FOLLOWUP_AUDIT_SENTINEL_MUTATED."
+      },
+      "expected_error_code": "CONTENT_DIGEST_MISMATCH"
+    }
+  ],
+  "expected": {
+    "canonical_passes": true,
+    "negative_vectors_rejected": true
+  }
+}
