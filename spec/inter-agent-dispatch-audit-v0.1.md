@@ -70,26 +70,26 @@ Every dispatch carries:
 
 ## Required negative vectors
 
-All fourteen v0.1 vectors are normative conformance requirements. Each case is bound to one exact error contract in both the checked-in Draft 2020-12 schema and the runtime validator.
+All fourteen v0.1 vectors are normative conformance requirements. Each vector is bound to its exact case name, mutation object, and expected error code in both the checked-in Draft 2020-12 schema and the runtime validator.
 
-| Case | Required error code |
-| --- | --- |
-| `missing_authorized_exact_content` | `AUTHORIZED_EXACT_CONTENT_MISSING` |
-| `ui_only_without_machine_readable_audit` | `AUDIT_SURFACE_MISSING` |
-| `missing_followup_parent_link` | `PARENT_DISPATCH_MISSING` |
-| `ambiguous_followup_order` | `DISPATCH_SEQUENCE_INVALID` |
-| `result_omits_effective_followup` | `RESULT_DISPATCH_BINDING_INCOMPLETE` |
-| `authorized_content_changed_without_digest_update` | `CONTENT_DIGEST_MISMATCH` |
-| `missing_root_parent_key` | `ROOT_PARENT_MISSING` |
-| `self_parent_followup` | `PARENT_DISPATCH_MISSING` |
-| `invalid_root_operation` | `ROOT_OPERATION_INVALID` |
-| `invalid_dispatch_timestamp` | `TIMESTAMP_INVALID` |
-| `invalid_leap_second_timestamp` | `TIMESTAMP_INVALID` |
-| `malformed_result_digest` | `RESULT_DIGEST_INVALID` |
-| `missing_required_result_id` | `SCHEMA_VALIDATION_FAILED` |
-| `malformed_content_digest` | `CONTENT_DIGEST_INVALID` |
+| Case | Mutation | Required error code |
+| --- | --- | --- |
+| `missing_authorized_exact_content` | delete `dispatches[0].payload.authorized_view.exact_content` | `AUTHORIZED_EXACT_CONTENT_MISSING` |
+| `ui_only_without_machine_readable_audit` | set `machine_readable_audit.available = false` | `AUDIT_SURFACE_MISSING` |
+| `missing_followup_parent_link` | delete `dispatches[1].parent_dispatch_id` | `PARENT_DISPATCH_MISSING` |
+| `ambiguous_followup_order` | set `dispatches[1].sequence = 1` | `DISPATCH_SEQUENCE_INVALID` |
+| `result_omits_effective_followup` | set `result.effective_dispatch_ids = ["dispatch-root-child-001"]` | `RESULT_DISPATCH_BINDING_INCOMPLETE` |
+| `authorized_content_changed_without_digest_update` | set `dispatches[1].payload.authorized_view.exact_content = "FOLLOWUP_AUDIT_SENTINEL_MUTATED."` | `CONTENT_DIGEST_MISMATCH` |
+| `missing_root_parent_key` | delete `dispatches[0].parent_dispatch_id` | `ROOT_PARENT_MISSING` |
+| `self_parent_followup` | set `dispatches[1].parent_dispatch_id = "dispatch-root-child-002"` | `PARENT_DISPATCH_MISSING` |
+| `invalid_root_operation` | set `dispatches[0].operation = "followup_task"` | `ROOT_OPERATION_INVALID` |
+| `invalid_dispatch_timestamp` | set `dispatches[1].timestamp = "not-a-timeZ"` | `TIMESTAMP_INVALID` |
+| `invalid_leap_second_timestamp` | set `dispatches[1].timestamp = "2026-07-13T10:00:60Z"` | `TIMESTAMP_INVALID` |
+| `malformed_result_digest` | set `result.output_digest = "sha256:bogus"` | `RESULT_DIGEST_INVALID` |
+| `missing_required_result_id` | delete `result.result_id` | `SCHEMA_VALIDATION_FAILED` |
+| `malformed_content_digest` | set `dispatches[0].payload.content_digest = "sha256:bogus"` | `CONTENT_DIGEST_INVALID` |
 
-Removing any required case, reassigning its expected error code, or keeping the name while substituting an unrelated mutation is non-conformant. Future versions may add cases, but v0.1 consumers must enforce this complete fourteen-case set.
+Removing a required vector, changing its case, operation, path, value, or expected error code, or substituting an unrelated mutation that happens to emit the same code is non-conformant. Future versions may add vectors, but v0.1 consumers must enforce this complete fourteen-vector contract exactly.
 
 ## Files
 
@@ -107,4 +107,4 @@ python tools/validate_inter_agent_dispatch_audit_v0_1.py \
   fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json
 ```
 
-The validator remains dependency-free. It enforces the JSON Schema keyword subset used by this artifact, validates semantic and causal invariants, applies every declared negative mutation, and requires the exact expected error code to be observed for every required vector.
+The validator remains dependency-free. It enforces the JSON Schema keyword subset used by this artifact, validates semantic and causal invariants, applies every declared negative mutation, and requires every exact case/mutation/error contract to remain present and to produce its required error.
