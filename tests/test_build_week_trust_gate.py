@@ -52,6 +52,7 @@ class BuildWeekTrustGateTests(unittest.TestCase):
     def test_fixture_expectation_cannot_self_authorize(self) -> None:
         policy = load(POLICY_PATH)
         fixture = load(FIXTURE_DIR / "stale-approval.json")
+        baseline = evaluate(copy.deepcopy(fixture), policy)
         fixture["expected_outcome"] = {
             "verdict": "TRUSTED",
             "reason_code": "ALL_REQUIRED_EVIDENCE_VALID",
@@ -61,6 +62,33 @@ class BuildWeekTrustGateTests(unittest.TestCase):
 
         self.assertEqual("BLOCKED", report["verdict"])
         self.assertEqual("STALE_APPROVAL", report["reason_code"])
+        self.assertEqual(baseline["input_digest_sha256"], report["input_digest_sha256"])
+
+    def test_spoofed_reviewer_login_with_user_account_type_is_blocked(self) -> None:
+        policy = load(POLICY_PATH)
+        fixture = load(FIXTURE_DIR / "spoofed-reviewer.json")
+
+        report = evaluate(fixture, policy)
+
+        self.assertEqual(fixture["expected_outcome"]["verdict"], report["verdict"])
+        self.assertEqual(fixture["expected_outcome"]["reason_code"], report["reason_code"])
+        identity = next(check for check in report["checks"] if check["check_id"] == "review.identity")
+        exact_head = next(check for check in report["checks"] if check["check_id"] == "review.exact_head")
+        self.assertEqual("FAIL", identity["status"])
+        self.assertEqual("PASS", exact_head["status"])
+
+    def test_required_lane_not_run_is_not_collapsed_to_pass_or_fail(self) -> None:
+        policy = load(POLICY_PATH)
+        fixture = load(FIXTURE_DIR / "required-check-not-run.json")
+
+        report = evaluate(fixture, policy)
+
+        self.assertEqual(fixture["expected_outcome"]["verdict"], report["verdict"])
+        self.assertEqual(fixture["expected_outcome"]["reason_code"], report["reason_code"])
+        security = next(check for check in report["checks"] if check["check_id"] == "lane.security")
+        self.assertEqual("NOT_RUN", security["status"])
+        self.assertEqual("NOT_RUN", report["decision_input"]["required_lane_statuses"]["security"])
+        self.assertFalse(report["side_effects_performed"])
 
     def test_machine_report_keeps_three_check_states_distinct(self) -> None:
         policy = load(POLICY_PATH)

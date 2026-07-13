@@ -1,0 +1,40 @@
+{
+  "schema_version": "ls.build_week.trust_input.v0.1",
+  "scenario_id": "spoofed-reviewer",
+  "pull_request": {
+    "repository": "safal207/LS",
+    "number": 897,
+    "current_head_sha": "dddddddddddddddddddddddddddddddddddddddd"
+  },
+  "review": {
+    "state": "APPROVED",
+    "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "actor": {
+      "login": "coderabbitai[bot]",
+      "account_type": "User"
+    },
+    "provenance": {
+      "source": "github_api.pull_request_review",
+      "authenticated_runtime": true,
+      "evidence_id": "review-spoofed-actor-001"
+    }
+  },
+  "lanes": [
+    {
+      "name": "unit-tests",
+      "status": "PASS",
+      "head_sha": "dddddddddddddddddddddddddddddddddddddddd",
+      "evidence_id": "check-unit-tests-head-d"
+    },
+    {
+      "name": "security",
+      "status": "PASS",
+      "head_sha": "dddddddddddddddddddddddddddddddddddddddd",
+      "evidence_id": "check-security-head-d"
+    }
+  ],
+  "expected_outcome": {
+    "verdict": "BLOCKED",
+    "reason_code": "UNTRUSTED_REVIEWER"
+  }
+}

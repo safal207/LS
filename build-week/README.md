@@ -1,10 +1,12 @@
 # LS OpenAI Build Week trust-gate demo
 
-This slice implements the first two scenarios from issue #897:
+This slice implements all four required scenarios from issue #897:
 
 ```text
-stale approval      -> BLOCKED
-current-head review -> TRUSTED, eligible only for human-authorized delivery
+stale approval       -> BLOCKED / STALE_APPROVAL
+spoofed reviewer     -> BLOCKED / UNTRUSTED_REVIEWER
+required check absent -> BLOCKED / REQUIRED_LANE_NOT_RUN
+current-head review  -> TRUSTED, eligible only for human-authorized delivery
 ```
 
 The evaluator is deterministic, dependency-free, and performs no network or
@@ -17,13 +19,9 @@ reviewer trusted.
 From the repository root:
 
 ```bash
-python3 tools/build_week_trust_gate.py \
-  build-week/demo/stale-approval.json \
-  --verify-expected
-
-python3 tools/build_week_trust_gate.py \
-  build-week/demo/trusted-current-head.json \
-  --verify-expected
+for fixture in build-week/demo/*.json; do
+  python3 tools/build_week_trust_gate.py "$fixture" --verify-expected
+done
 ```
 
 Each command prints a human verdict followed by the canonical JSON trust report.
@@ -47,6 +45,8 @@ python3 -m unittest -v tests/test_build_week_trust_gate.py
   against a separate trusted policy.
 - Required lanes retain distinct `PASS`, `FAIL`, and `NOT_RUN` states.
 - Unknown, malformed, incomplete, or stale evidence fails closed.
+- Fixture-only `expected_outcome` annotations are excluded from the decision
+  evidence digest and cannot change a verdict.
 - `TRUSTED` never means autonomous delivery; human authorization remains required.
 
 The current fixtures model normalized evidence at the trusted collection

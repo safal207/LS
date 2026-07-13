@@ -49,6 +49,15 @@ def digest(value: Any) -> str:
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
+def decision_evidence(value: Any) -> Any:
+    """Remove fixture-only oracle data from the evidence digest preimage."""
+    if not isinstance(value, dict):
+        return value
+    evidence = deepcopy(value)
+    evidence.pop("expected_outcome", None)
+    return evidence
+
+
 def _require_object(value: Any, location: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TrustInputError(f"{location} must be an object")
@@ -226,7 +235,7 @@ def _invalid_report(value: Any, policy: Any, error: str) -> dict[str, Any]:
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "scenario_id": scenario_id,
-        "input_digest_sha256": digest(value),
+        "input_digest_sha256": digest(decision_evidence(value)),
         "policy_digest_sha256": digest(policy),
         "verdict": "BLOCKED",
         "trust_state": "UNTRUSTED",
@@ -406,7 +415,7 @@ def evaluate(value: Any, policy_value: Any) -> dict[str, Any]:
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "scenario_id": evidence["scenario_id"],
-        "input_digest_sha256": digest(evidence),
+        "input_digest_sha256": digest(decision_evidence(evidence)),
         "policy_digest_sha256": digest(policy),
         "verdict": verdict,
         "trust_state": trust_state,
