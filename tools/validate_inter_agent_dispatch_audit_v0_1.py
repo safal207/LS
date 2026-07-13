@@ -8,17 +8,30 @@ import copy
 import hashlib
 import json
 import re
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 CONTRACT_VERSION = "inter-agent-dispatch-audit/v0.1"
 FIXTURE_ID = "encrypted_inter_agent_dispatch_chain"
 MACHINE_SURFACES = {"app_server", "hook", "audit_export"}
 DISPATCH_OPERATIONS = {"spawn_agent", "send_message", "followup_task"}
+FOLLOWUP_OPERATIONS = {"send_message", "followup_task"}
+SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 PATH_PART = re.compile(r"^(?P<key>[^\[]+)(?:\[(?P<index>\d+)\])?$")
+REQUIRED_NEGATIVE_CASES = {
+    "missing_authorized_exact_content",
+    "ui_only_without_machine_readable_audit",
+    "missing_followup_parent_link",
+    "ambiguous_followup_order",
+    "result_omits_effective_followup",
+    "authorized_content_changed_without_digest_update",
+}
 
 
 def load_object(path: Path) -> dict[str, Any]:
+    """Load a UTF-8 JSON object from *path*."""
     with path.open("r", encoding="utf-8") as handle:
         value = json.load(handle)
     if not isinstance(value, dict):
@@ -27,14 +40,195 @@ def load_object(path: Path) -> dict[str, Any]:
 
 
 def error(errors: list[dict[str, str]], code: str, location: str, message: str) -> None:
+    """Append one normalized validation error."""
     errors.append({"code": code, "location": location, "message": message})
 
 
 def sha256_text(value: str) -> str:
+    """Return the canonical prefixed SHA-256 digest for UTF-8 text."""
     return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def is_utc_timestamp(value: Any) -> bool:
+    """Return whether *value* is a parseable RFC3339-style UTC timestamp."""
+    if not isinstance(value, str) or not value.endswith("Z") or "T" not in value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() == timedelta(0)
+
+
+def resolve_schema_ref(root_schema: dict[str, Any], reference: str) -> dict[str, Any]:
+    """Resolve a local JSON Pointer reference within the root schema."""
+    if not reference.startswith("#/"):
+        raise ValueError(f"only local schema references are supported: {reference}")
+    current: Any = root_schema
+    for raw_part in reference[2:].split("/"):
+        part = raw_part.replace("~1", "/").replace("~0", "~")
+        if not isinstance(current, dict) or part not in current:
+            raise KeyError(reference)
+        current = current[part]
+    if not isinstance(current, dict):
+        raise ValueError(f"schema reference does not resolve to an object: {reference}")
+    return current
+
+
+def instance_matches_type(instance: Any, expected: str) -> bool:
+    """Check one JSON Schema primitive type without bool/int ambiguity."""
+    if expected == "object":
+        return isinstance(instance, dict)
+    if expected == "array":
+        return isinstance(instance, list)
+    if expected == "string":
+        return isinstance(instance, str)
+    if expected == "integer":
+        return isinstance(instance, int) and not isinstance(instance, bool)
+    if expected == "number":
+        return isinstance(instance, (int, float)) and not isinstance(instance, bool)
+    if expected == "boolean":
+        return isinstance(instance, bool)
+    if expected == "null":
+        return instance is None
+    return False
+
+
+def validate_schema_instance(
+    instance: Any,
+    schema: dict[str, Any],
+    root_schema: dict[str, Any],
+    path: str = "$",
+) -> list[str]:
+    """Validate the schema keyword subset used by the checked-in v0.1 schema."""
+    issues: list[str] = []
+
+    reference = schema.get("$ref")
+    if isinstance(reference, str):
+        try:
+            referenced = resolve_schema_ref(root_schema, reference)
+        except (KeyError, ValueError) as exc:
+            return [f"{path}: invalid schema reference {reference!r}: {exc}"]
+        issues.extend(validate_schema_instance(instance, referenced, root_schema, path))
+
+    for sub_schema in schema.get("allOf", []):
+        if isinstance(sub_schema, dict):
+            issues.extend(validate_schema_instance(instance, sub_schema, root_schema, path))
+
+    if "const" in schema and instance != schema["const"]:
+        issues.append(f"{path}: expected const {schema['const']!r}")
+    if "enum" in schema and instance not in schema["enum"]:
+        issues.append(f"{path}: value is not in the allowed enum")
+
+    expected_type = schema.get("type")
+    if isinstance(expected_type, str):
+        type_valid = instance_matches_type(instance, expected_type)
+    elif isinstance(expected_type, list):
+        type_valid = any(
+            isinstance(candidate, str) and instance_matches_type(instance, candidate)
+            for candidate in expected_type
+        )
+    else:
+        type_valid = True
+
+    if not type_valid:
+        issues.append(f"{path}: type mismatch, expected {expected_type!r}")
+        return issues
+
+    if isinstance(instance, dict):
+        required = schema.get("required", [])
+        if isinstance(required, list):
+            for key in required:
+                if isinstance(key, str) and key not in instance:
+                    issues.append(f"{path}.{key}: required property is missing")
+
+        properties = schema.get("properties", {})
+        if isinstance(properties, dict):
+            for key, child_schema in properties.items():
+                if key in instance and isinstance(child_schema, dict):
+                    issues.extend(
+                        validate_schema_instance(
+                            instance[key],
+                            child_schema,
+                            root_schema,
+                            f"{path}.{key}",
+                        )
+                    )
+            if schema.get("additionalProperties") is False:
+                for key in instance:
+                    if key not in properties:
+                        issues.append(f"{path}.{key}: additional property is not allowed")
+
+    if isinstance(instance, list):
+        minimum = schema.get("minItems")
+        maximum = schema.get("maxItems")
+        if isinstance(minimum, int) and len(instance) < minimum:
+            issues.append(f"{path}: expected at least {minimum} items")
+        if isinstance(maximum, int) and len(instance) > maximum:
+            issues.append(f"{path}: expected at most {maximum} items")
+
+        prefix_items = schema.get("prefixItems", [])
+        prefix_count = 0
+        if isinstance(prefix_items, list):
+            prefix_count = len(prefix_items)
+            for index, child_schema in enumerate(prefix_items):
+                if index < len(instance) and isinstance(child_schema, dict):
+                    issues.extend(
+                        validate_schema_instance(
+                            instance[index],
+                            child_schema,
+                            root_schema,
+                            f"{path}[{index}]",
+                        )
+                    )
+
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index in range(prefix_count, len(instance)):
+                issues.extend(
+                    validate_schema_instance(
+                        instance[index],
+                        item_schema,
+                        root_schema,
+                        f"{path}[{index}]",
+                    )
+                )
+        elif item_schema is False and len(instance) > prefix_count:
+            issues.append(f"{path}: additional array items are not allowed")
+
+        contains = schema.get("contains")
+        if isinstance(contains, dict):
+            if not any(
+                not validate_schema_instance(item, contains, root_schema, f"{path}[{index}]")
+                for index, item in enumerate(instance)
+            ):
+                issues.append(f"{path}: no item satisfies contains")
+
+    if isinstance(instance, str):
+        minimum_length = schema.get("minLength")
+        if isinstance(minimum_length, int) and len(instance) < minimum_length:
+            issues.append(f"{path}: string is shorter than {minimum_length}")
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and re.search(pattern, instance) is None:
+            issues.append(f"{path}: string does not match {pattern!r}")
+        format_name = schema.get("format")
+        if format_name == "date-time" and not is_utc_timestamp(instance):
+            issues.append(f"{path}: invalid UTC date-time")
+        if format_name == "uri":
+            parsed = urlparse(instance)
+            if not parsed.scheme or not parsed.netloc:
+                issues.append(f"{path}: invalid absolute URI")
+
+    if isinstance(instance, int) and not isinstance(instance, bool):
+        minimum = schema.get("minimum")
+        if isinstance(minimum, (int, float)) and instance < minimum:
+            issues.append(f"{path}: number is below minimum {minimum}")
+
+    return issues
+
+
 def validate_record(record: Any) -> list[dict[str, str]]:
+    """Validate semantic and causal invariants for one canonical audit record."""
     errors: list[dict[str, str]] = []
     if not isinstance(record, dict):
         error(errors, "RECORD_INVALID", "canonical_record", "record must be an object")
@@ -54,9 +248,8 @@ def validate_record(record: Any) -> list[dict[str, str]]:
     audit = record.get("machine_readable_audit")
     if not isinstance(audit, dict):
         error(errors, "AUDIT_SURFACE_MISSING", "machine_readable_audit", "machine-readable audit surface is required")
-    else:
-        if audit.get("available") is not True or audit.get("surface") not in MACHINE_SURFACES or audit.get("format") != "json":
-            error(errors, "AUDIT_SURFACE_MISSING", "machine_readable_audit", "an available machine-readable JSON audit surface is required")
+    elif audit.get("available") is not True or audit.get("surface") not in MACHINE_SURFACES or audit.get("format") != "json":
+        error(errors, "AUDIT_SURFACE_MISSING", "machine_readable_audit", "an available machine-readable JSON audit surface is required")
 
     dispatches = record.get("dispatches")
     if not isinstance(dispatches, list) or not dispatches:
@@ -64,7 +257,7 @@ def validate_record(record: Any) -> list[dict[str, str]]:
         return errors
 
     ids: list[str] = []
-    by_id: dict[str, dict[str, Any]] = {}
+    seen_ids: set[str] = set()
     expected_sequence = 1
     root_sender: str | None = None
     root_recipient: str | None = None
@@ -76,17 +269,21 @@ def validate_record(record: Any) -> list[dict[str, str]]:
             continue
 
         dispatch_id = dispatch.get("dispatch_id")
+        valid_unique_id = isinstance(dispatch_id, str) and bool(dispatch_id) and dispatch_id not in seen_ids
         if not isinstance(dispatch_id, str) or not dispatch_id:
             error(errors, "DISPATCH_ID_MISSING", f"{location}.dispatch_id", "dispatch_id is required")
-        elif dispatch_id in by_id:
+        elif dispatch_id in seen_ids:
             error(errors, "DISPATCH_ID_DUPLICATE", f"{location}.dispatch_id", "dispatch_id must be unique")
         else:
             ids.append(dispatch_id)
-            by_id[dispatch_id] = dispatch
 
         operation = dispatch.get("operation")
         if operation not in DISPATCH_OPERATIONS:
             error(errors, "DISPATCH_OPERATION_INVALID", f"{location}.operation", "unsupported dispatch operation")
+        if index == 0 and operation != "spawn_agent":
+            error(errors, "ROOT_OPERATION_INVALID", f"{location}.operation", "initial dispatch must use spawn_agent")
+        if index > 0 and operation not in FOLLOWUP_OPERATIONS:
+            error(errors, "FOLLOWUP_OPERATION_INVALID", f"{location}.operation", "non-root dispatch must be send_message or followup_task")
 
         sequence = dispatch.get("sequence")
         if sequence != expected_sequence:
@@ -99,42 +296,48 @@ def validate_record(record: Any) -> list[dict[str, str]]:
             error(errors, "SENDER_MISSING", f"{location}.sender_thread_id", "sender_thread_id is required")
         if not isinstance(recipient, str) or not recipient:
             error(errors, "RECIPIENT_MISSING", f"{location}.recipient_thread_id", "recipient_thread_id is required")
+
         if index == 0:
             root_sender, root_recipient = sender, recipient
-            if dispatch.get("parent_dispatch_id") is not None:
+            if "parent_dispatch_id" not in dispatch:
+                error(errors, "ROOT_PARENT_MISSING", f"{location}.parent_dispatch_id", "initial dispatch must explicitly declare a null parent")
+            elif dispatch["parent_dispatch_id"] is not None:
                 error(errors, "ROOT_PARENT_INVALID", f"{location}.parent_dispatch_id", "initial dispatch must not have a parent")
         else:
             parent_id = dispatch.get("parent_dispatch_id")
-            if not isinstance(parent_id, str) or parent_id not in by_id:
+            if not isinstance(parent_id, str) or parent_id not in seen_ids:
                 error(errors, "PARENT_DISPATCH_MISSING", f"{location}.parent_dispatch_id", "follow-up must reference an earlier dispatch")
             if sender != root_sender or recipient != root_recipient:
                 error(errors, "DISPATCH_PARTICIPANT_DRIFT", location, "sender and recipient must remain stable within the fixture chain")
 
         timestamp = dispatch.get("timestamp")
-        if not isinstance(timestamp, str) or not timestamp.endswith("Z"):
-            error(errors, "TIMESTAMP_INVALID", f"{location}.timestamp", "UTC timestamp is required")
+        if not is_utc_timestamp(timestamp):
+            error(errors, "TIMESTAMP_INVALID", f"{location}.timestamp", "valid UTC timestamp is required")
 
         payload = dispatch.get("payload")
         if not isinstance(payload, dict):
             error(errors, "PAYLOAD_INVALID", f"{location}.payload", "payload must be an object")
-            continue
-        if payload.get("storage_mode") != "encrypted":
-            error(errors, "PAYLOAD_STORAGE_NOT_ENCRYPTED", f"{location}.payload.storage_mode", "payload storage must remain encrypted")
-
-        authorized = payload.get("authorized_view")
-        exact_content: Any = None
-        if not isinstance(authorized, dict) or authorized.get("access") != "granted":
-            error(errors, "AUTHORIZED_VIEW_MISSING", f"{location}.payload.authorized_view", "authorized view with granted access is required")
         else:
-            exact_content = authorized.get("exact_content")
-            if not isinstance(exact_content, str) or not exact_content:
-                error(errors, "AUTHORIZED_EXACT_CONTENT_MISSING", f"{location}.payload.authorized_view.exact_content", "exact mechanically dispatched content is required")
+            if payload.get("storage_mode") != "encrypted":
+                error(errors, "PAYLOAD_STORAGE_NOT_ENCRYPTED", f"{location}.payload.storage_mode", "payload storage must remain encrypted")
 
-        digest = payload.get("content_digest")
-        if not isinstance(digest, str) or not digest.startswith("sha256:"):
-            error(errors, "CONTENT_DIGEST_INVALID", f"{location}.payload.content_digest", "sha256 content digest is required")
-        elif isinstance(exact_content, str) and exact_content and digest != sha256_text(exact_content):
-            error(errors, "CONTENT_DIGEST_MISMATCH", f"{location}.payload.content_digest", "digest must bind the authorized exact content")
+            authorized = payload.get("authorized_view")
+            exact_content: Any = None
+            if not isinstance(authorized, dict) or authorized.get("access") != "granted":
+                error(errors, "AUTHORIZED_VIEW_MISSING", f"{location}.payload.authorized_view", "authorized view with granted access is required")
+            else:
+                exact_content = authorized.get("exact_content")
+                if not isinstance(exact_content, str) or not exact_content:
+                    error(errors, "AUTHORIZED_EXACT_CONTENT_MISSING", f"{location}.payload.authorized_view.exact_content", "exact mechanically dispatched content is required")
+
+            digest = payload.get("content_digest")
+            if not isinstance(digest, str) or SHA256_PATTERN.fullmatch(digest) is None:
+                error(errors, "CONTENT_DIGEST_INVALID", f"{location}.payload.content_digest", "64-hex SHA-256 content digest is required")
+            elif isinstance(exact_content, str) and exact_content and digest != sha256_text(exact_content):
+                error(errors, "CONTENT_DIGEST_MISMATCH", f"{location}.payload.content_digest", "digest must bind the authorized exact content")
+
+        if valid_unique_id:
+            seen_ids.add(dispatch_id)
 
     result = record.get("result")
     if not isinstance(result, dict):
@@ -149,13 +352,16 @@ def validate_record(record: Any) -> list[dict[str, str]]:
     if effective != ids:
         error(errors, "RESULT_DISPATCH_BINDING_INCOMPLETE", "result.effective_dispatch_ids", "result must bind the complete ordered dispatch sequence")
     output_digest = result.get("output_digest")
-    if not isinstance(output_digest, str) or not output_digest.startswith("sha256:"):
-        error(errors, "RESULT_DIGEST_INVALID", "result.output_digest", "result output digest is required")
+    if not isinstance(output_digest, str) or SHA256_PATTERN.fullmatch(output_digest) is None:
+        error(errors, "RESULT_DIGEST_INVALID", "result.output_digest", "64-hex SHA-256 result digest is required")
+    if not is_utc_timestamp(result.get("timestamp")):
+        error(errors, "RESULT_TIMESTAMP_INVALID", "result.timestamp", "valid UTC result timestamp is required")
 
     return errors
 
 
 def resolve_parent(root: dict[str, Any], path: str) -> tuple[Any, str | int]:
+    """Resolve the parent container and final key for a supported mutation path."""
     parts = path.split(".")
     current: Any = root
     for offset, raw in enumerate(parts):
@@ -185,6 +391,7 @@ def resolve_parent(root: dict[str, Any], path: str) -> tuple[Any, str | int]:
 
 
 def apply_mutation(record: dict[str, Any], mutation: dict[str, Any]) -> dict[str, Any]:
+    """Return a deep-copied record after applying one declared mutation."""
     mutated = copy.deepcopy(record)
     op = mutation.get("op")
     path = mutation.get("path")
@@ -192,16 +399,26 @@ def apply_mutation(record: dict[str, Any], mutation: dict[str, Any]) -> dict[str
         raise ValueError("mutation requires op=set|delete and a path")
     parent, key = resolve_parent(mutated, path)
     if op == "delete":
-        if isinstance(parent, list):
-            del parent[key]
-        else:
-            del parent[key]
+        del parent[key]
     else:
         parent[key] = copy.deepcopy(mutation.get("value"))
     return mutated
 
 
+def schema_errors_as_records(issues: list[str]) -> list[dict[str, str]]:
+    """Convert schema issue strings into normalized validator errors."""
+    return [
+        {
+            "code": "SCHEMA_VALIDATION_FAILED",
+            "location": issue.split(":", 1)[0],
+            "message": issue,
+        }
+        for issue in issues
+    ]
+
+
 def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    """Validate the fixture, its schema contract, and all negative mutations."""
     fixture_errors: list[dict[str, str]] = []
     if schema.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
         error(fixture_errors, "SCHEMA_DRAFT_INVALID", "schema.$schema", "Draft 2020-12 is required")
@@ -210,6 +427,8 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
         error(fixture_errors, "SCHEMA_FIXTURE_ID_INVALID", "schema.properties.fixture_id", "unexpected fixture id const")
     if properties.get("contract_version", {}).get("const") != CONTRACT_VERSION:
         error(fixture_errors, "SCHEMA_VERSION_INVALID", "schema.properties.contract_version", "unexpected contract version const")
+
+    fixture_errors.extend(schema_errors_as_records(validate_schema_instance(fixture, schema, schema)))
 
     if fixture.get("fixture_id") != FIXTURE_ID:
         error(fixture_errors, "FIXTURE_ID_INVALID", "fixture_id", "unexpected fixture id")
@@ -221,10 +440,10 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
 
     vector_results: list[dict[str, Any]] = []
     negative_vectors = fixture.get("negative_vectors")
+    seen_cases: set[str] = set()
     if not isinstance(negative_vectors, list) or not negative_vectors:
         error(fixture_errors, "NEGATIVE_VECTORS_MISSING", "negative_vectors", "negative vectors are required")
     else:
-        seen_cases: set[str] = set()
         for index, vector in enumerate(negative_vectors):
             location = f"negative_vectors[{index}]"
             if not isinstance(vector, dict):
@@ -242,6 +461,13 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             try:
                 mutated = apply_mutation(canonical, vector.get("mutation", {}))
                 observed_errors = validate_record(mutated)
+                mutated_fixture = copy.deepcopy(fixture)
+                mutated_fixture["canonical_record"] = mutated
+                observed_errors.extend(
+                    schema_errors_as_records(
+                        validate_schema_instance(mutated_fixture, schema, schema)
+                    )
+                )
             except (KeyError, ValueError, TypeError) as exc:
                 error(fixture_errors, "MUTATION_INVALID", f"{location}.mutation", str(exc))
                 continue
@@ -255,11 +481,25 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             if expected_code not in observed_codes:
                 error(fixture_errors, "NEGATIVE_VECTOR_NOT_REJECTED", location, f"expected {expected_code}, observed {observed_codes}")
 
+    missing_cases = sorted(REQUIRED_NEGATIVE_CASES - seen_cases)
+    if missing_cases:
+        error(
+            fixture_errors,
+            "REQUIRED_NEGATIVE_CASES_MISSING",
+            "negative_vectors",
+            f"missing mandatory v0.1 cases: {missing_cases}",
+        )
+
     expected = fixture.get("expected", {})
-    if expected.get("canonical_passes") is not True or expected.get("negative_vectors_rejected") is not True:
+    if not isinstance(expected, dict) or expected.get("canonical_passes") is not True or expected.get("negative_vectors_rejected") is not True:
         error(fixture_errors, "EXPECTED_OUTCOME_INVALID", "expected", "expected outcomes must require canonical pass and negative rejection")
 
-    passed = not fixture_errors and not canonical_errors and all(item["rejected"] for item in vector_results)
+    passed = (
+        not fixture_errors
+        and not canonical_errors
+        and bool(vector_results)
+        and all(item["rejected"] for item in vector_results)
+    )
     return {
         "fixture_id": fixture.get("fixture_id"),
         "contract_version": fixture.get("contract_version"),
@@ -271,6 +511,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
 
 
 def main() -> int:
+    """Run CLI validation and return a process-compatible status code."""
     parser = argparse.ArgumentParser()
     parser.add_argument("fixture", type=Path)
     parser.add_argument("schema", type=Path)
