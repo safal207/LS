@@ -28,13 +28,16 @@ jobs:
         with:
           ref: agent/inter-agent-dispatch-audit-v0-1
           fetch-depth: 0
-      - name: Apply bounded patch
+      - name: Apply bounded validator patch
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          validator_path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
-          validator = validator_path.read_text(encoding="utf-8")
+          path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
+          text = path.read_text(encoding="utf-8")
+          if "def input_failure_report(" in text:
+              raise SystemExit(0)
+
           old = '''def main() -> int:
               """Run CLI validation and return a process-compatible status code."""
               parser = argparse.ArgumentParser()
@@ -81,59 +84,18 @@ jobs:
               print(json.dumps(result, indent=2, sort_keys=True))
               return 0 if result["passed"] else 1
           '''.replace("          ", "")
-          if old not in validator:
-              raise SystemExit("validator main block no longer matches the bounded patch")
-          validator_path.write_text(validator.replace(old, new, 1), encoding="utf-8")
-
-          workflow_path = Path(".github/workflows/operational-continuity-fixtures.yml")
-          workflow = workflow_path.read_text(encoding="utf-8")
-          if "Validate structured CLI input failures" not in workflow:
-              workflow += '''
-                - name: Validate structured CLI input failures
-                  run: |
-                    tmp_dir="$(mktemp -d)"
-                    printf '{invalid-json' > "$tmp_dir/bad.json"
-                    printf '[]' > "$tmp_dir/non-object.json"
-                    check_failure() {
-                      label="$1"
-                      fixture="$2"
-                      output="$tmp_dir/$label-output.json"
-                      set +e
-                      python tools/validate_inter_agent_dispatch_audit_v0_1.py \
-                        "$fixture" \
-                        fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json \
-                        > "$output"
-                      status=$?
-                      set -e
-                      test "$status" -eq 1
-                      python - "$output" <<'CHECK'
-                    import json
-                    import sys
-
-                    with open(sys.argv[1], encoding="utf-8") as handle:
-                        report = json.load(handle)
-                    assert report["passed"] is False
-                    errors = report["fixture_errors"]
-                    assert len(errors) == 1
-                    assert errors[0]["code"] == "INPUT_LOAD_FAILED"
-                    assert errors[0]["location"] == "cli"
-                    assert errors[0]["message"]
-                    CHECK
-                    }
-                    check_failure malformed "$tmp_dir/bad.json"
-                    check_failure non_object "$tmp_dir/non-object.json"
-                    check_failure missing "$tmp_dir/missing.json"
-          '''.replace("          ", "")
-              workflow_path.write_text(workflow, encoding="utf-8")
-
-          Path(".github/workflows/one-shot-cli-input-failure-fix.yml").unlink()
+          if old not in text:
+              raise SystemExit("validator main block no longer matches bounded patch")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
-      - name: Commit bounded fix
+      - name: Commit validator patch
         run: |
+          if git diff --quiet -- tools/validate_inter_agent_dispatch_audit_v0_1.py; then
+            echo "Validator already patched."
+            exit 0
+          fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add tools/validate_inter_agent_dispatch_audit_v0_1.py \
-            .github/workflows/operational-continuity-fixtures.yml \
-            .github/workflows/one-shot-cli-input-failure-fix.yml
+          git add tools/validate_inter_agent_dispatch_audit_v0_1.py
           git commit -m "structure CLI input failures"
           git push origin HEAD:agent/inter-agent-dispatch-audit-v0-1
