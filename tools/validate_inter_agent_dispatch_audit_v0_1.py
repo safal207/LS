@@ -25,7 +25,7 @@ RFC3339_PATTERN = re.compile(
     r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})"
     r"(?P<fraction>\.\d+)?(?P<zone>[Zz]|[+-]\d{2}:\d{2})$"
 )
-REQUIRED_NEGATIVE_CASES = {
+CORE_NEGATIVE_CASES = {
     "missing_authorized_exact_content": "AUTHORIZED_EXACT_CONTENT_MISSING",
     "ui_only_without_machine_readable_audit": "AUDIT_SURFACE_MISSING",
     "missing_followup_parent_link": "PARENT_DISPATCH_MISSING",
@@ -33,6 +33,17 @@ REQUIRED_NEGATIVE_CASES = {
     "result_omits_effective_followup": "RESULT_DISPATCH_BINDING_INCOMPLETE",
     "authorized_content_changed_without_digest_update": "CONTENT_DIGEST_MISMATCH",
 }
+HARDENING_NEGATIVE_CASES = {
+    "missing_root_parent_key": "ROOT_PARENT_MISSING",
+    "self_parent_followup": "PARENT_DISPATCH_MISSING",
+    "invalid_root_operation": "ROOT_OPERATION_INVALID",
+    "invalid_dispatch_timestamp": "TIMESTAMP_INVALID",
+    "invalid_leap_second_timestamp": "TIMESTAMP_INVALID",
+    "malformed_result_digest": "RESULT_DIGEST_INVALID",
+    "missing_required_result_id": "SCHEMA_VALIDATION_FAILED",
+    "malformed_content_digest": "CONTENT_DIGEST_INVALID",
+}
+REQUIRED_NEGATIVE_CASES = CORE_NEGATIVE_CASES | HARDENING_NEGATIVE_CASES
 RFC3339_CONTRACT_CASES = {
     "2026-07-13T10:00:00Z": True,
     "2026-07-13t10:00:00z": True,
@@ -521,7 +532,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
                     fixture_errors,
                     "EXPECTED_ERROR_CODE_INVALID",
                     f"{location}.expected_error_code",
-                    f"mandatory case {case} must expect {required_code}",
+                    f"required case {case} must expect {required_code}",
                 )
                 continue
             try:
@@ -552,7 +563,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             fixture_errors,
             "REQUIRED_NEGATIVE_CASES_MISSING",
             "negative_vectors",
-            f"missing mandatory v0.1 cases: {missing_cases}",
+            f"missing required v0.1 cases: {missing_cases}",
         )
 
     expected = fixture.get("expected", {})
@@ -562,7 +573,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
     passed = (
         not fixture_errors
         and not canonical_errors
-        and bool(vector_results)
+        and len(vector_results) >= len(REQUIRED_NEGATIVE_CASES)
         and all(item["rejected"] for item in vector_results)
     )
     return {
