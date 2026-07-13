@@ -1,0 +1,133 @@
+name: One-shot schema JSON equality fix
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-schema-json-equality-fix
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    if: github.repository == 'safal207/LS' && github.event.pull_request.number == 907
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/inter-agent-dispatch-audit-v0-1
+          fetch-depth: 0
+      - name: Apply bounded schema equality patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
+          text = path.read_text(encoding="utf-8")
+          if "def json_schema_equal(" in text:
+              raise SystemExit(0)
+
+          marker = "def validate_schema_instance(\n"
+          helper = '''def json_schema_equal(left: Any, right: Any) -> bool:
+              """Compare JSON values using Draft 2020-12 equality semantics."""
+              if isinstance(left, bool) or isinstance(right, bool):
+                  return type(left) is type(right) and left == right
+              if (
+                  isinstance(left, (int, float))
+                  and not isinstance(left, bool)
+                  and isinstance(right, (int, float))
+                  and not isinstance(right, bool)
+              ):
+                  return left == right
+              if type(left) is not type(right):
+                  return False
+              if isinstance(left, dict):
+                  return left.keys() == right.keys() and all(
+                      json_schema_equal(left[key], right[key]) for key in left
+                  )
+              if isinstance(left, list):
+                  return len(left) == len(right) and all(
+                      json_schema_equal(left_item, right_item)
+                      for left_item, right_item in zip(left, right)
+                  )
+              return left == right
+
+
+          '''.replace("          ", "")
+          if marker not in text:
+              raise SystemExit("validate_schema_instance marker missing")
+          text = text.replace(marker, helper + marker, 1)
+
+          old = '''    if "const" in schema and instance != schema["const"]:
+              issues.append(f"{path}: expected const {schema['const']!r}")
+              if "enum" in schema and instance not in schema["enum"]:
+              issues.append(f"{path}: value is not in the allowed enum")
+          '''.replace("          ", "")
+          new = '''    if "const" in schema and not json_schema_equal(instance, schema["const"]):
+              issues.append(f"{path}: expected const {schema['const']!r}")
+              if "enum" in schema and not any(
+              json_schema_equal(instance, candidate) for candidate in schema["enum"]
+              ):
+              issues.append(f"{path}: value is not in the allowed enum")
+          '''.replace("          ", "")
+          if old not in text:
+              raise SystemExit("schema const/enum block missing")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          python -m py_compile tools/validate_inter_agent_dispatch_audit_v0_1.py
+          python tools/validate_inter_agent_dispatch_audit_v0_1.py \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json \
+            > /tmp/canonical.json
+          python -c 'import json; report=json.load(open("/tmp/canonical.json", encoding="utf-8")); assert report["passed"] is True; assert len(report["negative_vectors"]) == 14'
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          fixture_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+          target = next(
+              item
+              for item in fixture["negative_vectors"]
+              if item["case"] == "ui_only_without_machine_readable_audit"
+          )
+          target["mutation"]["value"] = 0
+          with tempfile.TemporaryDirectory() as tmp_dir:
+              mutated = Path(tmp_dir) / "fixture.json"
+              mutated.write_text(json.dumps(fixture), encoding="utf-8")
+              result = subprocess.run(
+                  [sys.executable, "tools/validate_inter_agent_dispatch_audit_v0_1.py", str(mutated), str(schema_path)],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              )
+          assert result.returncode == 1, result.stdout + result.stderr
+          report = json.loads(result.stdout)
+          codes = {item["code"] for item in report["fixture_errors"]}
+          assert "REQUIRED_MUTATION_INVALID" in codes, report
+          assert "SCHEMA_VALIDATION_FAILED" in codes, report
+          PY
+      - name: Commit schema equality fix
+        run: |
+          if git diff --quiet -- tools/validate_inter_agent_dispatch_audit_v0_1.py; then
+            echo "Schema JSON equality fix already present."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/validate_inter_agent_dispatch_audit_v0_1.py
+          git commit -m "enforce JSON-strict schema equality"
+          git push origin HEAD:agent/inter-agent-dispatch-audit-v0-1
