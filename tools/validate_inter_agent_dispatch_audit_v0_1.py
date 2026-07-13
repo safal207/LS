@@ -693,6 +693,15 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             f"missing required v0.1 cases: {missing_cases}",
         )
 
+    unexpected_cases = sorted(seen_cases - REQUIRED_VECTOR_CONTRACTS.keys())
+    if unexpected_cases:
+        error(
+            fixture_errors,
+            "UNEXPECTED_NEGATIVE_CASES",
+            "negative_vectors",
+            f"unexpected v0.1 cases: {unexpected_cases}",
+        )
+
     expected = fixture.get("expected", {})
     if not isinstance(expected, dict) or expected.get("canonical_passes") is not True or expected.get("negative_vectors_rejected") is not True:
         error(fixture_errors, "EXPECTED_OUTCOME_INVALID", "expected", "expected outcomes must require canonical pass and negative rejection")
@@ -700,7 +709,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
     passed = (
         not fixture_errors
         and not canonical_errors
-        and len(vector_results) >= len(REQUIRED_VECTOR_CONTRACTS)
+        and len(vector_results) == len(REQUIRED_VECTOR_CONTRACTS)
         and all(item["rejected"] for item in vector_results)
     )
     return {
