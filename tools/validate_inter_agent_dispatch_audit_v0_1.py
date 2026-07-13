@@ -273,6 +273,30 @@ def instance_matches_type(instance: Any, expected: str) -> bool:
     return check() if check else False
 
 
+def json_schema_equal(left: Any, right: Any) -> bool:
+    """Compare JSON values using Draft 2020-12 equality semantics."""
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if (
+        isinstance(left, (int, float))
+        and not isinstance(left, bool)
+        and isinstance(right, (int, float))
+        and not isinstance(right, bool)
+    ):
+        return left == right
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            json_schema_equal(left[key], right[key]) for key in left
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            json_schema_equal(left_item, right_item)
+            for left_item, right_item in zip(left, right)
+        )
+    return left == right
+
 def validate_schema_instance(
     instance: Any,
     schema: dict[str, Any],
@@ -296,9 +320,11 @@ def validate_schema_instance(
             if isinstance(sub_schema, dict):
                 issues.extend(validate_schema_instance(instance, sub_schema, root_schema, path))
 
-    if "const" in schema and instance != schema["const"]:
+    if "const" in schema and not json_schema_equal(instance, schema["const"]):
         issues.append(f"{path}: expected const {schema['const']!r}")
-    if "enum" in schema and instance not in schema["enum"]:
+    if "enum" in schema and not any(
+        json_schema_equal(instance, candidate) for candidate in schema["enum"]
+    ):
         issues.append(f"{path}: value is not in the allowed enum")
 
     expected_type = schema.get("type")
