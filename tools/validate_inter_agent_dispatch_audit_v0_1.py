@@ -196,9 +196,9 @@ def required_vector_objects() -> list[dict[str, Any]]:
     """Return canonical full vector objects for the trusted v0.1 contract."""
     return [
         {
-  "case": case,
-  "mutation": copy.deepcopy(contract["mutation"]),
-  "expected_error_code": contract["expected_error_code"],
+            "case": case,
+            "mutation": copy.deepcopy(contract["mutation"]),
+            "expected_error_code": contract["expected_error_code"],
         }
         for case, contract in REQUIRED_VECTOR_CONTRACTS.items()
     ]
@@ -212,21 +212,21 @@ def validate_required_schema_contracts(
     negative = schema.get("properties", {}).get("negative_vectors", {})
     if negative.get("minItems") != len(REQUIRED_VECTOR_CONTRACTS):
         error(
-  errors,
-  "SCHEMA_VECTOR_COUNT_INVALID",
-  "schema.properties.negative_vectors.minItems",
-  f"expected {len(REQUIRED_VECTOR_CONTRACTS)} required vectors",
+            errors,
+            "SCHEMA_VECTOR_COUNT_INVALID",
+            "schema.properties.negative_vectors.minItems",
+            f"expected {len(REQUIRED_VECTOR_CONTRACTS)} required vectors",
         )
 
     actual: list[dict[str, Any]] = []
     all_of = negative.get("allOf")
     if isinstance(all_of, list):
         for entry in all_of:
-  if not isinstance(entry, dict):
-      continue
-  contains = entry.get("contains")
-  if isinstance(contains, dict) and isinstance(contains.get("const"), dict):
-      actual.append(contains["const"])
+            if not isinstance(entry, dict):
+                continue
+            contains = entry.get("contains")
+            if isinstance(contains, dict) and isinstance(contains.get("const"), dict):
+                actual.append(contains["const"])
 
     def canonical(value: Any) -> str:
         """Serialize a JSON value deterministically for contract comparison."""
@@ -236,10 +236,10 @@ def validate_required_schema_contracts(
     expected = sorted(canonical(item) for item in required_vector_objects())
     if observed != expected:
         error(
-  errors,
-  "SCHEMA_VECTOR_CONTRACT_SET_INVALID",
-  "schema.properties.negative_vectors.allOf",
-  "schema must preserve the exact fourteen case/mutation/error contracts",
+            errors,
+            "SCHEMA_VECTOR_CONTRACT_SET_INVALID",
+            "schema.properties.negative_vectors.allOf",
+            "schema must preserve the exact fourteen case/mutation/error contracts",
         )
 
 
@@ -617,25 +617,25 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             if not isinstance(expected_code, str) or not expected_code:
                 error(fixture_errors, "EXPECTED_ERROR_CODE_MISSING", f"{location}.expected_error_code", "expected error code is required")
                 continue
-  required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)
-    if required_contract is not None:
-        if vector.get("mutation") != required_contract["mutation"]:
-  error(
-      fixture_errors,
-      "REQUIRED_MUTATION_INVALID",
-      f"{location}.mutation",
-      f"required case {case} must use its exact mutation contract",
-  )
-  continue
-        required_code = required_contract["expected_error_code"]
-        if expected_code != required_code:
-  error(
-      fixture_errors,
-      "EXPECTED_ERROR_CODE_INVALID",
-      f"{location}.expected_error_code",
-      f"required case {case} must expect {required_code}",
-  )
-  continue
+            required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)
+            if required_contract is not None:
+                if vector.get("mutation") != required_contract["mutation"]:
+                    error(
+                        fixture_errors,
+                        "REQUIRED_MUTATION_INVALID",
+                        f"{location}.mutation",
+                        f"required case {case} must use its exact mutation contract",
+                    )
+                    continue
+                required_code = required_contract["expected_error_code"]
+                if expected_code != required_code:
+                    error(
+                        fixture_errors,
+                        "EXPECTED_ERROR_CODE_INVALID",
+                        f"{location}.expected_error_code",
+                        f"required case {case} must expect {required_code}",
+                    )
+                    continue
             try:
                 mutated = apply_mutation(canonical, vector.get("mutation", {}))
                 observed_errors = validate_record(mutated)
