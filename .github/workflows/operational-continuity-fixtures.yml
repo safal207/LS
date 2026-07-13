@@ -140,3 +140,39 @@ jobs:
           assert "REQUIRED_MUTATION_INVALID" in codes, report
           assert "SCHEMA_VALIDATION_FAILED" in codes, report
           PY
+      - name: Reject additional negative vectors
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          fixture_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+          extra = copy.deepcopy(fixture["negative_vectors"][-1])
+          extra["case"] = "extra_malformed_content_digest"
+          fixture["negative_vectors"].append(extra)
+          with tempfile.TemporaryDirectory() as tmp_dir:
+              mutated = Path(tmp_dir) / "fixture.json"
+              mutated.write_text(json.dumps(fixture), encoding="utf-8")
+              result = subprocess.run(
+                  [
+                      sys.executable,
+                      "tools/validate_inter_agent_dispatch_audit_v0_1.py",
+                      str(mutated),
+                      str(schema_path),
+                  ],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              )
+          assert result.returncode == 1, result.stdout + result.stderr
+          report = json.loads(result.stdout)
+          codes = {item["code"] for item in report["fixture_errors"]}
+          assert "UNEXPECTED_NEGATIVE_CASES" in codes, report
+          assert "SCHEMA_VALIDATION_FAILED" in codes, report
+          PY
