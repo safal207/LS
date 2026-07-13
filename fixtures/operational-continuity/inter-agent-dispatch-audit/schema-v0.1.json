@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json",
+  "title": "Inter-Agent Dispatch Audit Conformance Fixture v0.1",
+  "type": "object",
+  "required": [
+    "_meta",
+    "fixture_id",
+    "contract_version",
+    "canonical_record",
+    "negative_vectors",
+    "expected"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": [
+        "role",
+        "contract_version",
+        "related_issue",
+        "boundary_invariants"
+      ],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "contract_version": {"const": "inter-agent-dispatch-audit/v0.1"},
+        "related_issue": {"type": "string", "format": "uri"},
+        "boundary_invariants": {
+          "type": "array",
+          "minItems": 5,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": false
+    },
+    "fixture_id": {"const": "encrypted_inter_agent_dispatch_chain"},
+    "contract_version": {"const": "inter-agent-dispatch-audit/v0.1"},
+    "canonical_record": {"$ref": "#/$defs/auditRecord"},
+    "negative_vectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["case", "mutation", "expected_error_code"],
+        "properties": {
+          "case": {"type": "string", "minLength": 1},
+          "mutation": {
+            "type": "object",
+            "required": ["op", "path"],
+            "properties": {
+              "op": {"enum": ["set", "delete"]},
+              "path": {"type": "string", "minLength": 1},
+              "value": {}
+            },
+            "additionalProperties": false
+          },
+          "expected_error_code": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "expected": {
+      "type": "object",
+      "required": ["canonical_passes", "negative_vectors_rejected"],
+      "properties": {
+        "canonical_passes": {"const": true},
+        "negative_vectors_rejected": {"const": true}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "auditRecord": {
+      "type": "object",
+      "required": ["security", "machine_readable_audit", "dispatches", "result"],
+      "properties": {
+        "security": {
+          "type": "object",
+          "required": ["rollout_storage", "operator_access", "default_transcript_visibility"],
+          "properties": {
+            "rollout_storage": {"const": "encrypted"},
+            "operator_access": {"const": "authorized"},
+            "default_transcript_visibility": {"const": "redacted"}
+          },
+          "additionalProperties": false
+        },
+        "machine_readable_audit": {
+          "type": "object",
+          "required": ["available", "surface", "format"],
+          "properties": {
+            "available": {"const": true},
+            "surface": {"enum": ["app_server", "hook", "audit_export"]},
+            "format": {"const": "json"}
+          },
+          "additionalProperties": false
+        },
+        "dispatches": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/dispatch"}
+        },
+        "result": {"$ref": "#/$defs/result"}
+      },
+      "additionalProperties": false
+    },
+    "dispatch": {
+      "type": "object",
+      "required": [
+        "dispatch_id",
+        "operation",
+        "sender_thread_id",
+        "recipient_thread_id",
+        "sequence",
+        "timestamp",
+        "parent_dispatch_id",
+        "payload"
+      ],
+      "properties": {
+        "dispatch_id": {"type": "string", "minLength": 1},
+        "operation": {"enum": ["spawn_agent", "send_message", "followup_task"]},
+        "sender_thread_id": {"type": "string", "minLength": 1},
+        "recipient_thread_id": {"type": "string", "minLength": 1},
+        "sequence": {"type": "integer", "minimum": 1},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "parent_dispatch_id": {"type": ["string", "null"]},
+        "payload": {
+          "type": "object",
+          "required": ["storage_mode", "content_digest", "authorized_view"],
+          "properties": {
+            "storage_mode": {"const": "encrypted"},
+            "content_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "authorized_view": {
+              "type": "object",
+              "required": ["access", "exact_content"],
+              "properties": {
+                "access": {"const": "granted"},
+                "exact_content": {"type": "string", "minLength": 1}
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "result_id",
+        "actor_thread_id",
+        "status",
+        "effective_dispatch_ids",
+        "output_digest",
+        "timestamp"
+      ],
+      "properties": {
+        "result_id": {"type": "string", "minLength": 1},
+        "actor_thread_id": {"type": "string", "minLength": 1},
+        "status": {"const": "completed"},
+        "effective_dispatch_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "output_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "timestamp": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
