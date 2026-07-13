@@ -30,14 +30,17 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import textwrap
 
           path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
           text = path.read_text(encoding="utf-8")
           if "def json_schema_equal(" in text:
               raise SystemExit(0)
 
-          marker = "def validate_schema_instance(\n"
-          helper = '''def json_schema_equal(left: Any, right: Any) -> bool:
+          marker = "\ndef validate_schema_instance(\n"
+          helper = textwrap.dedent('''\
+
+          def json_schema_equal(left: Any, right: Any) -> bool:
               """Compare JSON values using Draft 2020-12 equality semantics."""
               if isinstance(left, bool) or isinstance(right, bool):
                   return type(left) is type(right) and left == right
@@ -60,25 +63,25 @@ jobs:
                       for left_item, right_item in zip(left, right)
                   )
               return left == right
-
-
-          '''.replace("          ", "")
+          ''')
           if marker not in text:
               raise SystemExit("validate_schema_instance marker missing")
           text = text.replace(marker, helper + marker, 1)
 
-          old = '''    if "const" in schema and instance != schema["const"]:
-              issues.append(f"{path}: expected const {schema['const']!r}")
-              if "enum" in schema and instance not in schema["enum"]:
-              issues.append(f"{path}: value is not in the allowed enum")
-          '''.replace("          ", "")
-          new = '''    if "const" in schema and not json_schema_equal(instance, schema["const"]):
-              issues.append(f"{path}: expected const {schema['const']!r}")
-              if "enum" in schema and not any(
-              json_schema_equal(instance, candidate) for candidate in schema["enum"]
-              ):
-              issues.append(f"{path}: value is not in the allowed enum")
-          '''.replace("          ", "")
+          old = (
+              '    if "const" in schema and instance != schema["const"]:\n'
+              '        issues.append(f"{path}: expected const {schema[\'const\']!r}")\n'
+              '    if "enum" in schema and instance not in schema["enum"]:\n'
+              '        issues.append(f"{path}: value is not in the allowed enum")\n'
+          )
+          new = (
+              '    if "const" in schema and not json_schema_equal(instance, schema["const"]):\n'
+              '        issues.append(f"{path}: expected const {schema[\'const\']!r}")\n'
+              '    if "enum" in schema and not any(\n'
+              '        json_schema_equal(instance, candidate) for candidate in schema["enum"]\n'
+              '    ):\n'
+              '        issues.append(f"{path}: value is not in the allowed enum")\n'
+          )
           if old not in text:
               raise SystemExit("schema const/enum block missing")
           path.write_text(text.replace(old, new, 1), encoding="utf-8")
