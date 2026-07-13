@@ -21,49 +21,174 @@
         "boundary_invariants"
       ],
       "properties": {
-        "role": {"type": "string", "minLength": 1},
-        "contract_version": {"const": "inter-agent-dispatch-audit/v0.1"},
-        "related_issue": {"type": "string", "format": "uri"},
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contract_version": {
+          "const": "inter-agent-dispatch-audit/v0.1"
+        },
+        "related_issue": {
+          "type": "string",
+          "format": "uri"
+        },
         "boundary_invariants": {
           "type": "array",
           "minItems": 5,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "additionalProperties": false
     },
-    "fixture_id": {"const": "encrypted_inter_agent_dispatch_chain"},
-    "contract_version": {"const": "inter-agent-dispatch-audit/v0.1"},
-    "canonical_record": {"$ref": "#/$defs/auditRecord"},
+    "fixture_id": {
+      "const": "encrypted_inter_agent_dispatch_chain"
+    },
+    "contract_version": {
+      "const": "inter-agent-dispatch-audit/v0.1"
+    },
+    "canonical_record": {
+      "$ref": "#/$defs/auditRecord"
+    },
     "negative_vectors": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 6,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "case"
+            ],
+            "properties": {
+              "case": {
+                "const": "missing_authorized_exact_content"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "case"
+            ],
+            "properties": {
+              "case": {
+                "const": "ui_only_without_machine_readable_audit"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "case"
+            ],
+            "properties": {
+              "case": {
+                "const": "missing_followup_parent_link"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "case"
+            ],
+            "properties": {
+              "case": {
+                "const": "ambiguous_followup_order"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "case"
+            ],
+            "properties": {
+              "case": {
+                "const": "result_omits_effective_followup"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "case"
+            ],
+            "properties": {
+              "case": {
+                "const": "authorized_content_changed_without_digest_update"
+              }
+            }
+          }
+        }
+      ],
       "items": {
         "type": "object",
-        "required": ["case", "mutation", "expected_error_code"],
+        "required": [
+          "case",
+          "mutation",
+          "expected_error_code"
+        ],
         "properties": {
-          "case": {"type": "string", "minLength": 1},
+          "case": {
+            "type": "string",
+            "minLength": 1
+          },
           "mutation": {
             "type": "object",
-            "required": ["op", "path"],
+            "required": [
+              "op",
+              "path"
+            ],
             "properties": {
-              "op": {"enum": ["set", "delete"]},
-              "path": {"type": "string", "minLength": 1},
+              "op": {
+                "enum": [
+                  "set",
+                  "delete"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
               "value": {}
             },
             "additionalProperties": false
           },
-          "expected_error_code": {"type": "string", "minLength": 1}
+          "expected_error_code": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "additionalProperties": false
       }
     },
     "expected": {
       "type": "object",
-      "required": ["canonical_passes", "negative_vectors_rejected"],
+      "required": [
+        "canonical_passes",
+        "negative_vectors_rejected"
+      ],
       "properties": {
-        "canonical_passes": {"const": true},
-        "negative_vectors_rejected": {"const": true}
+        "canonical_passes": {
+          "const": true
+        },
+        "negative_vectors_rejected": {
+          "const": true
+        }
       },
       "additionalProperties": false
     }
@@ -71,34 +196,91 @@
   "$defs": {
     "auditRecord": {
       "type": "object",
-      "required": ["security", "machine_readable_audit", "dispatches", "result"],
+      "required": [
+        "security",
+        "machine_readable_audit",
+        "dispatches",
+        "result"
+      ],
       "properties": {
         "security": {
           "type": "object",
-          "required": ["rollout_storage", "operator_access", "default_transcript_visibility"],
+          "required": [
+            "rollout_storage",
+            "operator_access",
+            "default_transcript_visibility"
+          ],
           "properties": {
-            "rollout_storage": {"const": "encrypted"},
-            "operator_access": {"const": "authorized"},
-            "default_transcript_visibility": {"const": "redacted"}
+            "rollout_storage": {
+              "const": "encrypted"
+            },
+            "operator_access": {
+              "const": "authorized"
+            },
+            "default_transcript_visibility": {
+              "const": "redacted"
+            }
           },
           "additionalProperties": false
         },
         "machine_readable_audit": {
           "type": "object",
-          "required": ["available", "surface", "format"],
+          "required": [
+            "available",
+            "surface",
+            "format"
+          ],
           "properties": {
-            "available": {"const": true},
-            "surface": {"enum": ["app_server", "hook", "audit_export"]},
-            "format": {"const": "json"}
+            "available": {
+              "const": true
+            },
+            "surface": {
+              "enum": [
+                "app_server",
+                "hook",
+                "audit_export"
+              ]
+            },
+            "format": {
+              "const": "json"
+            }
           },
           "additionalProperties": false
         },
         "dispatches": {
           "type": "array",
           "minItems": 1,
-          "items": {"$ref": "#/$defs/dispatch"}
+          "prefixItems": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/dispatch"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "operation",
+                    "parent_dispatch_id"
+                  ],
+                  "properties": {
+                    "operation": {
+                      "const": "spawn_agent"
+                    },
+                    "parent_dispatch_id": {
+                      "const": null
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "items": {
+            "$ref": "#/$defs/dispatch"
+          }
         },
-        "result": {"$ref": "#/$defs/result"}
+        "result": {
+          "$ref": "#/$defs/result"
+        }
       },
       "additionalProperties": false
     },
@@ -115,28 +297,68 @@
         "payload"
       ],
       "properties": {
-        "dispatch_id": {"type": "string", "minLength": 1},
-        "operation": {"enum": ["spawn_agent", "send_message", "followup_task"]},
-        "sender_thread_id": {"type": "string", "minLength": 1},
-        "recipient_thread_id": {"type": "string", "minLength": 1},
-        "sequence": {"type": "integer", "minimum": 1},
-        "timestamp": {"type": "string", "format": "date-time"},
-        "parent_dispatch_id": {"type": ["string", "null"]},
+        "dispatch_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "enum": [
+            "spawn_agent",
+            "send_message",
+            "followup_task"
+          ]
+        },
+        "sender_thread_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recipient_thread_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parent_dispatch_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "payload": {
           "type": "object",
-          "required": ["storage_mode", "content_digest", "authorized_view"],
+          "required": [
+            "storage_mode",
+            "content_digest",
+            "authorized_view"
+          ],
           "properties": {
-            "storage_mode": {"const": "encrypted"},
+            "storage_mode": {
+              "const": "encrypted"
+            },
             "content_digest": {
               "type": "string",
               "pattern": "^sha256:[0-9a-f]{64}$"
             },
             "authorized_view": {
               "type": "object",
-              "required": ["access", "exact_content"],
+              "required": [
+                "access",
+                "exact_content"
+              ],
               "properties": {
-                "access": {"const": "granted"},
-                "exact_content": {"type": "string", "minLength": 1}
+                "access": {
+                  "const": "granted"
+                },
+                "exact_content": {
+                  "type": "string",
+                  "minLength": 1
+                }
               },
               "additionalProperties": false
             }
@@ -157,19 +379,33 @@
         "timestamp"
       ],
       "properties": {
-        "result_id": {"type": "string", "minLength": 1},
-        "actor_thread_id": {"type": "string", "minLength": 1},
-        "status": {"const": "completed"},
+        "result_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor_thread_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "const": "completed"
+        },
         "effective_dispatch_ids": {
           "type": "array",
           "minItems": 1,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "output_digest": {
           "type": "string",
           "pattern": "^sha256:[0-9a-f]{64}$"
         },
-        "timestamp": {"type": "string", "format": "date-time"}
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
       },
       "additionalProperties": false
     }
