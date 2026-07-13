@@ -126,6 +126,67 @@
         "value": "FOLLOWUP_AUDIT_SENTINEL_MUTATED."
       },
       "expected_error_code": "CONTENT_DIGEST_MISMATCH"
+    },
+    {
+      "case": "missing_root_parent_key",
+      "mutation": {
+        "op": "delete",
+        "path": "dispatches[0].parent_dispatch_id"
+      },
+      "expected_error_code": "ROOT_PARENT_MISSING"
+    },
+    {
+      "case": "self_parent_followup",
+      "mutation": {
+        "op": "set",
+        "path": "dispatches[1].parent_dispatch_id",
+        "value": "dispatch-root-child-002"
+      },
+      "expected_error_code": "PARENT_DISPATCH_MISSING"
+    },
+    {
+      "case": "invalid_root_operation",
+      "mutation": {
+        "op": "set",
+        "path": "dispatches[0].operation",
+        "value": "followup_task"
+      },
+      "expected_error_code": "ROOT_OPERATION_INVALID"
+    },
+    {
+      "case": "invalid_dispatch_timestamp",
+      "mutation": {
+        "op": "set",
+        "path": "dispatches[1].timestamp",
+        "value": "not-a-timeZ"
+      },
+      "expected_error_code": "TIMESTAMP_INVALID"
+    },
+    {
+      "case": "malformed_result_digest",
+      "mutation": {
+        "op": "set",
+        "path": "result.output_digest",
+        "value": "sha256:bogus"
+      },
+      "expected_error_code": "RESULT_DIGEST_INVALID"
+    },
+    {
+      "case": "missing_required_result_id",
+      "mutation": {
+        "op": "delete",
+        "path": "result.result_id"
+      },
+      "expected_error_code": "SCHEMA_VALIDATION_FAILED"
+    },
+    {
+      "case": "malformed_content_digest",
+      "mutation": {
+        "op": "set",
+        "path": "dispatches[0].payload.content_digest",
+        "value": "sha256:bogus"
+      },
+      "expected_error_code": "CONTENT_DIGEST_INVALID"
     }
   ],
   "expected": {
