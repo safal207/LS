@@ -68,9 +68,9 @@ Every dispatch carries:
 - UI visibility alone is insufficient; at least one supported machine-readable audit surface must exist.
 - A completed result binds the complete effective dispatch sequence in order.
 
-## Negative vectors
+## Required negative vectors
 
-The six mandatory v0.1 vectors are bound to exact error contracts:
+All fourteen v0.1 vectors are normative conformance requirements. Each case is bound to one exact error contract in both the checked-in Draft 2020-12 schema and the runtime validator.
 
 | Case | Required error code |
 | --- | --- |
@@ -80,20 +80,16 @@ The six mandatory v0.1 vectors are bound to exact error contracts:
 | `ambiguous_followup_order` | `DISPATCH_SEQUENCE_INVALID` |
 | `result_omits_effective_followup` | `RESULT_DISPATCH_BINDING_INCOMPLETE` |
 | `authorized_content_changed_without_digest_update` | `CONTENT_DIGEST_MISMATCH` |
+| `missing_root_parent_key` | `ROOT_PARENT_MISSING` |
+| `self_parent_followup` | `PARENT_DISPATCH_MISSING` |
+| `invalid_root_operation` | `ROOT_OPERATION_INVALID` |
+| `invalid_dispatch_timestamp` | `TIMESTAMP_INVALID` |
+| `invalid_leap_second_timestamp` | `TIMESTAMP_INVALID` |
+| `malformed_result_digest` | `RESULT_DIGEST_INVALID` |
+| `missing_required_result_id` | `SCHEMA_VALIDATION_FAILED` |
+| `malformed_content_digest` | `CONTENT_DIGEST_INVALID` |
 
-Keeping a mandatory case name while substituting another expected code is non-conformant.
-
-The fixture also carries hardening vectors for:
-
-- a missing explicit root-parent field;
-- a self-parenting follow-up;
-- an invalid root operation;
-- a malformed dispatch timestamp;
-- an unverified leap-second timestamp;
-- malformed content and result digests;
-- a missing schema-required result field.
-
-Additional hardening vectors may be added, but the six mandatory v0.1 case/error bindings cannot be removed or reassigned.
+Removing any required case, reassigning its expected error code, or keeping the name while substituting an unrelated mutation is non-conformant. Future versions may add cases, but v0.1 consumers must enforce this complete fourteen-case set.
 
 ## Files
 
@@ -111,4 +107,4 @@ python tools/validate_inter_agent_dispatch_audit_v0_1.py \
   fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json
 ```
 
-The validator remains dependency-free. It enforces the JSON Schema keyword subset used by this artifact, validates semantic and causal invariants, applies every declared negative mutation, and requires the expected error code to be observed for each vector.
+The validator remains dependency-free. It enforces the JSON Schema keyword subset used by this artifact, validates semantic and causal invariants, applies every declared negative mutation, and requires the exact expected error code to be observed for every required vector.
