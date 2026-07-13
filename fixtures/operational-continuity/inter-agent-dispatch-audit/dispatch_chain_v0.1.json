@@ -163,6 +163,15 @@
       "expected_error_code": "TIMESTAMP_INVALID"
     },
     {
+      "case": "invalid_leap_second_timestamp",
+      "mutation": {
+        "op": "set",
+        "path": "dispatches[1].timestamp",
+        "value": "2026-07-13T10:00:60Z"
+      },
+      "expected_error_code": "TIMESTAMP_INVALID"
+    },
+    {
       "case": "malformed_result_digest",
       "mutation": {
         "op": "set",
