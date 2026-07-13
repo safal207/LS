@@ -1,0 +1,17 @@
+{
+  "schema_version": "ls.build_week.trust_policy.v0.1",
+  "trusted_reviewers": [
+    {
+      "login": "coderabbitai[bot]",
+      "account_type": "Bot",
+      "evidence_source": "github_api.pull_request_review"
+    }
+  ],
+  "required_lanes": [
+    "unit-tests",
+    "security"
+  ],
+  "accepted_review_states": [
+    "APPROVED"
+  ]
+}

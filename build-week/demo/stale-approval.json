@@ -1,0 +1,40 @@
+{
+  "schema_version": "ls.build_week.trust_input.v0.1",
+  "scenario_id": "stale-approval",
+  "pull_request": {
+    "repository": "safal207/LS",
+    "number": 897,
+    "current_head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "review": {
+    "state": "APPROVED",
+    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "actor": {
+      "login": "coderabbitai[bot]",
+      "account_type": "Bot"
+    },
+    "provenance": {
+      "source": "github_api.pull_request_review",
+      "authenticated_runtime": true,
+      "evidence_id": "review-stale-approval-001"
+    }
+  },
+  "lanes": [
+    {
+      "name": "unit-tests",
+      "status": "PASS",
+      "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "evidence_id": "check-unit-tests-head-b"
+    },
+    {
+      "name": "security",
+      "status": "PASS",
+      "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "evidence_id": "check-security-head-b"
+    }
+  ],
+  "expected_outcome": {
+    "verdict": "BLOCKED",
+    "reason_code": "STALE_APPROVAL"
+  }
+}
