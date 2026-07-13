@@ -53,17 +53,21 @@ Every dispatch carries:
 
 ## Required invariants
 
-- The initial dispatch has no parent.
-- Every follow-up references an earlier dispatch in the same sender/recipient chain.
+- The initial dispatch explicitly declares `parent_dispatch_id: null`.
+- The initial operation is `spawn_agent`.
+- Every follow-up references a strictly earlier dispatch in the same sender/recipient chain.
 - Dispatch sequence numbers are contiguous and deterministic.
+- Dispatch and result timestamps are parseable UTC date-times.
+- Content and result digests use the full `sha256:` plus 64 lowercase hexadecimal format.
 - The exact authorized content matches its stored digest.
+- The complete fixture is validated against the checked-in Draft 2020-12 schema.
 - A model-generated summary cannot replace mechanically dispatched exact content.
 - UI visibility alone is insufficient; at least one supported machine-readable audit surface must exist.
 - A completed result binds the complete effective dispatch sequence in order.
 
 ## Negative vectors
 
-The v0.1 fixture must reject:
+The six mandatory v0.1 vectors reject:
 
 - missing authorized exact content;
 - UI-only visibility without a machine-readable audit surface;
@@ -71,6 +75,17 @@ The v0.1 fixture must reject:
 - ambiguous or duplicated dispatch ordering;
 - a result that omits an effective follow-up;
 - exact content changed without a corresponding digest update.
+
+The fixture also carries hardening vectors for:
+
+- a missing explicit root-parent field;
+- a self-parenting follow-up;
+- an invalid root operation;
+- a malformed dispatch timestamp;
+- malformed content and result digests;
+- a missing schema-required result field.
+
+Additional hardening vectors may be added, but the six mandatory v0.1 cases cannot be removed.
 
 ## Files
 
@@ -88,4 +103,4 @@ python tools/validate_inter_agent_dispatch_audit_v0_1.py \
   fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json
 ```
 
-The validator is dependency-free. It validates the canonical record, applies every declared negative mutation, and requires the expected error code to be observed for each vector.
+The validator remains dependency-free. It enforces the JSON Schema keyword subset used by this artifact, validates semantic and causal invariants, applies every declared negative mutation, and requires the expected error code to be observed for each vector.
