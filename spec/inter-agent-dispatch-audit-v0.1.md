@@ -70,14 +70,18 @@ Every dispatch carries:
 
 ## Negative vectors
 
-The six mandatory v0.1 vectors reject:
+The six mandatory v0.1 vectors are bound to exact error contracts:
 
-- missing authorized exact content;
-- UI-only visibility without a machine-readable audit surface;
-- missing follow-up parent linkage;
-- ambiguous or duplicated dispatch ordering;
-- a result that omits an effective follow-up;
-- exact content changed without a corresponding digest update.
+| Case | Required error code |
+| --- | --- |
+| `missing_authorized_exact_content` | `AUTHORIZED_EXACT_CONTENT_MISSING` |
+| `ui_only_without_machine_readable_audit` | `AUDIT_SURFACE_MISSING` |
+| `missing_followup_parent_link` | `PARENT_DISPATCH_MISSING` |
+| `ambiguous_followup_order` | `DISPATCH_SEQUENCE_INVALID` |
+| `result_omits_effective_followup` | `RESULT_DISPATCH_BINDING_INCOMPLETE` |
+| `authorized_content_changed_without_digest_update` | `CONTENT_DIGEST_MISMATCH` |
+
+Keeping a mandatory case name while substituting another expected code is non-conformant.
 
 The fixture also carries hardening vectors for:
 
@@ -89,7 +93,7 @@ The fixture also carries hardening vectors for:
 - malformed content and result digests;
 - a missing schema-required result field.
 
-Additional hardening vectors may be added, but the six mandatory v0.1 cases cannot be removed.
+Additional hardening vectors may be added, but the six mandatory v0.1 case/error bindings cannot be removed or reassigned.
 
 ## Files
 
