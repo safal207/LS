@@ -1,4 +1,4 @@
-name: One-shot schema diagnostic
+name: One-shot schema formatting fix
 
 on:
   pull_request:
@@ -10,45 +10,129 @@ on:
       - ready_for_review
 
 permissions:
-  contents: read
-  issues: write
+  contents: write
+
+concurrency:
+  group: one-shot-schema-formatting-fix
+  cancel-in-progress: false
 
 jobs:
-  diagnose:
+  patch:
     if: github.repository == 'safal207/LS' && github.event.pull_request.number == 907
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/inter-agent-dispatch-audit-v0-1
-      - name: Publish bounded validator report
-        env:
-          GH_TOKEN: ${{ github.token }}
+          fetch-depth: 0
+      - name: Repair inserted block indentation
         run: |
-          set +e
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
+          text = path.read_text(encoding="utf-8")
+
+          helper_start = text.index("def required_vector_objects()")
+          helper_end = text.index("def resolve_schema_ref(", helper_start)
+          helper = textwrap.dedent('''\
+          def required_vector_objects() -> list[dict[str, Any]]:
+              """Return canonical full vector objects for the trusted v0.1 contract."""
+              return [
+                  {
+                      "case": case,
+                      "mutation": copy.deepcopy(contract["mutation"]),
+                      "expected_error_code": contract["expected_error_code"],
+                  }
+                  for case, contract in REQUIRED_VECTOR_CONTRACTS.items()
+              ]
+
+
+          def validate_required_schema_contracts(
+              schema: dict[str, Any],
+              errors: list[dict[str, str]],
+          ) -> None:
+              """Require the input schema to preserve the exact trusted vector set."""
+              negative = schema.get("properties", {}).get("negative_vectors", {})
+              if negative.get("minItems") != len(REQUIRED_VECTOR_CONTRACTS):
+                  error(
+                      errors,
+                      "SCHEMA_VECTOR_COUNT_INVALID",
+                      "schema.properties.negative_vectors.minItems",
+                      f"expected {len(REQUIRED_VECTOR_CONTRACTS)} required vectors",
+                  )
+
+              actual: list[dict[str, Any]] = []
+              all_of = negative.get("allOf")
+              if isinstance(all_of, list):
+                  for entry in all_of:
+                      if not isinstance(entry, dict):
+                          continue
+                      contains = entry.get("contains")
+                      if isinstance(contains, dict) and isinstance(contains.get("const"), dict):
+                          actual.append(contains["const"])
+
+              def canonical(value: Any) -> str:
+                  """Serialize a JSON value deterministically for contract comparison."""
+                  return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+              observed = sorted(canonical(item) for item in actual)
+              expected = sorted(canonical(item) for item in required_vector_objects())
+              if observed != expected:
+                  error(
+                      errors,
+                      "SCHEMA_VECTOR_CONTRACT_SET_INVALID",
+                      "schema.properties.negative_vectors.allOf",
+                      "schema must preserve the exact fourteen case/mutation/error contracts",
+                  )
+
+
+          ''')
+          text = text[:helper_start] + helper + text[helper_end:]
+
+          marker = "required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)"
+          vector_pos = text.index(marker)
+          vector_start = text.rfind("\n", 0, vector_pos) + 1
+          vector_end = text.index("            try:\n", vector_pos)
+          vector = textwrap.indent(textwrap.dedent('''\
+          required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)
+          if required_contract is not None:
+              if vector.get("mutation") != required_contract["mutation"]:
+                  error(
+                      fixture_errors,
+                      "REQUIRED_MUTATION_INVALID",
+                      f"{location}.mutation",
+                      f"required case {case} must use its exact mutation contract",
+                  )
+                  continue
+              required_code = required_contract["expected_error_code"]
+              if expected_code != required_code:
+                  error(
+                      fixture_errors,
+                      "EXPECTED_ERROR_CODE_INVALID",
+                      f"{location}.expected_error_code",
+                      f"required case {case} must expect {required_code}",
+                  )
+                  continue
+          '''), "            ")
+          text = text[:vector_start] + vector + text[vector_end:]
+          path.write_text(text, encoding="utf-8")
+          PY
+          python -m py_compile tools/validate_inter_agent_dispatch_audit_v0_1.py
           python tools/validate_inter_agent_dispatch_audit_v0_1.py \
             fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
             fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json \
-            > report.json
-          status=$?
-          set -e
-          printf '%s' "$status" > status.txt
-          python - <<'PY' > comment.md
-          import json
-          from pathlib import Path
-
-          report = json.loads(Path("report.json").read_text(encoding="utf-8"))
-          bounded = {
-              "passed": report.get("passed"),
-              "fixture_errors": report.get("fixture_errors", []),
-              "canonical": report.get("canonical", {}),
-              "negative_vector_count": len(report.get("negative_vectors", [])),
-          }
-          print("<!-- one-shot-schema-diagnostic -->")
-          print("## One-shot schema diagnostic")
-          print(f"\nExit code: `{Path('status.txt').read_text().strip()}`")
-          print("\n```json")
-          print(json.dumps(bounded, indent=2, sort_keys=True))
-          print("```")
-          PY
-          gh issue comment 907 --body-file comment.md
+            > /tmp/canonical-report.json
+          python -c 'import json; report=json.load(open("/tmp/canonical-report.json", encoding="utf-8")); assert report["passed"] is True; assert len(report["negative_vectors"]) == 14'
+      - name: Commit formatting fix
+        run: |
+          if git diff --quiet -- tools/validate_inter_agent_dispatch_audit_v0_1.py; then
+            echo "Formatting already correct."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tools/validate_inter_agent_dispatch_audit_v0_1.py
+          git commit -m "fix schema contract validator formatting"
+          git push origin HEAD:agent/inter-agent-dispatch-audit-v0-1
