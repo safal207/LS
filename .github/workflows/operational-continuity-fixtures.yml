@@ -48,3 +48,25 @@ jobs:
           python tools/validate_inter_agent_dispatch_audit_v0_1.py \
             fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
             fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json
+      - name: Validate structured CLI input failures
+        run: |
+          tmp_dir="$(mktemp -d)"
+          printf '{invalid-json' > "$tmp_dir/bad.json"
+          printf '[]' > "$tmp_dir/non-object.json"
+          check_failure() {
+            label="$1"
+            fixture="$2"
+            output="$tmp_dir/$label-output.json"
+            set +e
+            python tools/validate_inter_agent_dispatch_audit_v0_1.py \
+              "$fixture" \
+              fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json \
+              > "$output"
+            status=$?
+            set -e
+            test "$status" -eq 1
+            python -c 'import json,sys; report=json.load(open(sys.argv[1], encoding="utf-8")); errors=report["fixture_errors"]; assert report["passed"] is False; assert len(errors) == 1; assert errors[0]["code"] == "INPUT_LOAD_FAILED"; assert errors[0]["location"] == "cli"; assert errors[0]["message"]' "$output"
+          }
+          check_failure malformed "$tmp_dir/bad.json"
+          check_failure non_object "$tmp_dir/non-object.json"
+          check_failure missing "$tmp_dir/missing.json"
