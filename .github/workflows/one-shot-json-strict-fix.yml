@@ -32,82 +32,17 @@ jobs:
 
           path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
           text = path.read_text(encoding="utf-8")
-          if "def json_schema_equal(" in text:
-              raise SystemExit(0)
-
-          helper = '''def canonical_json(value: Any) -> str:
-              """Serialize a JSON value deterministically with JSON type identity."""
-              return json.dumps(
-                  value,
-                  sort_keys=True,
-                  separators=(",", ":"),
-                  ensure_ascii=False,
-                  allow_nan=False,
-              )
-
-
-          def json_schema_equal(left: Any, right: Any) -> bool:
-              """Compare JSON values without Python bool/int equality leakage."""
-              if isinstance(left, bool) or isinstance(right, bool):
-                  return type(left) is type(right) and left == right
-              if (
-                  isinstance(left, (int, float))
-                  and not isinstance(left, bool)
-                  and isinstance(right, (int, float))
-                  and not isinstance(right, bool)
-              ):
-                  return left == right
-              if type(left) is not type(right):
-                  return False
-              if isinstance(left, dict):
-                  return left.keys() == right.keys() and all(
-                      json_schema_equal(left[key], right[key]) for key in left
-                  )
-              if isinstance(left, list):
-                  return len(left) == len(right) and all(
-                      json_schema_equal(left_item, right_item)
-                      for left_item, right_item in zip(left, right)
-                  )
-              return left == right
-
-
-          '''.replace("          ", "")
-          marker = "def match_rfc3339(value: Any) -> re.Match[str] | None:\n"
-          if marker not in text:
-              raise SystemExit("match_rfc3339 marker missing")
-          text = text.replace(marker, helper + marker, 1)
-
-          local_start = text.index("    def canonical(value: Any) -> str:\n")
-          local_end = text.index("    if observed != expected:\n", local_start)
-          text = (
-              text[:local_start]
-              + "    observed = sorted(canonical_json(item) for item in actual)\n"
-              + "    expected = sorted(canonical_json(item) for item in required_vector_objects())\n"
-              + text[local_end:]
+          old = '                if vector.get("mutation") != required_contract["mutation"]:\n'
+          new = (
+              '                if json.dumps(vector.get("mutation"), sort_keys=True, separators=(",", ":"), '
+              'ensure_ascii=False, allow_nan=False) != json.dumps(required_contract["mutation"], '
+              'sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False):\n'
           )
-
-          old_schema = '''    if "const" in schema and instance != schema["const"]:
-              issues.append(f"{path}: expected const {schema['const']!r}")
-              if "enum" in schema and instance not in schema["enum"]:
-              issues.append(f"{path}: value is not in the allowed enum")
-          '''.replace("          ", "")
-          new_schema = '''    if "const" in schema and not json_schema_equal(instance, schema["const"]):
-              issues.append(f"{path}: expected const {schema['const']!r}")
-              if "enum" in schema and not any(
-              json_schema_equal(instance, candidate) for candidate in schema["enum"]
-              ):
-              issues.append(f"{path}: value is not in the allowed enum")
-          '''.replace("          ", "")
-          if old_schema not in text:
-              raise SystemExit("schema const/enum block missing")
-          text = text.replace(old_schema, new_schema, 1)
-
-          old_mutation = '                if vector.get("mutation") != required_contract["mutation"]:\n'
-          new_mutation = '                if canonical_json(vector.get("mutation")) != canonical_json(required_contract["mutation"]):\n'
-          if old_mutation not in text:
+          if new in text:
+              raise SystemExit(0)
+          if old not in text:
               raise SystemExit("required mutation comparison missing")
-          text = text.replace(old_mutation, new_mutation, 1)
-          path.write_text(text, encoding="utf-8")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
           python -m py_compile tools/validate_inter_agent_dispatch_audit_v0_1.py
           python tools/validate_inter_agent_dispatch_audit_v0_1.py \
