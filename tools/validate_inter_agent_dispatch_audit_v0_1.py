@@ -586,6 +586,24 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
     }
 
 
+def input_failure_report(exc: Exception) -> dict[str, Any]:
+    """Build deterministic structured output for CLI input failures."""
+    return {
+        "fixture_id": None,
+        "contract_version": CONTRACT_VERSION,
+        "passed": False,
+        "fixture_errors": [
+  {
+      "code": "INPUT_LOAD_FAILED",
+      "location": "cli",
+      "message": str(exc),
+  }
+        ],
+        "canonical": {"passed": False, "errors": []},
+        "negative_vectors": [],
+    }
+
+
 def main() -> int:
     """Run CLI validation and return a process-compatible status code."""
     parser = argparse.ArgumentParser()
@@ -593,7 +611,13 @@ def main() -> int:
     parser.add_argument("schema", type=Path)
     args = parser.parse_args()
 
-    result = validate_fixture(load_object(args.fixture), load_object(args.schema))
+    try:
+        fixture = load_object(args.fixture)
+        schema = load_object(args.schema)
+        result = validate_fixture(fixture, schema)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        result = input_failure_report(exc)
+
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["passed"] else 1
 
