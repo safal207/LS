@@ -57,7 +57,10 @@ Every dispatch carries:
 - The initial operation is `spawn_agent`.
 - Every follow-up references a strictly earlier dispatch in the same sender/recipient chain.
 - Dispatch sequence numbers are contiguous and deterministic.
-- Dispatch and result timestamps are parseable UTC date-times.
+- Dispatch and result timestamps use the dependency-free v0.1 RFC3339 profile and a known UTC offset.
+- The profile accepts `Z`, lowercase `z`, and `+00:00` as known UTC forms.
+- The profile rejects non-zero offsets for audit-record semantics and rejects unknown `-00:00` offsets.
+- Leap-second `:60` forms are rejected fail-closed unless a future version introduces a maintained trusted leap-second authority.
 - Content and result digests use the full `sha256:` plus 64 lowercase hexadecimal format.
 - The exact authorized content matches its stored digest.
 - The complete fixture is validated against the checked-in Draft 2020-12 schema.
@@ -82,6 +85,7 @@ The fixture also carries hardening vectors for:
 - a self-parenting follow-up;
 - an invalid root operation;
 - a malformed dispatch timestamp;
+- an unverified leap-second timestamp;
 - malformed content and result digests;
 - a missing schema-required result field.
 
