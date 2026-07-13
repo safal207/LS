@@ -25,25 +25,64 @@ RFC3339_PATTERN = re.compile(
     r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})"
     r"(?P<fraction>\.\d+)?(?P<zone>[Zz]|[+-]\d{2}:\d{2})$"
 )
-CORE_NEGATIVE_CASES = {
-    "missing_authorized_exact_content": "AUTHORIZED_EXACT_CONTENT_MISSING",
-    "ui_only_without_machine_readable_audit": "AUDIT_SURFACE_MISSING",
-    "missing_followup_parent_link": "PARENT_DISPATCH_MISSING",
-    "ambiguous_followup_order": "DISPATCH_SEQUENCE_INVALID",
-    "result_omits_effective_followup": "RESULT_DISPATCH_BINDING_INCOMPLETE",
-    "authorized_content_changed_without_digest_update": "CONTENT_DIGEST_MISMATCH",
+REQUIRED_VECTOR_CONTRACTS: dict[str, dict[str, Any]] = {
+    "missing_authorized_exact_content": {
+        "mutation": {"op": "delete", "path": "dispatches[0].payload.authorized_view.exact_content"},
+        "expected_error_code": "AUTHORIZED_EXACT_CONTENT_MISSING",
+    },
+    "ui_only_without_machine_readable_audit": {
+        "mutation": {"op": "set", "path": "machine_readable_audit.available", "value": False},
+        "expected_error_code": "AUDIT_SURFACE_MISSING",
+    },
+    "missing_followup_parent_link": {
+        "mutation": {"op": "delete", "path": "dispatches[1].parent_dispatch_id"},
+        "expected_error_code": "PARENT_DISPATCH_MISSING",
+    },
+    "ambiguous_followup_order": {
+        "mutation": {"op": "set", "path": "dispatches[1].sequence", "value": 1},
+        "expected_error_code": "DISPATCH_SEQUENCE_INVALID",
+    },
+    "result_omits_effective_followup": {
+        "mutation": {"op": "set", "path": "result.effective_dispatch_ids", "value": ["dispatch-root-child-001"]},
+        "expected_error_code": "RESULT_DISPATCH_BINDING_INCOMPLETE",
+    },
+    "authorized_content_changed_without_digest_update": {
+        "mutation": {"op": "set", "path": "dispatches[1].payload.authorized_view.exact_content", "value": "FOLLOWUP_AUDIT_SENTINEL_MUTATED."},
+        "expected_error_code": "CONTENT_DIGEST_MISMATCH",
+    },
+    "missing_root_parent_key": {
+        "mutation": {"op": "delete", "path": "dispatches[0].parent_dispatch_id"},
+        "expected_error_code": "ROOT_PARENT_MISSING",
+    },
+    "self_parent_followup": {
+        "mutation": {"op": "set", "path": "dispatches[1].parent_dispatch_id", "value": "dispatch-root-child-002"},
+        "expected_error_code": "PARENT_DISPATCH_MISSING",
+    },
+    "invalid_root_operation": {
+        "mutation": {"op": "set", "path": "dispatches[0].operation", "value": "followup_task"},
+        "expected_error_code": "ROOT_OPERATION_INVALID",
+    },
+    "invalid_dispatch_timestamp": {
+        "mutation": {"op": "set", "path": "dispatches[1].timestamp", "value": "not-a-timeZ"},
+        "expected_error_code": "TIMESTAMP_INVALID",
+    },
+    "invalid_leap_second_timestamp": {
+        "mutation": {"op": "set", "path": "dispatches[1].timestamp", "value": "2026-07-13T10:00:60Z"},
+        "expected_error_code": "TIMESTAMP_INVALID",
+    },
+    "malformed_result_digest": {
+        "mutation": {"op": "set", "path": "result.output_digest", "value": "sha256:bogus"},
+        "expected_error_code": "RESULT_DIGEST_INVALID",
+    },
+    "missing_required_result_id": {
+        "mutation": {"op": "delete", "path": "result.result_id"},
+        "expected_error_code": "SCHEMA_VALIDATION_FAILED",
+    },
+    "malformed_content_digest": {
+        "mutation": {"op": "set", "path": "dispatches[0].payload.content_digest", "value": "sha256:bogus"},
+        "expected_error_code": "CONTENT_DIGEST_INVALID",
+    },
 }
-HARDENING_NEGATIVE_CASES = {
-    "missing_root_parent_key": "ROOT_PARENT_MISSING",
-    "self_parent_followup": "PARENT_DISPATCH_MISSING",
-    "invalid_root_operation": "ROOT_OPERATION_INVALID",
-    "invalid_dispatch_timestamp": "TIMESTAMP_INVALID",
-    "invalid_leap_second_timestamp": "TIMESTAMP_INVALID",
-    "malformed_result_digest": "RESULT_DIGEST_INVALID",
-    "missing_required_result_id": "SCHEMA_VALIDATION_FAILED",
-    "malformed_content_digest": "CONTENT_DIGEST_INVALID",
-}
-REQUIRED_NEGATIVE_CASES = CORE_NEGATIVE_CASES | HARDENING_NEGATIVE_CASES
 RFC3339_CONTRACT_CASES = {
     "2026-07-13T10:00:00Z": True,
     "2026-07-13t10:00:00z": True,
@@ -151,6 +190,57 @@ def validate_timestamp_helpers(errors: list[dict[str, str]]) -> None:
                 "validator.is_utc_timestamp",
                 f"sample {sample!r}: expected {expected}, observed {observed}",
             )
+
+
+def required_vector_objects() -> list[dict[str, Any]]:
+    """Return canonical full vector objects for the trusted v0.1 contract."""
+    return [
+        {
+  "case": case,
+  "mutation": copy.deepcopy(contract["mutation"]),
+  "expected_error_code": contract["expected_error_code"],
+        }
+        for case, contract in REQUIRED_VECTOR_CONTRACTS.items()
+    ]
+
+
+def validate_required_schema_contracts(
+    schema: dict[str, Any],
+    errors: list[dict[str, str]],
+) -> None:
+    """Require the input schema to preserve the exact trusted vector set."""
+    negative = schema.get("properties", {}).get("negative_vectors", {})
+    if negative.get("minItems") != len(REQUIRED_VECTOR_CONTRACTS):
+        error(
+  errors,
+  "SCHEMA_VECTOR_COUNT_INVALID",
+  "schema.properties.negative_vectors.minItems",
+  f"expected {len(REQUIRED_VECTOR_CONTRACTS)} required vectors",
+        )
+
+    actual: list[dict[str, Any]] = []
+    all_of = negative.get("allOf")
+    if isinstance(all_of, list):
+        for entry in all_of:
+  if not isinstance(entry, dict):
+      continue
+  contains = entry.get("contains")
+  if isinstance(contains, dict) and isinstance(contains.get("const"), dict):
+      actual.append(contains["const"])
+
+    def canonical(value: Any) -> str:
+        """Serialize a JSON value deterministically for contract comparison."""
+        return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+    observed = sorted(canonical(item) for item in actual)
+    expected = sorted(canonical(item) for item in required_vector_objects())
+    if observed != expected:
+        error(
+  errors,
+  "SCHEMA_VECTOR_CONTRACT_SET_INVALID",
+  "schema.properties.negative_vectors.allOf",
+  "schema must preserve the exact fourteen case/mutation/error contracts",
+        )
 
 
 def resolve_schema_ref(root_schema: dict[str, Any], reference: str) -> dict[str, Any]:
@@ -496,6 +586,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
         error(fixture_errors, "SCHEMA_FIXTURE_ID_INVALID", "schema.properties.fixture_id", "unexpected fixture id const")
     if properties.get("contract_version", {}).get("const") != CONTRACT_VERSION:
         error(fixture_errors, "SCHEMA_VERSION_INVALID", "schema.properties.contract_version", "unexpected contract version const")
+    validate_required_schema_contracts(schema, fixture_errors)
 
     fixture_errors.extend(schema_errors_as_records(validate_schema_instance(fixture, schema, schema)))
     if fixture.get("fixture_id") != FIXTURE_ID:
@@ -526,15 +617,25 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             if not isinstance(expected_code, str) or not expected_code:
                 error(fixture_errors, "EXPECTED_ERROR_CODE_MISSING", f"{location}.expected_error_code", "expected error code is required")
                 continue
-            required_code = REQUIRED_NEGATIVE_CASES.get(case)
-            if required_code is not None and expected_code != required_code:
-                error(
-                    fixture_errors,
-                    "EXPECTED_ERROR_CODE_INVALID",
-                    f"{location}.expected_error_code",
-                    f"required case {case} must expect {required_code}",
-                )
-                continue
+  required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)
+    if required_contract is not None:
+        if vector.get("mutation") != required_contract["mutation"]:
+  error(
+      fixture_errors,
+      "REQUIRED_MUTATION_INVALID",
+      f"{location}.mutation",
+      f"required case {case} must use its exact mutation contract",
+  )
+  continue
+        required_code = required_contract["expected_error_code"]
+        if expected_code != required_code:
+  error(
+      fixture_errors,
+      "EXPECTED_ERROR_CODE_INVALID",
+      f"{location}.expected_error_code",
+      f"required case {case} must expect {required_code}",
+  )
+  continue
             try:
                 mutated = apply_mutation(canonical, vector.get("mutation", {}))
                 observed_errors = validate_record(mutated)
@@ -557,7 +658,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
             if not rejected:
                 error(fixture_errors, "NEGATIVE_VECTOR_NOT_REJECTED", location, f"expected {expected_code}, observed {observed_codes}")
 
-    missing_cases = sorted(REQUIRED_NEGATIVE_CASES.keys() - seen_cases)
+    missing_cases = sorted(REQUIRED_VECTOR_CONTRACTS.keys() - seen_cases)
     if missing_cases:
         error(
             fixture_errors,
@@ -573,7 +674,7 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
     passed = (
         not fixture_errors
         and not canonical_errors
-        and len(vector_results) >= len(REQUIRED_NEGATIVE_CASES)
+        and len(vector_results) >= len(REQUIRED_VECTOR_CONTRACTS)
         and all(item["rejected"] for item in vector_results)
     )
     return {
