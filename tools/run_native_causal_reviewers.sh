@@ -14,14 +14,18 @@ run_grok() {
   export REVIEW_JSON_FILE="$OUTPUT_DIR/grok-review.json"
   export REVIEW_MD_FILE="$OUTPUT_DIR/grok-review.md"
   export RAW_RESPONSE_FILE="$OUTPUT_DIR/grok-response.raw.txt"
-  if [[ -n "${XAI_API_KEY:-}" ]]; then
+
+  # Emergency cost kill switch: Grok is disabled by default even when the
+  # repository secret still exists. Re-enabling requires an explicit trusted
+  # workflow opt-in with GROK_ENABLED=true.
+  if [[ "${GROK_ENABLED:-false}" == "true" && -n "${XAI_API_KEY:-}" ]]; then
     python tools/grok_causal_review.py review || true
   else
     : > "$RAW_RESPONSE_FILE"
     python tools/grok_causal_review.py diagnostic \
       --status NOT_RUN \
       --provenance UNVERIFIED \
-      --details "Repository secret XAI_API_KEY is unavailable. No Grok model call was made."
+      --details "Grok is disabled by repository policy. No xAI model call was made."
   fi
   if [[ ! -s "$REVIEW_JSON_FILE" ]]; then
     : > "$RAW_RESPONSE_FILE"
