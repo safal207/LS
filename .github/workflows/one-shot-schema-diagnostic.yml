@@ -1,0 +1,84 @@
+name: One-shot schema diagnostic
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  diagnose:
+    if: github.repository == 'safal207/LS' && github.event.pull_request.number == 907
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/inter-agent-dispatch-audit-v0-1
+      - name: Publish bounded validator report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          python tools/validate_inter_agent_dispatch_audit_v0_1.py \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json \
+            > report.json
+          status=$?
+          set -e
+          python - <<'PY' > comment.md
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("report.json").read_text(encoding="utf-8"))
+          bounded = {
+              "passed": report.get("passed"),
+              "fixture_errors": report.get("fixture_errors", []),
+              "canonical": report.get("canonical", {}),
+              "negative_vector_count": len(report.get("negative_vectors", [])),
+          }
+          print("<!-- one-shot-schema-diagnostic -->")
+          print("## One-shot schema diagnostic")
+          print("\nExit code:", "`%s`" % Path("status.txt").read_text().strip())
+          print("\n```json")
+          print(json.dumps(bounded, indent=2, sort_keys=True))
+          print("```")
+          PY
+        shell: bash
+      - name: Record status and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Re-run only to capture the deterministic status alongside the bounded report.
+          set +e
+          python tools/validate_inter_agent_dispatch_audit_v0_1.py \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json \
+            > report.json
+          status=$?
+          set -e
+          printf '%s' "$status" > status.txt
+          python - <<'PY' > comment.md
+          import json
+          from pathlib import Path
+          report = json.loads(Path("report.json").read_text(encoding="utf-8"))
+          bounded = {
+              "passed": report.get("passed"),
+              "fixture_errors": report.get("fixture_errors", []),
+              "canonical": report.get("canonical", {}),
+              "negative_vector_count": len(report.get("negative_vectors", [])),
+          }
+          print("<!-- one-shot-schema-diagnostic -->")
+          print("## One-shot schema diagnostic")
+          print(f"\nExit code: `{Path('status.txt').read_text().strip()}`")
+          print("\n```json")
+          print(json.dumps(bounded, indent=2, sort_keys=True))
+          print("```")
+          PY
+          gh issue comment 907 --body-file comment.md
