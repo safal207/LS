@@ -70,3 +70,35 @@ jobs:
           check_failure malformed "$tmp_dir/bad.json"
           check_failure non_object "$tmp_dir/non-object.json"
           check_failure missing "$tmp_dir/missing.json"
+      - name: Reject tampered schema vector contracts
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          fixture = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          schema = json.loads(schema_path.read_text(encoding="utf-8"))
+          schema["properties"]["negative_vectors"]["allOf"] = schema["properties"]["negative_vectors"]["allOf"][:-1]
+          with tempfile.TemporaryDirectory() as tmp_dir:
+              tampered = Path(tmp_dir) / "schema.json"
+              tampered.write_text(json.dumps(schema), encoding="utf-8")
+              result = subprocess.run(
+                  [
+                      sys.executable,
+                      "tools/validate_inter_agent_dispatch_audit_v0_1.py",
+                      str(fixture),
+                      str(tampered),
+                  ],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              )
+          assert result.returncode == 1, result.stdout + result.stderr
+          report = json.loads(result.stdout)
+          codes = {item["code"] for item in report["fixture_errors"]}
+          assert "SCHEMA_VECTOR_CONTRACT_SET_INVALID" in codes, report
+          PY
