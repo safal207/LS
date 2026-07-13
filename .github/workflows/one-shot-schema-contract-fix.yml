@@ -29,33 +29,14 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("tools/validate_inter_agent_dispatch_audit_v0_1.py")
           text = path.read_text(encoding="utf-8")
           if "def validate_required_schema_contracts(" in text:
               raise SystemExit(0)
 
-          old_constants = '''CORE_NEGATIVE_CASES = {
-              "missing_authorized_exact_content": "AUTHORIZED_EXACT_CONTENT_MISSING",
-              "ui_only_without_machine_readable_audit": "AUDIT_SURFACE_MISSING",
-              "missing_followup_parent_link": "PARENT_DISPATCH_MISSING",
-              "ambiguous_followup_order": "DISPATCH_SEQUENCE_INVALID",
-              "result_omits_effective_followup": "RESULT_DISPATCH_BINDING_INCOMPLETE",
-              "authorized_content_changed_without_digest_update": "CONTENT_DIGEST_MISMATCH",
-          }
-          HARDENING_NEGATIVE_CASES = {
-              "missing_root_parent_key": "ROOT_PARENT_MISSING",
-              "self_parent_followup": "PARENT_DISPATCH_MISSING",
-              "invalid_root_operation": "ROOT_OPERATION_INVALID",
-              "invalid_dispatch_timestamp": "TIMESTAMP_INVALID",
-              "invalid_leap_second_timestamp": "TIMESTAMP_INVALID",
-              "malformed_result_digest": "RESULT_DIGEST_INVALID",
-              "missing_required_result_id": "SCHEMA_VALIDATION_FAILED",
-              "malformed_content_digest": "CONTENT_DIGEST_INVALID",
-          }
-          REQUIRED_NEGATIVE_CASES = CORE_NEGATIVE_CASES | HARDENING_NEGATIVE_CASES
-          '''.replace("          ", "")
-          new_constants = '''REQUIRED_VECTOR_CONTRACTS: dict[str, dict[str, Any]] = {
+          contracts = '''REQUIRED_VECTOR_CONTRACTS: dict[str, dict[str, Any]] = {
               "missing_authorized_exact_content": {
                   "mutation": {"op": "delete", "path": "dispatches[0].payload.authorized_view.exact_content"},
                   "expected_error_code": "AUTHORIZED_EXACT_CONTENT_MISSING",
@@ -114,12 +95,15 @@ jobs:
               },
           }
           '''.replace("          ", "")
-          if old_constants not in text:
-              raise SystemExit("negative contract constants no longer match bounded patch")
-          text = text.replace(old_constants, new_constants, 1)
+          pattern = re.compile(
+              r"CORE_NEGATIVE_CASES = \{.*?"
+              r"REQUIRED_NEGATIVE_CASES = CORE_NEGATIVE_CASES \| HARDENING_NEGATIVE_CASES\n",
+              re.DOTALL,
+          )
+          text, count = pattern.subn(contracts, text, count=1)
+          if count != 1:
+              raise SystemExit(f"expected one constants block, replaced {count}")
 
-          marker = '''def resolve_schema_ref(root_schema: dict[str, Any], reference: str) -> dict[str, Any]:
-          '''.replace("          ", "")
           helper = '''def required_vector_objects() -> list[dict[str, Any]]:
               """Return canonical full vector objects for the trusted v0.1 contract."""
               return [
@@ -156,7 +140,10 @@ jobs:
                       if isinstance(contains, dict) and isinstance(contains.get("const"), dict):
                           actual.append(contains["const"])
 
-              canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"))
+              def canonical(value: Any) -> str:
+                  """Serialize a JSON value deterministically for contract comparison."""
+                  return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
               observed = sorted(canonical(item) for item in actual)
               expected = sorted(canonical(item) for item in required_vector_objects())
               if observed != expected:
@@ -169,36 +156,25 @@ jobs:
 
 
           '''.replace("          ", "")
+          marker = "def resolve_schema_ref(root_schema: dict[str, Any], reference: str) -> dict[str, Any]:\n"
           if marker not in text:
               raise SystemExit("schema helper insertion marker missing")
           text = text.replace(marker, helper + marker, 1)
 
-          old_schema_checks = '''    if properties.get("contract_version", {}).get("const") != CONTRACT_VERSION:
-              error(fixture_errors, "SCHEMA_VERSION_INVALID", "schema.properties.contract_version", "unexpected contract version const")
+          version_error = '        error(fixture_errors, "SCHEMA_VERSION_INVALID", "schema.properties.contract_version", "unexpected contract version const")\n'
+          if version_error not in text:
+              raise SystemExit("schema version error line missing")
+          text = text.replace(
+              version_error,
+              version_error + "    validate_required_schema_contracts(schema, fixture_errors)\n",
+              1,
+          )
 
-              fixture_errors.extend(schema_errors_as_records(validate_schema_instance(fixture, schema, schema)))
-          '''.replace("          ", "")
-          new_schema_checks = '''    if properties.get("contract_version", {}).get("const") != CONTRACT_VERSION:
-              error(fixture_errors, "SCHEMA_VERSION_INVALID", "schema.properties.contract_version", "unexpected contract version const")
-              validate_required_schema_contracts(schema, fixture_errors)
-
-              fixture_errors.extend(schema_errors_as_records(validate_schema_instance(fixture, schema, schema)))
-          '''.replace("          ", "")
-          if old_schema_checks not in text:
-              raise SystemExit("schema check block no longer matches bounded patch")
-          text = text.replace(old_schema_checks, new_schema_checks, 1)
-
-          old_vector_check = '''            required_code = REQUIRED_NEGATIVE_CASES.get(case)
-              if required_code is not None and expected_code != required_code:
-                  error(
-                      fixture_errors,
-                      "EXPECTED_ERROR_CODE_INVALID",
-                      f"{location}.expected_error_code",
-                      f"required case {case} must expect {required_code}",
-                  )
-                  continue
-          '''.replace("          ", "")
-          new_vector_check = '''            required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)
+          start = text.find("            required_code = REQUIRED_NEGATIVE_CASES.get(case)\n")
+          end = text.find("            try:\n", start)
+          if start < 0 or end < 0:
+              raise SystemExit("required vector validation block missing")
+          vector_check = '''            required_contract = REQUIRED_VECTOR_CONTRACTS.get(case)
               if required_contract is not None:
                   if vector.get("mutation") != required_contract["mutation"]:
                       error(
@@ -218,9 +194,7 @@ jobs:
                       )
                       continue
           '''.replace("          ", "")
-          if old_vector_check not in text:
-              raise SystemExit("vector check block no longer matches bounded patch")
-          text = text.replace(old_vector_check, new_vector_check, 1)
+          text = text[:start] + vector_check + text[end:]
           text = text.replace(
               "REQUIRED_NEGATIVE_CASES.keys() - seen_cases",
               "REQUIRED_VECTOR_CONTRACTS.keys() - seen_cases",
