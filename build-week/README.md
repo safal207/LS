@@ -58,6 +58,19 @@ python3 -m unittest -v \
   tests/test_build_week_demo.py
 ```
 
+## Evidence snapshot
+
+The reproducible evidence snapshot is bound to reviewed commit
+[`299db4b`](https://github.com/safal207/LS/commit/299db4b239eddad32b621f31bd8b47de25f40fd7):
+
+- [attack matrix](evidence/attack-matrix.md);
+- [machine-readable test and CI results](evidence/test-results.json);
+- [canonical stale-approval trust report](evidence/trust-report.example.json);
+- [Codex contribution log](evidence/codex-contribution-log.md).
+
+The snapshot records its subject SHA explicitly so later documentation commits
+do not silently rewrite which implementation and CI runs were verified.
+
 ## Trust boundary
 
 - The exact current PR head is an explicit decision input.

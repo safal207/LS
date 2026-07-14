@@ -314,11 +314,13 @@ The submission must clearly separate:
 
 ### Built during Build Week
 
-To be filled with exact commits and outcomes after work begins:
-
 | Commit / PR | Build Week contribution | Codex role | Evidence |
 | --- | --- | --- | --- |
-| TBD | TBD | TBD | TBD |
+| [`3dcecae`](https://github.com/safal207/LS/commit/3dcecae04660e5d5578a7618d7b4fa635d3a4c13) | Submission plan and scope boundary | Structured the plan and evidence checklist | `BUILD_WEEK_2026_PLAN.md` |
+| [`dc2407e`](https://github.com/safal207/LS/commit/dc2407ef9b1dd2fe9183e8c0482226ee94352b27) | Stale/current-head gate and fixtures | Implemented evaluator, reports, and tests | `tools/build_week_trust_gate.py` |
+| [`a4236da`](https://github.com/safal207/LS/commit/a4236da2120f52f0d35ce27c1bc40fa5b698531c) | Spoofed reviewer, `NOT_RUN`, and digest hardening | Expanded adversarial coverage | Four deterministic fixtures |
+| [`0d4021a`](https://github.com/safal207/LS/commit/0d4021a769b5c7e5c63c0241d2234eef2b2e537e) | Review fixes and official requirements | Addressed exact-head review findings | 9/9 tests; clean exact-head review |
+| [`299db4b`](https://github.com/safal207/LS/commit/299db4b239eddad32b621f31bd8b47de25f40fd7) | One-command demo | Built fail-closed runner and E2E test | 10/10 tests; 4/4 scenarios; green CI |
 
 No pre-existing functionality should be presented as newly built during the event.
 
