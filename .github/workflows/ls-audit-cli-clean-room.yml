@@ -1,0 +1,56 @@
+name: LS Audit CLI Clean-Room
+
+on:
+  pull_request:
+    paths:
+      - packages/ls-audit-cli/**
+      - docs/LS_EXACT_HEAD_AUDIT_CLI.md
+      - .github/workflows/ls-audit-cli-clean-room.yml
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact source SHA to verify
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  exact-source-clean-room:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Resolve exact source SHA
+        id: source
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          INPUT_SOURCE_SHA: ${{ github.event.inputs.source_sha }}
+        run: |
+          set -eu
+          source_sha="${PR_HEAD_SHA:-${INPUT_SOURCE_SHA:-}}"
+          if ! printf '%s' "$source_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Invalid or missing exact source SHA: $source_sha" >&2
+            exit 2
+          fi
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Exact source SHA: $source_sha"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          persist-credentials: false
+      - name: Verify checked out SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ steps.source.outputs.sha }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: packages/ls-audit-cli/pyproject.toml
+      - name: Run focused tests
+        run: |
+          PYTHONPATH=packages/ls-audit-cli \
+            python -m unittest discover -s packages/ls-audit-cli/tests -v
+      - name: Build Docker clean-room image
+        run: docker build -f packages/ls-audit-cli/Dockerfile -t ls-exact-head-audit .
+      - name: Run Docker clean-room help
+        run: docker run --rm ls-exact-head-audit --help
