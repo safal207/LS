@@ -11,6 +11,15 @@ import ls_audit as core
 
 ALLOWED_DISPOSITIONS = {"confirmed", "rejected", "scoped", "unresolved"}
 GITHUB_API = "https://api.github.com"
+REQUIRED_LANES = {
+    "exact_head",
+    "final_exact_head",
+    "changed_files",
+    "commit_status",
+    "check_runs",
+    "exact_head_review_submissions",
+    "human_adjudication",
+}
 
 
 class ValidatedClient(core.Client):
@@ -79,10 +88,13 @@ def review_submission_state(reviews: list[dict[str, Any]] | None, expected_head:
     exact = [review for review in reviews if review.get("commit_id") == expected_head]
     if not exact:
         return "INCOMPLETE"
-
     latest_by_reviewer: dict[str, dict[str, Any]] = {}
     for review in exact:
-        reviewer = str(review.get("reviewer") or f"anonymous:{review.get('id')}")
+        reviewer = str(review.get("reviewer") or "").strip()
+        if not reviewer:
+            if str(review.get("state") or "").upper() == "CHANGES_REQUESTED":
+                return "FAIL"
+            continue
         key = (str(review.get("submitted_at") or ""), int(review.get("id") or 0))
         current = latest_by_reviewer.get(reviewer)
         current_key = (str(current.get("submitted_at") or ""), int(current.get("id") or 0)) if current else ("", -1)
@@ -95,6 +107,43 @@ def review_submission_state(reviews: list[dict[str, Any]] | None, expected_head:
     if "APPROVED" in states:
         return "PASS"
     return "INCOMPLETE"
+
+
+def reason_codes(
+    lanes: dict[str, str],
+    final_head_state: str,
+    reviews: list[dict[str, Any]] | None,
+    expected_head: str,
+) -> list[str]:
+    codes: set[str] = set()
+    if lanes.get("exact_head") == "FAIL":
+        codes.add("INITIAL_EXACT_HEAD_MISMATCH")
+    if final_head_state == "FAIL":
+        codes.add("FINAL_EXACT_HEAD_MISMATCH_STALE_EVIDENCE")
+    if final_head_state == "INCOMPLETE":
+        codes.add("FINAL_EXACT_HEAD_RECHECK_INCOMPLETE")
+    if lanes.get("exact_head_review_submissions") == "FAIL":
+        codes.add("EXACT_HEAD_REVIEW_CHANGES_REQUESTED")
+    if reviews is None:
+        codes.add("REVIEW_EVIDENCE_UNAVAILABLE")
+    elif reviews == []:
+        codes.add("NO_REVIEW_SUBMISSIONS")
+    else:
+        exact_reviews = [review for review in reviews if review.get("commit_id") == expected_head]
+        if not exact_reviews:
+            codes.add("ONLY_STALE_REVIEW_EVIDENCE")
+        if any(
+            review.get("commit_id") == expected_head
+            and not str(review.get("reviewer") or "").strip()
+            for review in reviews
+        ):
+            codes.add("REVIEWER_PROVENANCE_MISSING")
+    for lane, state in lanes.items():
+        if lane in REQUIRED_LANES and state in {"NOT_RUN", "INCOMPLETE"}:
+            codes.add(f"REQUIRED_LANE_{state}_{lane.upper()}")
+    if not codes:
+        codes.add("ALL_REQUIRED_LANES_PASS_OR_ACCEPTED")
+    return sorted(codes)
 
 
 def policy_verdict(lanes: dict[str, str], human: dict[str, Any] | None) -> str:
@@ -148,6 +197,14 @@ def record_final_head(
 
 def harden_collection_lanes(output: Path, lanes: dict[str, str], expected_head: str) -> None:
     evidence = output / "evidence"
+    if lanes.get("exact_head") != "PASS":
+        lanes.pop("exact_head_reviews", None)
+        lanes["changed_files"] = "NOT_RUN"
+        lanes["commit_status"] = "NOT_RUN"
+        lanes["check_runs"] = "NOT_RUN"
+        lanes["exact_head_review_submissions"] = "NOT_RUN"
+        return
+
     reviews = read_json(evidence / "reviews.json", list)
     review_state = review_submission_state(reviews, expected_head)
     if reviews is not None and len(reviews) >= 2000 and review_state != "FAIL":
@@ -189,7 +246,9 @@ def harden_scorecard(output: Path, final_head_state: str, final_head_digest: str
     lanes = dict(card["lanes"])
     harden_collection_lanes(output, lanes, expected)
     lanes["final_exact_head"] = final_head_state
+    reviews = read_json(output / "evidence" / "reviews.json", list)
     card["lanes"] = lanes
+    card["reason_codes"] = reason_codes(lanes, final_head_state, reviews, expected)
 
     digests = dict(card.get("evidence_digests") or {})
     digests["evidence/final-head.json"] = final_head_digest
