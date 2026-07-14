@@ -32,9 +32,10 @@ python3 -m unittest -v \
   tests/test_build_week_demo.py
 ```
 
-Because the container uses `set -e` semantics and the GitHub Actions step
-completed successfully, both the four-scenario verdict matrix and all 10 focused
-tests completed with exit code zero.
+Because the container command chains both operations with `&&`, the Docker
+runner removes the container on exit, and the GitHub Actions step completed
+successfully, both the four-scenario verdict matrix and all 10 focused tests
+completed with exit code zero.
 
 ## Boundaries
 
