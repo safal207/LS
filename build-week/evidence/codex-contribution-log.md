@@ -3,7 +3,8 @@
 Project: **LS — Trust Layer for AI Software Delivery**  
 Track: **Developer Tools**  
 Pre-Build Week baseline: [`caaa5ed758c965127834690dfd248e0496780e74`](https://github.com/safal207/LS/commit/caaa5ed758c965127834690dfd248e0496780e74)  
-Evidence subject: [`299db4b239eddad32b621f31bd8b47de25f40fd7`](https://github.com/safal207/LS/commit/299db4b239eddad32b621f31bd8b47de25f40fd7)
+Core demo evidence subject: [`299db4b239eddad32b621f31bd8b47de25f40fd7`](https://github.com/safal207/LS/commit/299db4b239eddad32b621f31bd8b47de25f40fd7)  
+Docker validation subject: [`3b5b0486ca51f0b08190d1207204cf20a3d219b6`](https://github.com/safal207/LS/commit/3b5b0486ca51f0b08190d1207204cf20a3d219b6)
 
 ## Human-owned decisions
 
@@ -26,17 +27,20 @@ The human project owner made and retained the product decisions that define this
 | [`a4236da`](https://github.com/safal207/LS/commit/a4236da2120f52f0d35ce27c1bc40fa5b698531c) | Spoofed-reviewer and required-`NOT_RUN` fixtures; decision-digest hardening | Completed the four-scenario adversarial matrix and excluded fixture oracle data from the authorization digest | Human fixed the required scenario list; tests prove fixture expectations cannot self-authorize |
 | [`0d4021a`](https://github.com/safal207/LS/commit/0d4021a769b5c7e5c63c0241d2234eef2b2e537e) | Exact-head classification and CLI stability repairs; published Devpost requirements | Verified and addressed three CodeRabbit findings, added regression coverage, and updated the plan from official requirements | Human retained scope and approved only the valid review fixes; CodeRabbit confirmed the exact head |
 | [`299db4b`](https://github.com/safal207/LS/commit/299db4b239eddad32b621f31bd8b47de25f40fd7) | One-command four-scenario demo and subprocess-level test | Implemented the location-independent fail-closed runner, README commands, and end-to-end test | Human requested the unified demo; GitHub CI and exact-head CodeRabbit review reproduced it |
+| [`a58571c`](https://github.com/safal207/LS/commit/a58571c73b9e1092530733184efb05456f2fa1f9) | Initial Docker clean-room image and CI job | Added a minimal image containing only the demo, focused tests, and runtime files | Human requested independent clean-environment execution rather than another feature |
+| [`3b5b048`](https://github.com/safal207/LS/commit/3b5b0486ca51f0b08190d1207204cf20a3d219b6) | Exact-source-SHA Docker runner, judge instructions, and reproducibility workflow | Corrected PR-merge-ref checkout to exact source SHA and provided one-command Docker execution | GitHub Actions verified exact checkout, image build, 4/4 demo scenarios, and 10/10 tests |
 
 ## How Codex and GPT-5.6 were used
 
-Codex served as builder, reviewer-response implementer, adversarial test designer, and GitHub workflow operator. Within the main Build Week coding session, GPT-5.6 reasoning was used to:
+Codex served as builder, reviewer-response implementer, adversarial test designer, GitHub workflow operator, and clean-room reproducibility implementer. Within the main Build Week coding session, GPT-5.6 reasoning was used to:
 
 - translate the human threat model into exact evidence invariants;
 - distinguish identity, provenance, SHA freshness, execution state, and delivery authority;
 - design adversarial mutations and positive controls;
 - keep stale evidence classification ahead of interpreting its outcome;
 - produce consistent machine-readable reason codes and judge-readable explanations;
-- inspect review feedback, implement bounded fixes, and verify the exact remote head.
+- inspect review feedback, implement bounded fixes, and verify the exact remote head;
+- identify and correct the difference between a PR merge ref and the exact source head in CI.
 
 LS does not infer or assert a model identity from generated output. The required Devpost `/feedback` Session ID is the authoritative linkage to the main Codex session and must be copied from the product UI before submission; it is deliberately not fabricated in repository evidence.
 
@@ -44,7 +48,8 @@ LS does not infer or assert a model identity from generated output. The required
 
 - Exact-head CodeRabbit review for `299db4b`: [no issues found](https://github.com/safal207/LS/pull/895#issuecomment-4965121921).
 - Local evidence: 10/10 tests and 4/4 demo scenarios passed.
-- GitHub Actions: Security & CI, regression scan, and HTTP E2E completed successfully.
+- GitHub Actions: Security & CI, regression scan, and HTTP E2E completed successfully for the evidence snapshot.
+- Docker clean-room validation for exact source SHA `3b5b048`: [successful run](https://github.com/safal207/LS/actions/runs/29317829635).
 - Open unresolved review threads at evidence capture: 0.
 
 ## Boundaries
