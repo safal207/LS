@@ -216,8 +216,8 @@ build-week/
     test-results.json
     trust-report.example.json
     codex-contribution-log.md
-  scripts/
-    run_demo.sh
+scripts/
+  run_build_week_demo.sh
 ```
 
 Minimum evidence set:

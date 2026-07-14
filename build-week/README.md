@@ -19,13 +19,32 @@ reviewer trusted.
 From the repository root:
 
 ```bash
-for fixture in build-week/demo/*.json; do
-  python3 tools/build_week_trust_gate.py "$fixture" --verify-expected
-done
+./scripts/run_build_week_demo.sh
 ```
 
-Each command prints a human verdict followed by the canonical JSON trust report.
-Use `--format human` or `--format json` to select one representation.
+Expected summary:
+
+```text
+Scenario 1: stale approval           BLOCKED STALE_APPROVAL
+Scenario 2: spoofed reviewer         BLOCKED UNTRUSTED_REVIEWER
+Scenario 3: required lane absent     BLOCKED REQUIRED_LANE_NOT_RUN
+Scenario 4: current-head review      TRUSTED ALL_REQUIRED_EVIDENCE_VALID
+```
+
+The runner is location-independent, uses only Bash and Python 3, and exits
+non-zero if any observed verdict or reason differs from the required matrix.
+Set `PYTHON=/path/to/python3` to select a specific interpreter.
+
+For a detailed human or machine report from one fixture:
+
+```bash
+python3 tools/build_week_trust_gate.py build-week/demo/stale-approval.json --format human
+python3 tools/build_week_trust_gate.py build-week/demo/stale-approval.json --format json
+```
+
+Without `--format`, the CLI prints a human verdict followed by the canonical
+JSON trust report. Use `--format human` or `--format json` to select one
+representation.
 
 Without `--verify-expected`, a `BLOCKED` verdict returns a non-zero exit code so
 the gate fails closed. `--verify-expected` is only the fixture-test mode: it
@@ -34,7 +53,9 @@ returns zero when the observed verdict and reason match the fixture oracle.
 ## Test
 
 ```bash
-python3 -m unittest -v tests/test_build_week_trust_gate.py
+python3 -m unittest -v \
+  tests/test_build_week_trust_gate.py \
+  tests/test_build_week_demo.py
 ```
 
 ## Trust boundary
