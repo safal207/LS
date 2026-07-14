@@ -8,6 +8,7 @@ on:
       - ".github/workflows/build-week-docker-smoke.yml"
       - "build-week/**"
       - "scripts/run_build_week_demo.sh"
+      - "scripts/run_build_week_docker.sh"
       - "tools/build_week_trust_gate.py"
       - "tests/test_build_week_*.py"
   push:
@@ -19,6 +20,7 @@ on:
       - ".github/workflows/build-week-docker-smoke.yml"
       - "build-week/**"
       - "scripts/run_build_week_demo.sh"
+      - "scripts/run_build_week_docker.sh"
       - "tools/build_week_trust_gate.py"
       - "tests/test_build_week_*.py"
   workflow_dispatch:
@@ -26,16 +28,21 @@ on:
 permissions:
   contents: read
 
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   docker-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout exact commit
+      - name: Checkout exact source commit
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
 
-      - name: Build judge image
-        run: docker build --pull --file Dockerfile.build-week --tag ls-build-week:${{ github.sha }} .
+      - name: Verify exact checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
 
-      - name: Run demo and tests in clean container
-        run: docker run --rm ls-build-week:${{ github.sha }}
+      - name: Build and run clean-room Docker demo
+        run: ./scripts/run_build_week_docker.sh "$SOURCE_SHA"
