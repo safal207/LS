@@ -6,6 +6,7 @@ from pathlib import Path
 from ls_audit import ApiError, InputError, Ref
 from ls_audit_cli import (
     harden_scorecard,
+    reason_codes,
     record_final_head,
     review_submission_state,
     validate_finding_dispositions,
@@ -34,9 +35,10 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(review_submission_state([], HEAD), "NOT_RUN")
         self.assertEqual(review_submission_state(None, HEAD), "INCOMPLETE")
         self.assertEqual(review_submission_state([{"commit_id": "b" * 40, "state": "APPROVED"}], HEAD), "INCOMPLETE")
-        self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "COMMENTED"}], HEAD), "INCOMPLETE")
-        self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "APPROVED"}], HEAD), "PASS")
+        self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "COMMENTED", "reviewer": "alice"}], HEAD), "INCOMPLETE")
+        self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "APPROVED", "reviewer": "alice"}], HEAD), "PASS")
         self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "CHANGES_REQUESTED"}], HEAD), "FAIL")
+        self.assertEqual(review_submission_state([{"commit_id": HEAD, "state": "APPROVED", "reviewer": None}], HEAD), "INCOMPLETE")
 
     def test_latest_review_per_reviewer_controls_state(self) -> None:
         resolved = [
@@ -130,7 +132,91 @@ class PolicyTests(unittest.TestCase):
             manifest = json.loads((output / "manifest.json").read_text())
             self.assertEqual(card["lanes"]["exact_head_review_submissions"], "FAIL")
             self.assertEqual(card["lanes"]["final_exact_head"], "PASS")
+            self.assertIn("EXACT_HEAD_REVIEW_CHANGES_REQUESTED", card["reason_codes"])
             self.assertIn("scorecard_digests", manifest)
+
+    def test_harden_scorecard_exposes_deterministic_stale_and_provenance_reason_codes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            evidence = output / "evidence"
+            evidence.mkdir()
+            (evidence / "reviews.json").write_text(json.dumps([
+                {"id": 7, "reviewer": None, "commit_id": HEAD, "state": "APPROVED"},
+                {"id": 8, "reviewer": "alice", "commit_id": "b" * 40, "state": "APPROVED"},
+            ]))
+            (evidence / "pr.json").write_text(json.dumps({"changed_files": 0}))
+            (evidence / "files.json").write_text("[]")
+            (output / "manifest.json").write_text(json.dumps({
+                "schema_version": "ls.exact-head-audit.v0.1",
+                "authority": "advisory-only",
+                "evidence_digests": {},
+            }))
+            (output / "scorecard.json").write_text(json.dumps({
+                "target": {"expected_head": HEAD, "pr_url": "https://github.com/acme/repo/pull/1"},
+                "lanes": {"exact_head": "PASS", "exact_head_reviews": "PASS", "human_adjudication": "NOT_RUN"},
+                "adjudication": None,
+                "evidence_digests": {},
+                "interpretation": "",
+                "verdict": "INCOMPLETE",
+            }))
+            final = {"expected_head": HEAD, "observed_head": "b" * 40, "status": "FAIL"}
+            digest = __import__("ls_audit").write_json(evidence / "final-head.json", final)
+            harden_scorecard(output, "FAIL", digest)
+            card = json.loads((output / "scorecard.json").read_text())
+            self.assertEqual(card["lanes"]["exact_head_review_submissions"], "INCOMPLETE")
+            self.assertEqual(card["verdict"], "HOLD")
+            self.assertEqual(card["reason_codes"], sorted(card["reason_codes"]))
+            self.assertIn("FINAL_EXACT_HEAD_MISMATCH_STALE_EVIDENCE", card["reason_codes"])
+            self.assertIn("REVIEWER_PROVENANCE_MISSING", card["reason_codes"])
+
+    def test_initial_exact_head_mismatch_preserves_secondary_lanes_as_not_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            evidence = output / "evidence"
+            evidence.mkdir()
+            (output / "manifest.json").write_text(json.dumps({
+                "schema_version": "ls.exact-head-audit.v0.1",
+                "authority": "advisory-only",
+                "evidence_digests": {},
+            }))
+            (output / "scorecard.json").write_text(json.dumps({
+                "target": {"expected_head": HEAD, "pr_url": "https://github.com/acme/repo/pull/1"},
+                "lanes": {
+                    "exact_head": "FAIL",
+                    "changed_files": "NOT_RUN",
+                    "commit_status": "NOT_RUN",
+                    "check_runs": "NOT_RUN",
+                    "exact_head_reviews": "NOT_RUN",
+                    "human_adjudication": "NOT_RUN",
+                },
+                "adjudication": None,
+                "evidence_digests": {},
+                "interpretation": "",
+                "verdict": "HOLD",
+            }))
+            final = {"expected_head": HEAD, "observed_head": "b" * 40, "status": "FAIL"}
+            digest = __import__("ls_audit").write_json(evidence / "final-head.json", final)
+            harden_scorecard(output, "FAIL", digest)
+            lanes = json.loads((output / "scorecard.json").read_text())["lanes"]
+            self.assertEqual(lanes["changed_files"], "NOT_RUN")
+            self.assertEqual(lanes["commit_status"], "NOT_RUN")
+            self.assertEqual(lanes["check_runs"], "NOT_RUN")
+            self.assertEqual(lanes["exact_head_review_submissions"], "NOT_RUN")
+
+    def test_reason_codes_do_not_require_hidden_lane_metadata(self) -> None:
+        lanes = {
+            "exact_head": "PASS",
+            "final_exact_head": "PASS",
+            "changed_files": "PASS",
+            "commit_status": "PASS",
+            "check_runs": "PASS",
+            "exact_head_review_submissions": "INCOMPLETE",
+            "human_adjudication": "NOT_RUN",
+        }
+        reviews = [{"id": 1, "reviewer": None, "commit_id": HEAD, "state": "APPROVED"}]
+        codes = reason_codes(lanes, "PASS", reviews, HEAD)
+        self.assertIn("REVIEWER_PROVENANCE_MISSING", codes)
+        self.assertNotIn("ONLY_STALE_REVIEW_EVIDENCE", codes)
 
     def test_invalid_finding_disposition_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
