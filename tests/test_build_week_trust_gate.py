@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest import mock
 
-from tools.build_week_trust_gate import CHECK_STATUSES, evaluate, render_human
+from tools.build_week_trust_gate import CHECK_STATUSES, evaluate, main, render_human
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,6 +92,53 @@ class BuildWeekTrustGateTests(unittest.TestCase):
         self.assertEqual("NOT_RUN", security["status"])
         self.assertEqual("NOT_RUN", report["decision_input"]["required_lane_statuses"]["security"])
         self.assertFalse(report["side_effects_performed"])
+
+    def test_stale_failed_lane_is_classified_by_commit_binding_first(self) -> None:
+        policy = load(POLICY_PATH)
+        fixture = load(FIXTURE_DIR / "trusted-current-head.json")
+        security = next(lane for lane in fixture["lanes"] if lane["name"] == "security")
+        security["status"] = "FAIL"
+        security["head_sha"] = "f" * 40
+
+        report = evaluate(fixture, policy)
+
+        self.assertEqual("BLOCKED", report["verdict"])
+        self.assertEqual("STALE_REQUIRED_LANE", report["reason_code"])
+        security_check = next(check for check in report["checks"] if check["check_id"] == "lane.security")
+        self.assertEqual(f"FAIL at {'f' * 40}", security_check["observed"])
+
+    def test_current_head_failed_lane_remains_a_lane_failure(self) -> None:
+        policy = load(POLICY_PATH)
+        fixture = load(FIXTURE_DIR / "trusted-current-head.json")
+        security = next(lane for lane in fixture["lanes"] if lane["name"] == "security")
+        security["status"] = "FAIL"
+
+        report = evaluate(fixture, policy)
+
+        self.assertEqual("BLOCKED", report["verdict"])
+        self.assertEqual("REQUIRED_LANE_FAILED", report["reason_code"])
+
+    def test_report_write_failure_returns_controlled_exit_code(self) -> None:
+        stderr = io.StringIO()
+        fixture = FIXTURE_DIR / "trusted-current-head.json"
+        report_path = ROOT / "unused-report.json"
+
+        with mock.patch.object(Path, "write_text", side_effect=OSError("simulated write failure")):
+            with redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        str(fixture),
+                        "--policy",
+                        str(POLICY_PATH),
+                        "--report-out",
+                        str(report_path),
+                    ]
+                )
+
+        self.assertEqual(2, exit_code)
+        self.assertIn("trust-gate output error:", stderr.getvalue())
+        self.assertIn("simulated write failure", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_machine_report_keeps_three_check_states_distinct(self) -> None:
         policy = load(POLICY_PATH)

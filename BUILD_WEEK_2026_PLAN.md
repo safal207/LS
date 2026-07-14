@@ -1,8 +1,12 @@
 # OpenAI Build Week 2026 — LS Submission Plan
 
-Status: **provisional until the official rules and tracks are published on July 13, 2026**
+Status: **active — official Devpost requirements reviewed on July 14, 2026**
+
+Track: **Developer Tools**
 
 Submission window: **July 13–21, 2026**
+
+Official deadline: **July 21, 2026 at 5:00 PM PT (July 22 at 03:00 Türkiye time)**
 
 Working project name: **LS — Trust Layer for AI Software Delivery**
 
@@ -98,7 +102,7 @@ The final demo should show one primary scenario in depth and summarize the secon
 
 ## 4. Winning demo
 
-Target length: **90–120 seconds**, subject to official rules.
+Required format: **a public YouTube demo under three minutes, with audio explaining how Codex and GPT-5.6 were used**. Working target: **90–120 seconds**.
 
 ### 0–15 seconds — The risk
 
@@ -272,22 +276,26 @@ Scope rule:
 
 ## 9. Submission assets
 
-Required or expected, pending official rules:
+Confirmed submission requirements from the [OpenAI Build Week Devpost page](https://openai.devpost.com/):
 
-- Devpost registration;
-- project title and tagline;
-- English project description;
-- public repository link;
-- working demo or reproducible local run;
-- short demo video;
+- a working project built with Codex using GPT-5.6;
+- the **Developer Tools** category;
+- a project description explaining what was created and how it works;
+- a public YouTube demo under three minutes that shows the project working;
+- audio explaining how both Codex and GPT-5.6 were used;
+- a code-repository URL for judging and testing;
+- a public repository with relevant licensing, or a private repository shared with the specified judging accounts;
+- a README with setup instructions, sample data when needed, and clear run guidance;
+- clear disclosure of where Codex accelerated the workflow, where humans made key decisions, and how GPT-5.6 and Codex were used;
+- the `/feedback` Session ID for the Codex session where most core functionality was built;
+- for a developer tool: installation instructions, supported platforms, and a way for judges to test it without rebuilding from scratch.
+
+Supporting assets for this submission:
+
 - architecture diagram;
 - screenshots or GIF;
-- explanation of Codex and GPT-5.6 usage;
-- team/member details;
-- category or track selection;
-- disclosure of pre-existing work versus Build Week work;
-- license and dependency review;
-- final rules and country-eligibility confirmation.
+- exact demo commit SHA and reproducible test output;
+- disclosure of pre-existing work versus Build Week work.
 
 ---
 
@@ -316,7 +324,18 @@ No pre-existing functionality should be presented as newly built during the even
 
 ---
 
-## 11. Self-scorecard
+## 11. Judging criteria and internal scorecard
+
+Published judging criteria:
+
+| Criterion | LS proof target |
+| --- | --- |
+| Technological Implementation | Working, non-trivial Codex-assisted trust gate with deterministic tests and evidence |
+| Design | Coherent one-command experience with machine-readable and human-readable verdicts |
+| Potential Impact | A credible defense against stale or inadmissible AI decisions in software delivery |
+| Quality of the Idea | A clear exact-SHA and evidence-bound trust model grounded in the demonstrated threat |
+
+Internal readiness scorecard (these weights are project planning aids, not official judging weights):
 
 Target before submission: **85/100 or higher**.
 
@@ -334,19 +353,12 @@ Target before submission: **85/100 or higher**.
 
 ## 12. Timeline
 
-### Before July 13
+### July 13–14 — requirements and scope
 
-- register on Devpost;
-- preserve this baseline and branch;
-- prepare the primary scenario;
-- do not make claims about unpublished rules.
-
-### July 13
-
-- review official rules, tracks, prizes, judging criteria, and eligibility;
-- update this plan immediately;
-- choose the final track;
-- freeze the final scope.
+- review the published Devpost requirements and eligibility;
+- select the **Developer Tools** track;
+- preserve the pre-Build Week baseline and `build-week-2026` branch;
+- freeze scope to the attack → detect → block demo.
 
 ### July 14–16
 
@@ -366,27 +378,30 @@ Target before submission: **85/100 or higher**.
 - record a rough demo;
 - test whether a person unfamiliar with LS can explain the project correctly.
 
-### July 20
+### July 20 — internal submission deadline
 
 - final video;
 - complete Devpost draft;
-- test all links and reproduction steps in a clean environment.
+- test all links and reproduction steps in a clean environment;
+- submit by **21:00 Türkiye time**.
 
-### July 21
+### July 21 — safety only
 
 - critical fixes only;
-- submit with a safety margin before the deadline.
+- replace a broken link if needed;
+- verify submission status;
+- official deadline: **5:00 PM PT (03:00 Türkiye time on July 22)**.
 
 ---
 
 ## 13. Immediate next actions
 
-1. Join the OpenAI Build Week hackathon on Devpost.
-2. Review the official rules as soon as they are published.
-3. Create the first Build Week implementation issue from this plan.
-4. Build the stale-approval fixture and trusted-current-head control fixture.
-5. Produce a minimal trust report that clearly explains the verdict.
-6. Record all Build Week commits and Codex contributions in this document.
+1. Close the exact-head review findings on the deterministic trust gate.
+2. Request the available Codex credits by **July 17 at 12:00 PM PT** if not already completed.
+3. Add the one-command four-scenario demo runner.
+4. Finish the Build Week README, installation instructions, and supported-platform notes.
+5. Record exact Build Week commits, test evidence, Codex contributions, and human decisions.
+6. Capture the main `/feedback` Session ID and complete the video and Devpost submission assets.
 
 ---
 

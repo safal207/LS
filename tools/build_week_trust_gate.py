@@ -361,6 +361,16 @@ def evaluate(value: Any, policy_value: Any) -> dict[str, Any]:
                     "REQUIRED_LANE_NOT_RUN",
                 )
             )
+        elif lane["head_sha"] != current_head:
+            checks.append(
+                _check(
+                    f"lane.{lane_name}",
+                    "FAIL",
+                    f"PASS at {current_head}",
+                    f"{lane['status']} at {lane['head_sha']}",
+                    "STALE_REQUIRED_LANE",
+                )
+            )
         elif lane["status"] == "FAIL":
             checks.append(
                 _check(
@@ -369,16 +379,6 @@ def evaluate(value: Any, policy_value: Any) -> dict[str, Any]:
                     f"PASS at {current_head}",
                     f"FAIL at {lane['head_sha']}",
                     "REQUIRED_LANE_FAILED",
-                )
-            )
-        elif lane["head_sha"] != current_head:
-            checks.append(
-                _check(
-                    f"lane.{lane_name}",
-                    "FAIL",
-                    f"PASS at {current_head}",
-                    f"PASS at {lane['head_sha']}",
-                    "STALE_REQUIRED_LANE",
                 )
             )
         else:
@@ -489,7 +489,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     report_json = json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     if args.report_out is not None:
-        args.report_out.write_text(report_json, encoding="utf-8")
+        try:
+            args.report_out.write_text(report_json, encoding="utf-8")
+        except OSError as exc:
+            print(f"trust-gate output error: {args.report_out}: {exc}", file=sys.stderr)
+            return 2
     if args.format in {"human", "both"}:
         print(render_human(report))
     if args.format == "both":
