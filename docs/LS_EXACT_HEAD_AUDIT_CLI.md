@@ -8,6 +8,8 @@ The CLI does not install or invoke the legacy GhostOS, Rust, vision, audio, or M
 
 ## Clean-room path
 
+Native installation from a freshly cloned repository:
+
 ```bash
 git clone https://github.com/safal207/LS.git
 cd LS
@@ -16,6 +18,19 @@ python3.11 -m venv .venv
 python -m pip install ./packages/ls-audit-cli
 ls-audit https://github.com/OWNER/REPO/pull/123 \
   --expected-head 0123456789abcdef0123456789abcdef01234567
+```
+
+Docker clean-room path from a freshly cloned repository:
+
+```bash
+docker build -f packages/ls-audit-cli/Dockerfile -t ls-exact-head-audit .
+docker run --rm \
+  -e GITHUB_TOKEN \
+  -v "$PWD/audit-output:/audit-output" \
+  ls-exact-head-audit \
+  https://github.com/OWNER/REPO/pull/123 \
+  --expected-head 0123456789abcdef0123456789abcdef01234567 \
+  --output /audit-output/pr-123
 ```
 
 For a private repository:
@@ -53,7 +68,9 @@ Review submission semantics are exact-head and fail-closed. The latest submissio
 
 - current `CHANGES_REQUESTED` → `FAIL / HOLD`;
 - current `APPROVED` → positive review signal;
-- `COMMENTED`, stale-head, missing, dismissed, or unavailable review evidence → `INCOMPLETE` or `NOT_RUN`.
+- `COMMENTED`, stale-head, missing reviewer provenance, dismissed, or unavailable review evidence → `INCOMPLETE` or `NOT_RUN`.
+
+The Scorecard also emits sorted deterministic `reason_codes` so judges can see why the bundle is not passable without re-deriving policy from raw JSON. Examples include `FINAL_EXACT_HEAD_MISMATCH_STALE_EVIDENCE`, `REVIEWER_PROVENANCE_MISSING`, and `REQUIRED_LANE_INCOMPLETE_CHECK_RUNS`.
 
 ## Human adjudication
 
@@ -83,11 +100,13 @@ PYTHONPATH=packages/ls-audit-cli \
   python -m unittest discover -s packages/ls-audit-cli/tests -v
 python -m pip install ./packages/ls-audit-cli
 ls-audit --help
+docker build -f packages/ls-audit-cli/Dockerfile -t ls-exact-head-audit .
+docker run --rm ls-exact-head-audit --help
 ```
 
 The implementation is standard-library-only at runtime. Build tooling is limited to setuptools and wheel.
 
-The path-scoped GitHub workflow also installs the package on a clean Python 3.11 runner and audits its own pull request at the exact event head. The job fails if this live path exceeds 15 minutes or if expected and observed heads differ.
+The path-scoped GitHub workflow resolves the pull-request source SHA, checks out that exact SHA, verifies `git rev-parse HEAD`, runs the focused test suite, builds the Docker image, and runs the container entrypoint. The job fails if the source SHA is missing or malformed, the checkout does not match, tests fail, or the Docker path cannot be reproduced.
 
 ## Exit codes
 
