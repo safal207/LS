@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LS Qwen Autopilot Trust Agent</title>
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#172033}
+    .card{background:white;border-radius:18px;padding:24px;box-shadow:0 8px 30px #18213a18;margin:18px 0}
+    textarea,input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #ccd3e0;border-radius:10px;margin:6px 0 14px}
+    button{padding:12px 18px;border:0;border-radius:10px;background:#172033;color:white;cursor:pointer}
+    .examples button{margin:4px;background:#e7ebf3;color:#172033}
+    pre{white-space:pre-wrap;background:#111827;color:#d1fae5;padding:18px;border-radius:12px;min-height:100px}
+  </style>
+</head>
+<body>
+  <h1>LS Qwen Autopilot Trust Agent</h1>
+  <p>AI agents propose actions. Qwen reasons about risk. Deterministic policy prevents unsafe downgrades. Humans decide when consequences matter.</p>
+  <div class="card examples">
+    <strong>Demo scenarios</strong><br/>
+    <button onclick="scenario('safe')">Read-only report</button>
+    <button onclick="scenario('approval')">Send customer email</button>
+    <button onclick="scenario('block')">Delete production DB</button>
+  </div>
+  <div class="card">
+    <label>Actor</label><input id="actor" value="support-agent-7" />
+    <label>Proposed action</label><textarea id="action">Send a draft incident update to affected customers</textarea>
+    <label>Resource</label><input id="resource" value="customer-email-list" />
+    <label>Context</label><textarea id="context">The message has not been reviewed by a human.</textarea>
+    <label>Requested effect</label><input id="effect" value="External email is delivered" />
+    <button onclick="evaluateAction()">Evaluate before execution</button>
+  </div>
+  <div class="card"><strong>Decision artifact</strong><pre id="output">Ready.</pre></div>
+<script>
+function scenario(name){
+ const data={
+  safe:['report-agent','Generate a read-only QA summary','test-results','No external side effect','Return summary to the internal dashboard'],
+  approval:['support-agent-7','Send a draft incident update to affected customers','customer-email-list','The message has not been reviewed by a human.','External email is delivered'],
+  block:['ops-agent','Delete the production customer database','production database','No verified backup and no approved change ticket','Irreversible deletion']
+ }[name];
+ ['actor','action','resource','context','effect'].forEach((id,i)=>document.getElementById(id).value=data[i]);
+}
+async function evaluateAction(){
+ const payload={actor:actor.value,action:action.value,resource:resource.value,context:context.value,requested_effect:effect.value,metadata:{reversible:!action.value.toLowerCase().includes('delete'),has_test_evidence:false,user_consent:false}};
+ output.textContent='Evaluating…';
+ try{
+  const r=await fetch('/api/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  output.textContent=JSON.stringify(await r.json(),null,2);
+ }catch(e){output.textContent=String(e)}
+}
+</script>
+</body>
+</html>
