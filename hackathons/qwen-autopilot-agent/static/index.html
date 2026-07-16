@@ -32,16 +32,23 @@
   </div>
   <div class="card"><strong>Decision artifact</strong><pre id="output">Ready.</pre></div>
 <script>
+let selectedScenario='approval';
 function scenario(name){
+ selectedScenario=name;
  const data={
-  safe:['report-agent','Generate a read-only QA summary','test-results','No external side effect','Return summary to the internal dashboard'],
+  safe:['report-agent','Generate a read-only QA summary','test-results','Internal analysis with verified test evidence','Return summary to the internal dashboard'],
   approval:['support-agent-7','Send a draft incident update to affected customers','customer-email-list','The message has not been reviewed by a human.','External email is delivered'],
   block:['ops-agent','Delete the production customer database','production database','No verified backup and no approved change ticket','Irreversible deletion']
  }[name];
  ['actor','action','resource','context','effect'].forEach((id,i)=>document.getElementById(id).value=data[i]);
 }
 async function evaluateAction(){
- const payload={actor:actor.value,action:action.value,resource:resource.value,context:context.value,requested_effect:effect.value,metadata:{reversible:!action.value.toLowerCase().includes('delete'),has_test_evidence:false,user_consent:false}};
+ const metadata={
+  safe:{reversible:true,has_test_evidence:true,user_consent:true},
+  approval:{reversible:true,has_test_evidence:true,user_consent:false},
+  block:{reversible:false,has_test_evidence:false,user_consent:false}
+ }[selectedScenario];
+ const payload={actor:actor.value,action:action.value,resource:resource.value,context:context.value,requested_effect:effect.value,metadata};
  output.textContent='Evaluating…';
  try{
   const r=await fetch('/api/evaluate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
