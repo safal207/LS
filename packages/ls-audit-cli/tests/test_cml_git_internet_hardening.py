@@ -44,6 +44,9 @@ class TargetClient:
 
 
 class CompatibilityTests(unittest.TestCase):
+    def registry(self) -> cml.Registry:
+        return cml.Registry((cml.Source("acme/cml", PIN),))
+
     def test_no_registry_preserves_original_network_boundary_and_bundle_shape(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "bundle"
@@ -71,7 +74,6 @@ class CompatibilityTests(unittest.TestCase):
             self.assertEqual(manifest["tool"]["version"], integration.TOOL_VERSION)
 
     def test_initial_exact_head_mismatch_blocks_cml_network(self) -> None:
-        registry = cml.Registry((cml.Source("acme/cml", PIN),))
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp)
             evidence = output / "evidence"
@@ -91,7 +93,7 @@ class CompatibilityTests(unittest.TestCase):
                 side_effect=AssertionError("CML network must not run"),
             ):
                 result, digest = integration.collect_cml(
-                    registry=registry,
+                    registry=self.registry(),
                     output=output,
                     ref=integration.core.Ref("github.com", "acme", "app", 7),
                     expected_head=HEAD,
@@ -104,6 +106,76 @@ class CompatibilityTests(unittest.TestCase):
             )
             self.assertEqual(len(digest), 64)
             self.assertFalse(any(result["authority"].values()))
+
+    def test_missing_frozen_file_list_is_incomplete_without_cml_network(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            evidence = output / "evidence"
+            evidence.mkdir()
+            (evidence / "pr.json").write_text(
+                json.dumps(
+                    {
+                        "title": "matching target",
+                        "head": {"sha": HEAD},
+                        "base": {"sha": BASE},
+                    }
+                )
+            )
+            with mock.patch.object(
+                integration,
+                "anonymous_cml_client",
+                side_effect=AssertionError("incomplete query must not run CML network"),
+            ):
+                result, _ = integration.collect_cml(
+                    registry=self.registry(),
+                    output=output,
+                    ref=integration.core.Ref("github.com", "acme", "app", 7),
+                    expected_head=HEAD,
+                    timeout=1.0,
+                )
+            self.assertEqual(result["lane_status"], "INCOMPLETE")
+            self.assertEqual(
+                result["sources"][0]["reason_code"],
+                "FROZEN_QUERY_EVIDENCE_INCOMPLETE",
+            )
+
+    def test_anonymous_client_rejects_internal_repository_metadata(self) -> None:
+        client = integration.AnonymousPublicCmlClient(
+            "https://api.github.com", None, 1.0
+        )
+        with mock.patch.object(
+            integration.core.Client,
+            "get",
+            return_value={"private": False, "visibility": "internal"},
+        ):
+            with self.assertRaises(cml.CmlError):
+                client.get("/repos/acme/cml")
+
+
+class RetrievalBoundsTests(unittest.TestCase):
+    def test_ranking_is_bounded_to_three_results(self) -> None:
+        documents = [
+            cml.MemoryDocument(
+                source_repository="acme/cml",
+                registry_commit=PIN,
+                path=f"{cml.MEMORY_ROOT}/{index}.json",
+                pack_id=f"{index:064x}",
+                source_commit="c" * 40,
+                situation="workflow permission fallback",
+                selected_path=("workflow permission fallback", "exact base lesson"),
+                constraints=(),
+                token_weights={"workflow": 5, "permission": 5, "fallback": 5},
+                evidence_count=1,
+            )
+            for index in range(5)
+        ]
+        matches = cml.retrieve(
+            cml.build_query_weights(
+                title="workflow permission fallback", filenames=[]
+            ),
+            documents,
+        )
+        self.assertEqual(len(matches), 3)
 
 
 class RenderingTests(unittest.TestCase):
