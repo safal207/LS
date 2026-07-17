@@ -19,7 +19,7 @@ ls-audit https://github.com/OWNER/REPO/pull/123 \
   --expected-head 0123456789abcdef0123456789abcdef01234567
 ```
 
-Set `GITHUB_TOKEN` for private target repositories. LS accepts only `github.com` PR URLs and `api.github.com`; custom API hosts are rejected so the target token cannot be redirected to an untrusted server. The token is never written to the bundle.
+Set `GITHUB_TOKEN` for private target repositories. LS accepts only `github.com` PR URLs and `api.github.com`; custom API hosts are rejected. Both the target client and optional CML client reject HTTP redirects, so credentials and source trust cannot silently cross hosts. The target token is never written to the bundle.
 
 The collector checks the PR head before evidence collection and repeats the head check after collection. A force-push during the audit produces `HOLD` or `INCOMPLETE`, never PASS. Exact-head identity is not waivable through human adjudication.
 
@@ -51,10 +51,13 @@ Registry format:
 
 The integration:
 
-- reads each source only at its exact 40-character commit;
+- requires one exact 40-character source commit and independently resolves it through GitHub before reading content;
+- rejects a source when the resolved commit differs from the registry pin;
 - uses a separate anonymous `api.github.com` client, never the target `GITHUB_TOKEN`;
+- follows no HTTP redirects for either target or CML requests;
 - independently validates `cml-memory-pack-v1`, canonical `pack_id`, graph connectivity, repository binding, privacy, and authority fields;
-- accepts only `visibility=public` with `contains_private_data=false`;
+- accepts only repositories reported as public and packs with `visibility=public` plus `contains_private_data=false`;
+- requires a bounded integer content size and validates the Base64 envelope length and padding before decoding;
 - ranks up to three memories deterministically from the frozen PR title and changed filenames;
 - writes `evidence/cml-memory.json` and a `Causal Memory` Scorecard section;
 - never reveals hidden, non-public, or invalid pack paths or counts;
@@ -62,7 +65,7 @@ The integration:
 
 A successful causal-memory lane is context only and cannot independently create `PASS`. An unavailable or invalid configured source makes the lane `INCOMPLETE`; normal LS human-adjudication rules then require explicit acceptance with a reason.
 
-No CML network request occurs when `--cml-registry` is absent, preserving the original audit behavior.
+No CML network request occurs when `--cml-registry` is absent, when the initial exact-head gate fails, or when frozen changed-file evidence is incomplete.
 
 ## Bundle
 
