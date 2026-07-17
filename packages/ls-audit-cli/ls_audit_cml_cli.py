@@ -96,10 +96,14 @@ class AnonymousPublicCmlClient(core.Client):
             raise cml.CmlError("CML content must use bounded base64 encoding")
         if len(encoded) > MAX_CML_ENCODED_CHARS:
             raise cml.CmlError("CML base64 envelope exceeds the safe character bound")
-        compact_length = sum(1 for character in encoded if not character.isspace())
+        compact = "".join(encoded.split())
         expected_length = 4 * ((size + 2) // 3)
-        if compact_length != expected_length:
+        if len(compact) != expected_length or len(compact) % 4:
             raise cml.CmlError("CML base64 envelope does not match its declared size")
+        padding = 2 if compact.endswith("==") else 1 if compact.endswith("=") else 0
+        decoded_size = 3 * (len(compact) // 4) - padding
+        if decoded_size != size:
+            raise cml.CmlError("CML base64 padding does not match its declared size")
 
     def get(self, endpoint: str) -> Any:
         parts, query = self._parts(endpoint)
