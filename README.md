@@ -2,6 +2,21 @@
 
 [English](#english) · [Русский](#russian)
 
+<p align="center">
+  <a href="LOTUS.md">
+    <img src="assets/lotus.svg" alt="LS Lotus Layer" width="170" />
+  </a>
+</p>
+
+<p align="center">
+  <strong>The Lotus Layer</strong><br />
+  Clarity from complexity · Evidence before confidence · Memory without authority · Human authorship at the center
+</p>
+
+<p align="center">
+  <a href="LOTUS.md">Read the living principles / Прочитать принципы Лотоса</a>
+</p>
+
 [![LS Exact-Head Audit CLI](https://github.com/safal207/LS/actions/workflows/ls-audit-cli.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/ls-audit-cli.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 
@@ -65,6 +80,7 @@ JSON + Markdown Scorecard
 
 ## Product proof and operator docs
 
+- [The Lotus Layer — living project principles](LOTUS.md)
 - [LS v0.1 Product Scorecard](docs/LS_V0_1_PRODUCT_SCORECARD.md)
 - [Exact-Head Audit operator runbook](docs/LS_EXACT_HEAD_AUDIT_CLI.md)
 - [CLI package documentation](packages/ls-audit-cli/README.md)
