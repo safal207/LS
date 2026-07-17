@@ -18,13 +18,41 @@ ls-audit https://github.com/OWNER/REPO/pull/123 \
   --expected-head 0123456789abcdef0123456789abcdef01234567
 ```
 
-For a private repository:
+For a private target repository:
 
 ```bash
 export GITHUB_TOKEN=...
 ```
 
-v0.1 accepts only `github.com` PR URLs and the fixed `https://api.github.com` API boundary. Custom hosts and custom API bases are rejected before the token is used. The token is never persisted in the bundle.
+The CLI accepts only `github.com` PR URLs and the fixed `https://api.github.com` API boundary. Custom hosts and custom API bases are rejected before the token is used. The token is never persisted in the bundle.
+
+## Optional CML Git Internet lane
+
+To add reviewed public causal memory, provide an explicit local registry:
+
+```bash
+ls-audit https://github.com/OWNER/REPO/pull/123 \
+  --expected-head 0123456789abcdef0123456789abcdef01234567 \
+  --cml-registry packages/ls-audit-cli/examples/cml-trust-registry.v0.1.json
+```
+
+Every registry source is a GitHub `owner/repo` plus an exact 40-character commit. LS uses a separate anonymous client for those cross-repository public reads; the target repository's `GITHUB_TOKEN` is never forwarded to a CML source.
+
+The CML lane independently checks:
+
+- `cml-memory-pack-v1` schema and exact known fields;
+- canonical SHA-256 `pack_id`;
+- repository and source-commit binding;
+- graph and selected-path integrity;
+- evidence references;
+- `visibility=public` and `contains_private_data=false`;
+- absence of merge and execution authority.
+
+The frozen PR title and changed filenames form a deterministic query. Up to three public memories are written to `evidence/cml-memory.json` and shown in the Scorecard. Non-public or invalid paths and counts are not disclosed.
+
+CML is advisory context only. A `PASS` causal-memory lane cannot independently upgrade the audit verdict. A configured source that cannot be verified produces an `INCOMPLETE` lane, which follows the existing explicit human-acceptance rules.
+
+When `--cml-registry` is absent, no CML network request or lane is created.
 
 ## First result
 
@@ -38,7 +66,7 @@ adjudication-template.json
 evidence/
 ```
 
-The manifest binds the evidence digests plus SHA-256 digests for `scorecard.json` and `SCORECARD.md`.
+With CML enabled, `evidence/` also contains `cml-memory.json`. The manifest binds its digest plus SHA-256 digests for `scorecard.json` and `SCORECARD.md`.
 
 The CLI verifies the expected head twice:
 
@@ -74,7 +102,7 @@ A human `PASS` cannot silently upgrade incomplete evidence. Every accepted `NOT_
 
 Do not edit a completed bundle in place. `--overwrite` is allowed only for a directory containing a valid advisory LS audit manifest. Symbolic-link output paths are rejected so the CLI cannot be used to delete an unrelated directory through the overwrite path.
 
-A hard primary API or local filesystem failure cleans up only an unsealed partial directory. Once `manifest.json` exists, automatic failure cleanup does not remove the bundle.
+A hard primary target API or local filesystem failure cleans up only an unsealed partial directory. Once `manifest.json` exists, automatic failure cleanup does not remove the bundle. Optional CML source failures are preserved as generic `INCOMPLETE` evidence rather than deleting the primary audit.
 
 ## Local verification
 
@@ -87,14 +115,14 @@ ls-audit --help
 
 The implementation is standard-library-only at runtime. Build tooling is limited to setuptools and wheel.
 
-The path-scoped GitHub workflow also installs the package on a clean Python 3.11 runner and audits its own pull request at the exact event head. The job fails if this live path exceeds 15 minutes or if expected and observed heads differ.
+The path-scoped GitHub workflow installs the package on a clean Python 3.11 runner and audits its own pull request at the exact event head. The live path also reads the example CML source at its pinned commit, verifies the CML evidence digest and no-authority fields, and must finish within 15 minutes.
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | `0` | Bundle produced; inspect the Scorecard verdict. |
-| `2` | Invalid operator input, target boundary, overwrite target, or adjudication. |
+| `2` | Invalid operator input, target boundary, registry, overwrite target, or adjudication. |
 | `3` | Initial or final exact-head mismatch; the audit is fail-closed. |
-| `4` | Primary GitHub API request failed. |
+| `4` | Primary target GitHub API request failed. |
 | `5` | Local filesystem operation failed. |
