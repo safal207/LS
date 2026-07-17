@@ -15,10 +15,26 @@ import ls_audit_cli as base
 TOOL_VERSION = "0.2.0"
 
 
+class AnonymousPublicCmlClient(core.Client):
+    """Anonymous GitHub client that rejects non-public source repositories."""
+
+    def get(self, endpoint: str) -> Any:
+        value = super().get(endpoint)
+        path = endpoint.split("?", 1)[0].strip("/").split("/")
+        if len(path) == 3 and path[0] == "repos":
+            if (
+                not isinstance(value, dict)
+                or value.get("private") is not False
+                or value.get("visibility") != "public"
+            ):
+                raise cml.CmlError("CML source must be a public GitHub repository")
+        return value
+
+
 def anonymous_cml_client(timeout: float) -> core.Client:
     """Use a separate anonymous client so the target token is never forwarded."""
 
-    return core.Client(base.GITHUB_API, None, timeout)
+    return AnonymousPublicCmlClient(base.GITHUB_API, None, timeout)
 
 
 def _authority() -> dict[str, bool]:
@@ -51,6 +67,7 @@ def _generic_cml_failure(
     pr_url: str,
     expected_head: str,
     base_sha: str | None,
+    reason_code: str = "COLLECTION_INCOMPLETE",
 ) -> dict[str, Any]:
     return {
         "schema_version": cml.EVIDENCE_SCHEMA,
@@ -63,7 +80,7 @@ def _generic_cml_failure(
         "sources": _source_states(
             registry,
             status="INCOMPLETE",
-            reason_code="COLLECTION_INCOMPLETE",
+            reason_code=reason_code,
         ),
         "publishable_candidates": 0,
         "selected": [],
@@ -132,6 +149,14 @@ def collect_cml(
             pr_url=ref.url,
             expected_head=expected_head,
             base_sha=base_sha,
+        )
+    elif files is None:
+        evidence = _generic_cml_failure(
+            registry,
+            pr_url=ref.url,
+            expected_head=expected_head,
+            base_sha=base_sha,
+            reason_code="FROZEN_QUERY_EVIDENCE_INCOMPLETE",
         )
     else:
         try:
