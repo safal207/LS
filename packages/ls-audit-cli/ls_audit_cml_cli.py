@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import os
 from pathlib import Path
@@ -11,11 +12,37 @@ import cml_git_internet as cml
 import ls_audit as core
 import ls_audit_cli as base
 
+TOOL_VERSION = "0.2.0"
+
 
 def anonymous_cml_client(timeout: float) -> core.Client:
     """Use a separate anonymous client so the target token is never forwarded."""
 
     return core.Client(base.GITHUB_API, None, timeout)
+
+
+def _authority() -> dict[str, bool]:
+    return {
+        "approval": False,
+        "execution": False,
+        "delivery": False,
+        "merge": False,
+    }
+
+
+def _source_states(
+    registry: cml.Registry, *, status: str, reason_code: str
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "repository": source.repository,
+            "commit": source.commit,
+            "status": status,
+            "publishable_candidates": 0,
+            "reason_code": reason_code,
+        }
+        for source in registry.sources
+    ]
 
 
 def _generic_cml_failure(
@@ -33,24 +60,40 @@ def _generic_cml_failure(
             "base_sha": base_sha,
         },
         "lane_status": "INCOMPLETE",
-        "sources": [
-            {
-                "repository": source.repository,
-                "commit": source.commit,
-                "status": "INCOMPLETE",
-                "publishable_candidates": 0,
-                "reason_code": "COLLECTION_INCOMPLETE",
-            }
-            for source in registry.sources
-        ],
+        "sources": _source_states(
+            registry,
+            status="INCOMPLETE",
+            reason_code="COLLECTION_INCOMPLETE",
+        ),
         "publishable_candidates": 0,
         "selected": [],
-        "authority": {
-            "approval": False,
-            "execution": False,
-            "delivery": False,
-            "merge": False,
+        "authority": _authority(),
+    }
+
+
+def _cml_not_run(
+    registry: cml.Registry,
+    *,
+    pr_url: str,
+    expected_head: str,
+    base_sha: str | None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": cml.EVIDENCE_SCHEMA,
+        "target": {
+            "pr_url": pr_url,
+            "expected_head": expected_head,
+            "base_sha": base_sha,
         },
+        "lane_status": "NOT_RUN",
+        "sources": _source_states(
+            registry,
+            status="NOT_RUN",
+            reason_code="INITIAL_EXACT_HEAD_MISMATCH",
+        ),
+        "publishable_candidates": 0,
+        "selected": [],
+        "authority": _authority(),
     }
 
 
@@ -65,42 +108,117 @@ def collect_cml(
     pr = base.read_json(output / "evidence" / "pr.json", dict)
     files = base.read_json(output / "evidence" / "files.json", list)
     base_sha: str | None = None
+    observed_head: str | None = None
     title = ""
     filenames: list[str] = []
     if pr is not None:
         title = str(pr.get("title") or "")
         base_value = (pr.get("base") or {}).get("sha")
+        head_value = (pr.get("head") or {}).get("sha")
         if isinstance(base_value, str):
             base_sha = base_value.lower()
+        if isinstance(head_value, str):
+            observed_head = head_value.lower()
     if files is not None:
         filenames = [
             str(item.get("filename"))
             for item in files
             if isinstance(item, dict) and isinstance(item.get("filename"), str)
         ]
-    try:
-        if base_sha is None:
-            raise cml.CmlError("frozen target base SHA is unavailable")
-        evidence = cml.collect_evidence(
-            registry=registry,
-            client=anonymous_cml_client(timeout),
-            target={
-                "pr_url": ref.url,
-                "expected_head": expected_head,
-                "base_sha": base_sha,
-            },
-            title=title,
-            filenames=filenames,
-        )
-    except Exception:
-        evidence = _generic_cml_failure(
+
+    if observed_head != expected_head:
+        evidence = _cml_not_run(
             registry,
             pr_url=ref.url,
             expected_head=expected_head,
             base_sha=base_sha,
         )
+    else:
+        try:
+            if base_sha is None:
+                raise cml.CmlError("frozen target base SHA is unavailable")
+            evidence = cml.collect_evidence(
+                registry=registry,
+                client=anonymous_cml_client(timeout),
+                target={
+                    "pr_url": ref.url,
+                    "expected_head": expected_head,
+                    "base_sha": base_sha,
+                },
+                title=title,
+                filenames=filenames,
+            )
+        except Exception:
+            evidence = _generic_cml_failure(
+                registry,
+                pr_url=ref.url,
+                expected_head=expected_head,
+                base_sha=base_sha,
+            )
     digest = core.write_json(output / "evidence" / "cml-memory.json", evidence)
     return evidence, digest
+
+
+def _safe_markdown(value: object, limit: int = 500) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) > limit:
+        text = text[: limit - 1].rstrip() + "…"
+    text = html.escape(text.replace("`", "'"), quote=False)
+    text = text.replace("\\", "\\\\")
+    for character in "*_[]()#!|":
+        text = text.replace(character, "\\" + character)
+    return text
+
+
+def render_cml_section(summary: Mapping[str, Any]) -> str:
+    lines = [
+        "## Causal Memory",
+        "",
+        f"- Lane: **{_safe_markdown(summary.get('lane_status'), 40)}**",
+        f"- Trusted sources: **{int(summary.get('source_count') or 0)}**",
+        f"- Publishable candidates: **{int(summary.get('publishable_candidates') or 0)}**",
+        f"- Selected memories: **{int(summary.get('selected_count') or 0)}**",
+        "",
+    ]
+    selected = summary.get("selected") or []
+    if selected:
+        for index, item in enumerate(selected, start=1):
+            path = " → ".join(
+                _safe_markdown(value, 220)
+                for value in (item.get("selected_path") or [])
+            )
+            lines.extend(
+                [
+                    f"### {index}. {_safe_markdown(item.get('situation'), 240)}",
+                    "",
+                    f"- Relevance: `{float(item.get('score') or 0):.6f}`",
+                    f"- Source: `{_safe_markdown(item.get('source_repository'), 160)}@{_safe_markdown(item.get('registry_commit'), 40)}`",
+                    f"- Pack: `{_safe_markdown(item.get('pack_id'), 64)}`",
+                    f"- Best-known path: {path}",
+                    "",
+                ]
+            )
+    elif summary.get("lane_status") == "NOT_RUN":
+        lines.extend(
+            [
+                "CML retrieval did not run because the initial exact-head gate failed.",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "No publishable accepted CML memory met the deterministic relevance threshold.",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "CML evidence is advisory context only. It cannot approve, execute, deliver, or merge this change.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def render_scorecard(card: Mapping[str, Any]) -> str:
@@ -108,7 +226,7 @@ def render_scorecard(card: Mapping[str, Any]) -> str:
     summary = card.get("causal_memory")
     if not isinstance(summary, dict):
         return rendered
-    section = cml.render_markdown(summary)
+    section = render_cml_section(summary)
     marker = "\n## Evidence\n"
     if marker not in rendered:
         return rendered + "\n\n" + section
@@ -131,7 +249,7 @@ def attach_cml_to_scorecard(
 
     lanes = dict(card.get("lanes") or {})
     lane_status = str(cml_evidence.get("lane_status") or "INCOMPLETE")
-    if lane_status not in {"PASS", "INCOMPLETE"}:
+    if lane_status not in {"PASS", "INCOMPLETE", "NOT_RUN"}:
         lane_status = "INCOMPLETE"
     lanes["causal_memory"] = lane_status
     card["lanes"] = lanes
@@ -166,6 +284,17 @@ def attach_cml_to_scorecard(
         prior_result.exact_head,
         prior_result.exit_code,
     )
+
+
+def stamp_tool_version(output: Path) -> None:
+    manifest_path = output / "manifest.json"
+    manifest = base.read_json(manifest_path, dict)
+    if manifest is None:
+        raise core.InputError("Generated manifest is missing")
+    tool = dict(manifest.get("tool") or {})
+    tool.update({"name": "ls-exact-head-audit", "version": TOOL_VERSION})
+    manifest["tool"] = tool
+    core.write_json(manifest_path, manifest)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -220,6 +349,7 @@ def main(argv: list[str] | None = None) -> int:
                 cml_digest=cml_digest,
                 prior_result=result,
             )
+        stamp_tool_version(output)
     except (core.InputError, cml.CmlError) as exc:
         parser.error(str(exc))
     except core.ApiError as exc:
