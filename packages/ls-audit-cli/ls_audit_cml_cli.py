@@ -7,34 +7,133 @@ import os
 from pathlib import Path
 import sys
 from typing import Any, Mapping
+import urllib.parse
+import urllib.request
 
 import cml_git_internet as cml
 import ls_audit as core
 import ls_audit_cli as base
 
 TOOL_VERSION = "0.2.0"
+_BASE64_BYTES = 4 * ((cml.MAX_FILE_BYTES + 2) // 3)
+MAX_CML_ENCODED_CHARS = _BASE64_BYTES + 2 * ((_BASE64_BYTES + 59) // 60) + 4
+
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject every redirect so credentials and trust never cross hosts."""
+
+    def redirect_request(
+        self,
+        req: Any,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(NoRedirectHandler())
+
+
+def open_without_redirect(request: Any, *, timeout: float) -> Any:
+    return _NO_REDIRECT_OPENER.open(request, timeout=timeout)
+
+
+def target_client(api_base: str, token: str | None, timeout: float) -> core.Client:
+    return base.ValidatedClient(
+        api_base,
+        token,
+        timeout,
+        opener=open_without_redirect,
+    )
 
 
 class AnonymousPublicCmlClient(core.Client):
-    """Anonymous GitHub client that rejects non-public source repositories."""
+    """Anonymous client with exact-pin, public-source, and envelope checks."""
+
+    def __init__(
+        self,
+        base_url: str,
+        token: str | None,
+        timeout: float,
+        *,
+        opener: Any = open_without_redirect,
+    ) -> None:
+        super().__init__(base_url, token, timeout, opener=opener)
+        self._verified_pins: set[tuple[str, str]] = set()
+
+    @staticmethod
+    def _parts(endpoint: str) -> tuple[list[str], dict[str, list[str]]]:
+        parsed = urllib.parse.urlsplit(endpoint)
+        return (
+            parsed.path.strip("/").split("/") if parsed.path else [],
+            urllib.parse.parse_qs(parsed.query, keep_blank_values=True),
+        )
+
+    def _verify_exact_pin(self, repository: str, commit: str) -> None:
+        key = (repository, commit)
+        if key in self._verified_pins:
+            return
+        resolved = super().get(f"/repos/{repository}/commits/{commit}")
+        if not isinstance(resolved, dict) or resolved.get("sha") != commit:
+            raise cml.CmlError("CML source commit did not resolve to the registry pin")
+        self._verified_pins.add(key)
+
+    @staticmethod
+    def _validate_content_envelope(value: Mapping[str, Any]) -> None:
+        size = value.get("size")
+        encoded = value.get("content")
+        if (
+            isinstance(size, bool)
+            or not isinstance(size, int)
+            or size < 0
+            or size > cml.MAX_FILE_BYTES
+        ):
+            raise cml.CmlError("CML content size is missing, malformed, or oversized")
+        if value.get("encoding") != "base64" or not isinstance(encoded, str):
+            raise cml.CmlError("CML content must use bounded base64 encoding")
+        if len(encoded) > MAX_CML_ENCODED_CHARS:
+            raise cml.CmlError("CML base64 envelope exceeds the safe character bound")
+        compact_length = sum(1 for character in encoded if not character.isspace())
+        expected_length = 4 * ((size + 2) // 3)
+        if compact_length != expected_length:
+            raise cml.CmlError("CML base64 envelope does not match its declared size")
 
     def get(self, endpoint: str) -> Any:
+        parts, query = self._parts(endpoint)
+        is_repo_metadata = len(parts) == 3 and parts[0] == "repos"
+        is_content = len(parts) >= 5 and parts[0] == "repos" and parts[3] == "contents"
+        if is_content:
+            refs = query.get("ref", [])
+            repository = "/".join(parts[1:3])
+            if len(refs) != 1 or not cml.SHA40.fullmatch(refs[0]):
+                raise cml.CmlError("CML content request requires one exact commit pin")
+            self._verify_exact_pin(repository, refs[0])
+
         value = super().get(endpoint)
-        path = endpoint.split("?", 1)[0].strip("/").split("/")
-        if len(path) == 3 and path[0] == "repos":
+        if is_repo_metadata:
             if (
                 not isinstance(value, dict)
                 or value.get("private") is not False
                 or value.get("visibility") != "public"
             ):
                 raise cml.CmlError("CML source must be a public GitHub repository")
+        if is_content and isinstance(value, dict):
+            self._validate_content_envelope(value)
         return value
 
 
 def anonymous_cml_client(timeout: float) -> core.Client:
     """Use a separate anonymous client so the target token is never forwarded."""
 
-    return AnonymousPublicCmlClient(base.GITHUB_API, None, timeout)
+    return AnonymousPublicCmlClient(
+        base.GITHUB_API,
+        None,
+        timeout,
+        opener=open_without_redirect,
+    )
 
 
 def _authority() -> dict[str, bool]:
@@ -340,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
             f"ls-audit-{ref.owner}-{ref.repo}-pr-{ref.number}-{expected[:12]}"
         )
         base.validate_output_boundary(output, args.overwrite)
-        client = base.ValidatedClient(
+        client = target_client(
             api_base,
             os.environ.get(args.token_env),
             args.timeout,
