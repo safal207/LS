@@ -38,9 +38,12 @@ def test_runner_creates_explicit_not_run_artifacts_without_secrets(tmp_path):
             "XAI_API_KEY": "",
             "DEEPSEEK_API_KEY": "",
             "OPENAI_API_KEY": "",
+            "GONKA_BROKER_API_KEY": "",
             "XAI_MODEL": "grok-4.5",
             "DEEPSEEK_MODEL": "deepseek-reasoner",
             "CODEX_MODEL": "gpt-5.6-terra",
+            "GONKA_ENABLED": "true",
+            "GONKA_MODEL": "minimaxai/minimax-m2.7",
         }
     )
 
@@ -57,6 +60,7 @@ def test_runner_creates_explicit_not_run_artifacts_without_secrets(tmp_path):
         "grok-review.json": "grok",
         "deepseek-review.json": "deepseek",
         "codex-review.json": "codex",
+        "gonka-review.json": "gonka",
     }
     for filename, reviewer in expected.items():
         review = json.loads((output / filename).read_text(encoding="utf-8"))
