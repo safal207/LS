@@ -81,7 +81,33 @@ run_codex() {
   fi
 }
 
+run_gonka() {
+  export REVIEW_JSON_FILE="$OUTPUT_DIR/gonka-review.json"
+  export REVIEW_MD_FILE="$OUTPUT_DIR/gonka-review.md"
+  export RAW_RESPONSE_FILE="$OUTPUT_DIR/gonka-response.raw.json"
+
+  # Gonka is label-triggered and shadow-only. It is excluded from the ensemble
+  # report and cannot publish, approve, block, or merge.
+  if [[ "${GONKA_ENABLED:-true}" == "true" && -n "${GONKA_BROKER_API_KEY:-}" ]]; then
+    python tools/gonka_causal_review.py review || true
+  else
+    : > "$RAW_RESPONSE_FILE"
+    python tools/gonka_causal_review.py diagnostic \
+      --status NOT_RUN \
+      --provenance UNVERIFIED \
+      --details "Repository secret GONKA_BROKER_API_KEY is unavailable or Gonka is disabled. No Gonka model call was made."
+  fi
+  if [[ ! -s "$REVIEW_JSON_FILE" ]]; then
+    : > "$RAW_RESPONSE_FILE"
+    python tools/gonka_causal_review.py diagnostic \
+      --status FAILED \
+      --provenance UNVERIFIED \
+      --details "Gonka runner ended without a validated artifact."
+  fi
+}
+
 # Reviewers run blind. None receives another reviewer's artifact as input.
 run_grok
 run_deepseek
 run_codex
+run_gonka
