@@ -56,6 +56,7 @@ jobs:
           pytest-invocation: >-
             PYTHONPATH=.:python:python/modules python -m pytest
             tests/test_hardening_verification.py
+            tests/test_lotus_docs_contract.py
             tests/test_vision_extended.py
             python/tests/test_trusted_runtime_*.py
             --junitxml=artifacts/security-junit.xml
