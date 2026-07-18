@@ -11,7 +11,7 @@
   "case_id": "tradernet-public-web-2026-07-18",
   "evidence_chain": {
     "cml_memory_pack_id": "55949e3749460ead7c4f6afe9434e46443ec6807c208d2359aa6ac7cc47ca086",
-    "cml_source_commit": "cf66e8a7e0bf7b27c700a605204791d7b67cc62d",
+    "cml_source_commit": "a783010a7ee8bf4b6ad1593df881f47bf76c2709",
     "pythia_source_commit": "aa169a3a897a61bb578816ea9e8fb3e374405b34"
   },
   "generated_at": "2026-07-18T23:00:00.000Z",
