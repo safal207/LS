@@ -1,0 +1,93 @@
+{
+  "authority": {
+    "approval": false,
+    "delivery": false,
+    "execution": false,
+    "external_submission": false,
+    "merge": false,
+    "mode": "advisory_only",
+    "ownership": false
+  },
+  "case_id": "tradernet-public-web-2026-07-18",
+  "evidence_chain": {
+    "cml_memory_pack_id": "55949e3749460ead7c4f6afe9434e46443ec6807c208d2359aa6ac7cc47ca086",
+    "cml_source_commit": "cf66e8a7e0bf7b27c700a605204791d7b67cc62d",
+    "pythia_source_commit": "aa169a3a897a61bb578816ea9e8fb3e374405b34"
+  },
+  "generated_at": "2026-07-18T23:00:00.000Z",
+  "priority_order": [
+    {
+      "finding": "mobile-chart-user-agent-404",
+      "human_impact": "A mobile user loses access to a public chart and receives a generic 404 rather than a supported-state explanation.",
+      "rank": 1,
+      "repair": "Serve the same public chart or route to an explicit supported mobile chart while preserving the symbol.",
+      "severity": "P1"
+    },
+    {
+      "finding": "mobile-hero-late-discovery",
+      "human_impact": "The first meaningful mobile content is delayed by several seconds, increasing abandonment and obscuring whether the page is working.",
+      "rank": 2,
+      "repair": "Expose the exact responsive LCP image in initial HTML and prioritize only the selected mobile resource.",
+      "severity": "P1-performance"
+    },
+    {
+      "finding": "terminal-hidden-mobile-asset",
+      "human_impact": "A mobile user pays network and battery cost for a 346800-byte image that is never visible.",
+      "rank": 3,
+      "repair": "Prevent the hidden responsive branch from initiating the image request.",
+      "severity": "P2"
+    },
+    {
+      "finding": "terminal-missing-onboarding-asset",
+      "human_impact": "The user sees no confirmed visible break, but the product creates avoidable request and diagnostic noise.",
+      "rank": 4,
+      "repair": "Remove or correct the obsolete first-party asset reference.",
+      "severity": "P3"
+    }
+  ],
+  "schema_version": "ls-lotus-human-impact-v1",
+  "seven_petals": [
+    {
+      "note": "Confirmed findings, passed checks, hypotheses, and unknowns are separated; Tradernet currently gives mobile chart users an unclear generic 404.",
+      "petal": "clarity_from_complexity",
+      "result": "PASS_WITH_GAP"
+    },
+    {
+      "note": "Every confirmed finding is bound to an exact workflow run and artifact digest.",
+      "petal": "evidence_before_confidence",
+      "result": "PASS"
+    },
+    {
+      "note": "User-agent routing and late image discovery are causally isolated; one shared mobile branch remains a bounded hypothesis.",
+      "petal": "causes_before_symptoms",
+      "result": "PARTIAL"
+    },
+    {
+      "note": "The CML pack preserves the cluster without approving an external report or asserting the hypothesis as fact.",
+      "petal": "memory_without_authority",
+      "result": "PASS"
+    },
+    {
+      "note": "Only public unauthenticated evidence is included; no private account, portfolio, or order data is stored.",
+      "petal": "consent_before_durable_memory",
+      "result": "PASS"
+    },
+    {
+      "note": "Each finding includes a bounded repair path and avoids security or blame claims.",
+      "petal": "repair_before_judgment",
+      "result": "PASS"
+    },
+    {
+      "note": "An authorized human decides whether and how to contact Tradernet, submit reports, or prioritize fixes.",
+      "petal": "human_authorship_at_center",
+      "result": "PASS"
+    }
+  ],
+  "unknowns": [
+    "Live quote freshness, reconnect, and cross-surface consistency require a market-open experiment.",
+    "The shared mobile device-routing or responsive-resource cause is not proven.",
+    "The render-context console error has no established user impact.",
+    "Minute interval labels need visible-menu evidence."
+  ],
+  "verdict": "HUMAN_REVIEW_REQUIRED"
+}
