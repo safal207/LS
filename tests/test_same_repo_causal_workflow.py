@@ -98,6 +98,19 @@ def test_label_command_verifies_before_and_after_model_calls():
     assert "name: 'causal-review'" in text
 
 
+def test_gonka_is_shadow_only_and_excluded_from_ensemble_report():
+    text = LABEL_WORKFLOW.read_text(encoding="utf-8")
+    report = text[
+        text.index("Build exact-target ensemble report") : text.index(
+            "Upload exact ensemble evidence"
+        )
+    ]
+
+    assert "GONKA_BROKER_API_KEY: ${{ secrets.GONKA_BROKER_API_KEY }}" in text
+    assert "GONKA_ENABLED" in text
+    assert "gonka-review.json" not in report
+
+
 def test_workflow_and_native_runner_never_execute_target_pr_code():
     workflow = LABEL_WORKFLOW.read_text(encoding="utf-8")
     runner = NATIVE_RUNNER.read_text(encoding="utf-8")
@@ -134,12 +147,18 @@ def test_native_runner_has_explicit_missing_secret_and_artifact_states():
         ("XAI_API_KEY", "Grok"),
         ("DEEPSEEK_API_KEY", "DeepSeek"),
         ("OPENAI_API_KEY", "Codex"),
+        ("GONKA_BROKER_API_KEY", "Gonka"),
     ):
         assert secret in text
         assert f"Repository secret {secret} is unavailable" in text
         assert f"{reviewer} runner ended without a validated artifact" in text
 
-    assert text.index("run_grok") < text.index("run_deepseek") < text.index("run_codex")
+    assert (
+        text.index("run_grok")
+        < text.index("run_deepseek")
+        < text.index("run_codex")
+        < text.index("run_gonka")
+    )
     assert "None receives another reviewer's artifact as input" in text
 
 
@@ -147,12 +166,13 @@ def test_fork_workflow_has_no_model_secrets_or_native_execution():
     text = FORK_COLLECTOR.read_text(encoding="utf-8")
 
     assert "github.event.pull_request.head.repo.full_name != github.repository" in text
-    assert "secret_access\": False" in text
+    assert 'secret_access": False' in text
     assert "NOT_AUTHORIZED_FOR_FORK" in text
     assert "python tools/retrying_causal_review_github.py collect" in text
     assert "secrets.XAI_API_KEY" not in text
     assert "secrets.DEEPSEEK_API_KEY" not in text
     assert "secrets.OPENAI_API_KEY" not in text
+    assert "secrets.GONKA_BROKER_API_KEY" not in text
     assert "run_native_causal_reviewers.sh" not in text
 
 
