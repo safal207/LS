@@ -143,8 +143,11 @@ def test_workflow_and_native_runner_never_execute_target_pr_code():
 def test_native_runner_has_explicit_missing_secret_and_artifact_states():
     text = NATIVE_RUNNER.read_text(encoding="utf-8")
 
+    assert "GROK_ENABLED" in text
+    assert "Grok is disabled by repository policy" in text
+    assert "Grok runner ended without a validated artifact" in text
+
     for secret, reviewer in (
-        ("XAI_API_KEY", "Grok"),
         ("DEEPSEEK_API_KEY", "DeepSeek"),
         ("OPENAI_API_KEY", "Codex"),
         ("GONKA_BROKER_API_KEY", "Gonka"),
