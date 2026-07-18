@@ -2,7 +2,7 @@
 
 **Verdict:** `HUMAN_REVIEW_REQUIRED`  
 **Case:** `tradernet-public-web-2026-07-18`  
-**Scorecard SHA-256:** `3309d43b444afd42c580e6e3d8e62fc61bef07a2692f4be0ad4d1d4fb96622b3`
+**Scorecard SHA-256:** `43cdf89e4d136e4ea3247803af5fccd77c0f2bf66791d60cb1ea3aa47a0287f7`
 
 This scorecard consumes the Pythia judgment and CML public Memory Pack. It does not perform a new scan and does not contact Tradernet.
 
