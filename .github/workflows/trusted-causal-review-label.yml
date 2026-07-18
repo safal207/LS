@@ -50,6 +50,10 @@ jobs:
       CODEX_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-terra' }}
       CODEX_MAX_OUTPUT_TOKENS: ${{ vars.CODEX_MAX_OUTPUT_TOKENS || '12000' }}
       OPENAI_RESPONSES_API_URL: ${{ vars.OPENAI_RESPONSES_API_URL || 'https://api.openai.com/v1/responses' }}
+      GONKA_ENABLED: ${{ vars.GONKA_ENABLED || 'true' }}
+      GONKA_MODEL: ${{ vars.GONKA_MODEL || 'minimaxai/minimax-m2.7' }}
+      GONKA_API_URL: ${{ vars.GONKA_API_URL || 'https://api.gonkagate.com/v1/chat/completions' }}
+      GONKA_MAX_TOKENS: ${{ vars.GONKA_MAX_TOKENS || '8000' }}
 
     steps:
       - name: Check out protected main implementation
@@ -109,6 +113,7 @@ jobs:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GONKA_BROKER_API_KEY: ${{ secrets.GONKA_BROKER_API_KEY }}
         shell: bash
         run: bash tools/run_native_causal_reviewers.sh
 
