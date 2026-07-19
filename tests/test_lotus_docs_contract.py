@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOTUS = ROOT / "LOTUS.md"
+PRODUCT_LENS = ROOT / "docs" / "LOTUS_PRODUCT_LENS.md"
 PR_TEMPLATE = ROOT / ".github" / "pull_request_template.md"
 
 
@@ -63,3 +64,55 @@ def test_lotus_remains_guidance_not_runtime_authority() -> None:
     assert "not a personality cult, hidden authority, mystical proof" in text
     assert "не runtime-компонент, не система разрешений и не автономный агент" in text
     assert "не культ личности, не скрытая власть, не мистическое доказательство" in text
+
+
+def test_product_lens_is_bilingual_and_vendor_neutral() -> None:
+    text = PRODUCT_LENS.read_text(encoding="utf-8")
+    english, russian = text.split("# Продуктовая линза Лотоса", maxsplit=1)
+
+    assert "SamCart" in english and "ClickFunnels" in english
+    assert "SamCart" in russian and "ClickFunnels" in russian
+    assert "vendor-neutral" in english
+    assert "не зависит от вендора" in russian
+    assert "not a runtime component" in english
+    assert "не является runtime-компонентом" in russian
+
+
+def test_product_lens_keeps_the_seven_product_petals() -> None:
+    text = PRODUCT_LENS.read_text(encoding="utf-8")
+    english, russian = text.split("# Продуктовая линза Лотоса", maxsplit=1)
+
+    english_petals = (
+        "Intent before conversion",
+        "Continuity before friction",
+        "Complementary value before upsell",
+        "One click without hidden commitment",
+        "Recovery before pressure",
+        "Evidence before growth claims",
+        "Human freedom at every stage",
+    )
+    russian_petals = (
+        "Намерение до конверсии",
+        "Непрерывность до трения",
+        "Дополнительная ценность до допродажи",
+        "Один клик без скрытого обязательства",
+        "Восстановление до давления",
+        "Доказательства до заявлений о росте",
+        "Свобода человека на каждом этапе",
+    )
+
+    for phrase in english_petals:
+        assert phrase in english
+    for phrase in russian_petals:
+        assert phrase in russian
+
+
+def test_product_lens_preserves_choice_and_evidence() -> None:
+    text = PRODUCT_LENS.read_text(encoding="utf-8")
+
+    assert "Paid extras must not be preselected" in text
+    assert "Vendor case studies and platform-wide percentages are context, not proof" in text
+    assert "do not authorize a launch, price, payment, experiment, deployment, or merge" in text
+    assert "Платные дополнения нельзя выбирать заранее" in text
+    assert "не доказательством для этого продукта" in text
+    assert "не дают права запускать продукт" in text
