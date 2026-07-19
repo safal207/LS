@@ -125,6 +125,7 @@ def test_product_lens_preserves_choice_evidence_and_authority() -> None:
     assert "отдельный путь возврата средств" in text
     assert "отдельный путь восстановления" in text
     assert "Для этапов с подпиской отдельно фиксируй путь отмены или остановки автопродления" in text
+    assert "скрытые условия регулярных списаний или продления" in text
     assert "отсутствие пути отмены или остановки автопродления" in text
     assert "не имеет полномочий назначать цену, разрешать или выполнять оплату, запускать продукт" in text
     assert (
@@ -137,8 +138,8 @@ def test_product_pr_checklist_requires_counter_metrics_and_cancellation() -> Non
     template = PR_TEMPLATE.read_text(encoding="utf-8")
 
     assert "user goal and business goal are both explicit" in template
-    assert "Price, recurring terms, decline path, cancellation or stop-renewal path" in template
-    assert "refund path, and recovery path are visible before commitment" in template
+    assert "Price, currency, recurring terms, comprehensible total, decline path" in template
+    assert "cancellation or stop-renewal path, refund path, and recovery path" in template
     assert "relevant, optional, and not preselected" in template
     assert "refunds, churn, complaints, completion, retention, repeat value, and harm signals" in template
     assert "No false urgency, obstructed decline, surprise payment" in template
