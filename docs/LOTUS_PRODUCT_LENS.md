@@ -48,7 +48,8 @@ For each stage, record:
 - price, currency, recurring terms, and total;
 - optionality and decline path;
 - evidence, uncertainty, friction, and failure mode;
-- refund, cancellation, or recovery path;
+- refund and recovery paths;
+- for subscription stages, a separate cancellation or stop-renewal path;
 - metric, denominator, cohort, and time window;
 - next bounded experiment.
 
@@ -71,7 +72,7 @@ These labels describe observations. They do not authorize a launch, price, payme
 
 ## Boundary
 
-The lens rejects preselected paid extras, hidden recurring terms, false urgency, obstructed decline, surprise payment, excessive recovery messages, and reporting a revenue lift while concealing refunds, churn, complaints, or harm.
+The lens rejects preselected paid extras, hidden recurring terms, missing cancellation or stop-renewal paths, false urgency, obstructed decline, surprise payment, excessive recovery messages, and reporting a revenue lift while concealing refunds, churn, complaints, or harm.
 
 ## Product question
 
@@ -124,7 +125,7 @@ If the answer is unclear, the product claim is not ready.
 → необязательный follow-up → получение ценности → восстановление → повтор или выход
 ```
 
-Для каждого этапа фиксируй цель пользователя и бизнеса, обещание, цену и условия, необязательность, evidence и неопределённость, friction, failure mode, refund/cancellation/recovery, метрику, denominator, cohort, временное окно и следующий ограниченный эксперимент.
+Для каждого этапа фиксируй цель пользователя и бизнеса, обещание, цену и условия, необязательность, evidence и неопределённость, friction и failure mode, пути возврата и восстановления, метрику, denominator, cohort, временное окно и следующий ограниченный эксперимент. Для этапов с подпиской отдельно фиксируй путь отмены или остановки автопродления.
 
 ## Evidence-контракт
 
@@ -145,7 +146,7 @@ If the answer is unclear, the product claim is not ready.
 
 ## Граница
 
-Линза отвергает заранее выбранные платные дополнения, скрытые повторные условия, ложную срочность, затруднённый отказ, неожиданную оплату, чрезмерные recovery-сообщения и заявление о росте выручки при сокрытии возвратов, churn, жалоб или вреда.
+Линза отвергает заранее выбранные платные дополнения, скрытые повторные условия, отсутствие пути отмены или остановки автопродления, ложную срочность, затруднённый отказ, неожиданную оплату, чрезмерные recovery-сообщения и заявление о росте выручки при сокрытии возвратов, churn, жалоб или вреда.
 
 ## Продуктовый вопрос
 
