@@ -16,12 +16,14 @@ class ApprovalStore:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path)
+        conn = sqlite3.connect(self.path, timeout=10)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 10000")
         return conn
 
     def _init_db(self) -> None:
         with self._connect() as conn:
+            conn.execute("PRAGMA journal_mode = WAL")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS approvals (
@@ -55,9 +57,13 @@ class ApprovalStore:
                 "UPDATE approvals SET status=?, reviewer=?, note=?, resolved_at=? WHERE id=? AND status='PENDING'",
                 (status, reviewer, note, resolved_at, approval_id),
             )
-            if cursor.rowcount == 0:
-                return self.get(approval_id)
-        return self.get(approval_id)
+            resolution_applied = cursor.rowcount == 1
+
+        result = self.get(approval_id)
+        if result is None:
+            return None
+        result["resolution_applied"] = resolution_applied
+        return result
 
     def get(self, approval_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
