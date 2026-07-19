@@ -35,12 +35,7 @@ jobs:
       - run: python -m py_compile app/*.py
 
   live-qwen-smoke:
-    if: >-
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[qwen-live-smoke]')) ||
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'agent/qwen-autopilot-agent' &&
-       github.actor == 'safal207')
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[qwen-live-smoke]')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -51,9 +46,9 @@ jobs:
       QWEN_BASE_URL: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
       QWEN_MODEL: qwen3.7-plus
       QWEN_TIMEOUT_SECONDS: "45"
-      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EXPECTED_HEAD_SHA: ${{ github.sha }}
     steps:
-      - name: Checkout exact subject head
+      - name: Checkout exact pushed head
         uses: actions/checkout@v4
         with:
           ref: ${{ env.EXPECTED_HEAD_SHA }}
