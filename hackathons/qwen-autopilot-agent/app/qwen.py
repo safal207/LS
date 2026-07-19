@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import Any, Literal
 
 from openai import OpenAI
+from pydantic import BaseModel, Field
 
 
 SYSTEM_PROMPT = """You are the risk reasoning layer for an AI-agent action gateway.
@@ -17,6 +18,14 @@ required_controls (array of concise strings).
 Be conservative with irreversible, financial, credential, production, privacy, or external side effects.
 Never claim an action was executed. You only assess a proposed action.
 """
+
+
+class QwenAssessment(BaseModel):
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    decision: Literal["ALLOW", "HUMAN_APPROVAL", "BLOCK"]
+    confidence: float = Field(ge=0, le=1)
+    reasons: list[str] = Field(min_length=1, max_length=8)
+    required_controls: list[str] = Field(default_factory=list, max_length=8)
 
 
 class QwenRiskReasoner:
@@ -50,7 +59,8 @@ class QwenRiskReasoner:
             ],
         )
         content = completion.choices[0].message.content or ""
-        return _parse_json_object(content)
+        parsed = _parse_json_object(content)
+        return QwenAssessment.model_validate(parsed).model_dump()
 
 
 def _parse_json_object(content: str) -> dict[str, Any]:
