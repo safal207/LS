@@ -50,8 +50,8 @@ curl -s http://localhost:8080/api/evaluate \
 
 ## Alibaba Cloud deployment
 
-1. Activate Alibaba Cloud Model Studio in Singapore and create an API key.
-2. Set `QWEN_BASE_URL` to the workspace-specific Model Studio endpoint.
+1. Create a Qwen Cloud account and a regular API key in the Singapore region.
+2. Start with the shared endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`. A workspace-specific endpoint is optional for production isolation.
 3. Build this Docker image and deploy it to Alibaba Cloud ECS, SAE, ACK, or Function Compute custom containers.
 4. Store `DASHSCOPE_API_KEY` as a secret, not in the image.
 5. Persist `/data` or replace SQLite with an Alibaba Cloud managed database.
