@@ -14,7 +14,7 @@ The service is advisory-only. It never claims an operation was executed.
 
 ## Why Qwen
 
-Qwen handles ambiguous natural-language intent and produces concise reasons and required controls. The service calls Alibaba Cloud Model Studio through its OpenAI-compatible endpoint. The model cannot weaken deterministic safety policy.
+Qwen handles ambiguous natural-language intent and produces concise reasons and required controls. The service calls Alibaba Cloud Model Studio through its OpenAI-compatible endpoint. Qwen output is validated before use, and the model cannot weaken deterministic safety policy.
 
 ## Run locally
 
@@ -31,7 +31,7 @@ uvicorn app.main:app --reload --port 8080
 
 Open `http://localhost:8080`.
 
-Without an API key, the gateway fails closed to `HUMAN_APPROVAL`; this makes the demo inspectable but does not count as proof of Qwen Cloud execution.
+Without an API key, after a timeout, or after an invalid model response, the gateway fails closed to `HUMAN_APPROVAL`. This keeps the demo inspectable but does not count as proof of Qwen Cloud execution. Deployment evidence must show `qwen.status = COMPLETED`.
 
 ## API
 
@@ -55,18 +55,35 @@ curl -s http://localhost:8080/api/evaluate \
 3. Build this Docker image and deploy it to Alibaba Cloud ECS, SAE, ACK, or Function Compute custom containers.
 4. Store `DASHSCOPE_API_KEY` as a secret, not in the image.
 5. Persist `/data` or replace SQLite with an Alibaba Cloud managed database.
-6. Record a short proof video showing the Alibaba Cloud service URL, `/healthz`, and a completed Qwen assessment (`qwen.status = COMPLETED`).
+6. Verify the public deployment:
+
+```bash
+bash scripts/verify_deployment.sh https://<public-service-url>
+```
+
+7. Record evidence showing the Alibaba Cloud service URL, `/healthz`, and a completed Qwen assessment (`qwen.status = COMPLETED`).
+
+See [`docs/DEPLOYMENT_EVIDENCE.md`](docs/DEPLOYMENT_EVIDENCE.md) for the exact evidence protocol.
 
 ## Submission evidence checklist
 
 - [x] Public source code and Apache-2.0 parent repository license
 - [x] Qwen Cloud integration in `app/qwen.py`
+- [x] Validated structured Qwen output
+- [x] Deterministic fail-closed safety policy
 - [x] Human-in-the-loop approval queue
 - [x] Architecture diagram
 - [x] Docker deployment path
+- [x] Policy and API smoke tests
+- [x] Deployment verification script
+- [x] Submission text and video script
 - [ ] Public Alibaba Cloud deployment URL
-- [ ] Alibaba Cloud deployment proof recording
+- [ ] Alibaba Cloud runtime evidence
 - [ ] Three-minute demo video
-- [ ] Devpost description and screenshots
+- [ ] Devpost screenshots and final submit
 
-See [architecture](docs/architecture.md).
+## Submission package
+
+- [Devpost copy, testing instructions, and demo script](DEVPOST_SUBMISSION.md)
+- [Architecture](docs/architecture.md)
+- [Deployment evidence protocol](docs/DEPLOYMENT_EVIDENCE.md)
