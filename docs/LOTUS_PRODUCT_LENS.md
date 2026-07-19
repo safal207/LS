@@ -48,7 +48,8 @@ For each stage, record:
 - price, currency, recurring terms, and total;
 - optionality and decline path;
 - evidence, uncertainty, friction, and failure mode;
-- refund and recovery paths;
+- refund path;
+- recovery path;
 - for subscription stages, a separate cancellation or stop-renewal path;
 - metric, denominator, cohort, and time window;
 - next bounded experiment.
@@ -125,7 +126,7 @@ If the answer is unclear, the product claim is not ready.
 → необязательный follow-up → получение ценности → восстановление → повтор или выход
 ```
 
-Для каждого этапа фиксируй цель пользователя и бизнеса, обещание, цену и условия, необязательность, evidence и неопределённость, friction и failure mode, пути возврата и восстановления, метрику, denominator, cohort, временное окно и следующий ограниченный эксперимент. Для этапов с подпиской отдельно фиксируй путь отмены или остановки автопродления.
+Для каждого этапа фиксируй цель пользователя и бизнеса, обещание, цену и условия, необязательность, evidence и неопределённость, friction и failure mode, отдельный путь возврата средств, отдельный путь восстановления, метрику, denominator, cohort, временное окно и следующий ограниченный эксперимент. Для этапов с подпиской отдельно фиксируй путь отмены или остановки автопродления.
 
 ## Evidence-контракт
 
