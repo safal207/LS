@@ -113,12 +113,14 @@ def test_product_lens_preserves_choice_and_evidence() -> None:
     assert "Paid extras must not be preselected" in text
     assert "Vendor case studies and platform-wide percentages are context, not proof" in text
     assert "causal, correlational, simulated, or anecdotal" in text
+    assert "refund and recovery paths" in text
     assert "for subscription stages, a separate cancellation or stop-renewal path" in text
     assert "missing cancellation or stop-renewal paths" in text
     assert "do not authorize a launch, price, payment, experiment, deployment, or merge" in text
     assert "Платные дополнения нельзя выбирать заранее" in text
     assert "не доказательством для этого продукта" in text
     assert "основанный на единичных историях, отзывах либо свидетельствах" in text
+    assert "пути возврата и восстановления" in text
     assert "Для этапов с подпиской отдельно фиксируй путь отмены или остановки автопродления" in text
     assert "отсутствие пути отмены или остановки автопродления" in text
     assert "не дают права запускать продукт" in text
