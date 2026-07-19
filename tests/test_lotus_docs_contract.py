@@ -107,7 +107,7 @@ def test_product_lens_keeps_the_seven_product_obligations() -> None:
         assert phrase in russian
 
 
-def test_product_lens_preserves_choice_and_evidence() -> None:
+def test_product_lens_preserves_choice_evidence_and_authority() -> None:
     text = PRODUCT_LENS.read_text(encoding="utf-8")
 
     assert "Paid extras must not be preselected" in text
@@ -121,11 +121,16 @@ def test_product_lens_preserves_choice_and_evidence() -> None:
     assert "Платные дополнения нельзя выбирать заранее" in text
     assert "не доказательством для этого продукта" in text
     assert "основанный на единичных историях, отзывах либо свидетельствах" in text
+    assert "цену, валюту, условия регулярных списаний или продления и итоговую сумму" in text
     assert "отдельный путь возврата средств" in text
     assert "отдельный путь восстановления" in text
     assert "Для этапов с подпиской отдельно фиксируй путь отмены или остановки автопродления" in text
     assert "отсутствие пути отмены или остановки автопродления" in text
-    assert "не дают права запускать продукт" in text
+    assert "не имеет полномочий назначать цену, разрешать или выполнять оплату, запускать продукт" in text
+    assert (
+        "не дают права запускать продукт, назначать цену, проводить оплату, "
+        "начинать эксперимент, выполнять deployment или merge"
+    ) in text
 
 
 def test_product_pr_checklist_requires_counter_metrics_and_cancellation() -> None:
