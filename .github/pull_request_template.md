@@ -57,7 +57,7 @@ Use this section for changes to user journeys, offers, pricing, checkout, paid a
 - [ ] Applicable — the user goal and business goal are both explicit.
 - [ ] Price, recurring terms, decline path, and refund or recovery path are visible before commitment.
 - [ ] Any add-on, upgrade, upsell, or downsell is relevant, optional, and not preselected.
-- [ ] Conversion, AOV, LTV, retention, refund, or churn claims name the exact experiment, cohort, denominator, time window, and uncertainty.
+- [ ] Conversion, AOV, LTV, retention, refund, or churn claims name the exact experiment, cohort, denominator, time window, and uncertainty, and report accompanying refunds, churn, complaints, completion, repeat value, and harm signals.
 - [ ] No false urgency, obstructed decline, surprise payment, or excessive recovery messaging is introduced.
 
 For landing changes:
