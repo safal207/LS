@@ -1,0 +1,26 @@
+{
+  "execution": {
+    "authority": "advisory_only",
+    "status": "NOT_EXECUTED"
+  },
+  "head_sha": "24ab32d04871798b240b95e2daf6d3e18049dfec",
+  "qwen": {
+    "assessment": {
+      "confidence": 0.98,
+      "decision": "ALLOW",
+      "reasons": [
+        "Read-only operation on public documentation",
+        "No external side effects or state mutations",
+        "No credentials or sensitive data involved"
+      ],
+      "required_controls": [
+        "Ensure no external actions or API calls are executed",
+        "Confirm the target documentation is publicly accessible"
+      ],
+      "risk_level": "LOW"
+    },
+    "model": "qwen3.7-plus",
+    "status": "COMPLETED"
+  },
+  "schema_version": "qwen-live-smoke-v1"
+}
