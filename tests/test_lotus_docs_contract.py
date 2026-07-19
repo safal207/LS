@@ -120,11 +120,12 @@ def test_product_lens_preserves_choice_and_evidence() -> None:
     assert "не дают права запускать продукт" in text
 
 
-def test_product_pr_checklist_requires_counter_metrics() -> None:
+def test_product_pr_checklist_requires_counter_metrics_and_cancellation() -> None:
     template = PR_TEMPLATE.read_text(encoding="utf-8")
 
     assert "user goal and business goal are both explicit" in template
-    assert "Price, recurring terms, decline path, and refund or recovery path" in template
+    assert "Price, recurring terms, decline path, cancellation or stop-renewal path" in template
+    assert "refund or recovery path are visible before commitment" in template
     assert "relevant, optional, and not preselected" in template
     assert "refunds, churn, complaints, completion, repeat value, and harm signals" in template
     assert "No false urgency, obstructed decline, surprise payment" in template
