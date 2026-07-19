@@ -78,32 +78,32 @@ def test_product_lens_is_bilingual_and_vendor_neutral() -> None:
     assert "не является runtime-компонентом" in russian
 
 
-def test_product_lens_keeps_the_seven_product_petals() -> None:
+def test_product_lens_keeps_the_seven_product_obligations() -> None:
     text = PRODUCT_LENS.read_text(encoding="utf-8")
     english, russian = text.split("# Продуктовая линза Лотоса", maxsplit=1)
 
-    english_petals = (
-        "Intent before conversion",
-        "Continuity before friction",
-        "Complementary value before upsell",
-        "One click without hidden commitment",
-        "Recovery before pressure",
-        "Evidence before growth claims",
-        "Human freedom at every stage",
+    english_obligations = (
+        "State the user goal and the business goal separately",
+        "Preserve context, progress, selected items, language, price, and recovery state",
+        "relevant, clearly optional, separately priced, and easy to decline",
+        "show the exact item, amount, currency, recurring terms, and next state",
+        "bounded frequency, honest wording, opt-out, privacy, and a stop condition",
+        "refunds, churn, complaints, completion, retention, repeat value, and harm signals",
+        "a visible no, a comprehensible total, a route back",
     )
-    russian_petals = (
-        "Намерение до конверсии",
-        "Непрерывность до трения",
-        "Дополнительная ценность до допродажи",
-        "Один клик без скрытого обязательства",
-        "Восстановление до давления",
-        "Доказательства до заявлений о росте",
-        "Свобода человека на каждом этапе",
+    russian_obligations = (
+        "Отдельно фиксируй цель пользователя и цель бизнеса",
+        "Сохраняй контекст, прогресс, выбранные позиции, язык, цену и состояние восстановления",
+        "релевантными, явно необязательными, отдельно оценёнными и простыми для отказа",
+        "точный товар, сумму, валюту, условия регулярных списаний или продления и следующий шаг",
+        "ограниченной частотой, честным текстом, opt-out, приватностью и условием остановки",
+        "возвратами, churn, жалобами, завершением, retention, повторной ценностью и сигналами вреда",
+        "видимый отказ, понятный total, путь назад",
     )
 
-    for phrase in english_petals:
+    for phrase in english_obligations:
         assert phrase in english
-    for phrase in russian_petals:
+    for phrase in russian_obligations:
         assert phrase in russian
 
 
@@ -112,7 +112,19 @@ def test_product_lens_preserves_choice_and_evidence() -> None:
 
     assert "Paid extras must not be preselected" in text
     assert "Vendor case studies and platform-wide percentages are context, not proof" in text
+    assert "causal, correlational, simulated, or anecdotal" in text
     assert "do not authorize a launch, price, payment, experiment, deployment, or merge" in text
     assert "Платные дополнения нельзя выбирать заранее" in text
     assert "не доказательством для этого продукта" in text
+    assert "основанный на единичных историях, отзывах либо свидетельствах" in text
     assert "не дают права запускать продукт" in text
+
+
+def test_product_pr_checklist_requires_counter_metrics() -> None:
+    template = PR_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "user goal and business goal are both explicit" in template
+    assert "Price, recurring terms, decline path, and refund or recovery path" in template
+    assert "relevant, optional, and not preselected" in template
+    assert "refunds, churn, complaints, completion, repeat value, and harm signals" in template
+    assert "No false urgency, obstructed decline, surprise payment" in template
