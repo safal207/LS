@@ -1,0 +1,26 @@
+{
+  "schema_version": "gpt56-review-profile-v1",
+  "repository": "safal207/LS",
+  "profile_id": "human-impact",
+  "required_roles": [
+    "causal_architect",
+    "temporal_provenance",
+    "adversarial_semantics",
+    "authority_safety",
+    "ci_reliability"
+  ],
+  "required_claim_kinds": ["fact", "observation", "hypothesis"],
+  "focus": [
+    "Trace each technical or product finding to a concrete effect on human agency, clarity, recovery, privacy, or safety.",
+    "Keep confirmed impact separate from projected harm, conversion claims, and untested user journeys.",
+    "Preserve the user's ability to understand state, contest a verdict, cancel an action, and recover from failure.",
+    "Prevent human-impact scoring from authorizing product changes, external actions, approval, deployment, or merge.",
+    "Require exact evidence chains across source audit, judgment, causal memory, and current human-impact artifact."
+  ],
+  "authority": {
+    "can_execute": false,
+    "can_approve": false,
+    "can_merge": false,
+    "can_deploy": false
+  }
+}
