@@ -13,7 +13,7 @@ authors = [{name = "LS maintainers"}]
 dependencies = []
 
 [project.scripts]
-ls-audit = "ls_audit_cml_cli:main"
+ls-audit = "ls_audit_entrypoint:main"
 
 [tool.setuptools]
-py-modules = ["ls_audit", "ls_audit_cli", "ls_audit_cml_cli", "cml_git_internet"]
+py-modules = ["ls_audit", "ls_audit_cli", "ls_audit_cml_cli", "ls_audit_entrypoint", "cml_git_internet"]
