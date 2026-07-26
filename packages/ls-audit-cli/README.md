@@ -14,10 +14,15 @@ This package does not install the legacy GhostOS, Rust, vision, audio, Torch, se
 
 ## Run
 
+Bind the audit result to both the target PR head and the exact LS source revision used to produce the bundle:
+
 ```bash
+export LS_TOOL_SOURCE_SHA="$(git rev-parse HEAD)"
 ls-audit https://github.com/OWNER/REPO/pull/123 \
   --expected-head 0123456789abcdef0123456789abcdef01234567
 ```
+
+`LS_TOOL_SOURCE_SHA` must be a full 40-character hexadecimal commit SHA. When present, LS writes it to both `manifest.json` and `scorecard.json`, includes it in the bundle digest, and records available GitHub Actions repository, workflow, run ID, and attempt metadata. The official CI workflow checks out this exact SHA and asserts `git rev-parse HEAD` before testing.
 
 Set `GITHUB_TOKEN` for private target repositories. LS accepts only `github.com` PR URLs and `api.github.com`; custom API hosts are rejected. Both the target client and optional CML client reject HTTP redirects, so credentials and source trust cannot silently cross hosts. The target token is never written to the bundle.
 
@@ -69,7 +74,7 @@ No CML network request occurs when `--cml-registry` is absent, when the initial 
 
 ## Bundle
 
-The output contains `manifest.json`, `scorecard.json`, `SCORECARD.md`, and bounded files under `evidence/`. The manifest binds evidence digests and both Scorecard representations. Changed-file patches remain local and should be treated as repository-sensitive data.
+The output contains `manifest.json`, `scorecard.json`, `SCORECARD.md`, and bounded files under `evidence/`. The manifest binds evidence digests, both Scorecard representations, and—when `LS_TOOL_SOURCE_SHA` is supplied—the exact tool source revision. Changed-file patches remain local and should be treated as repository-sensitive data.
 
 `--overwrite` is accepted only when the target already contains a valid advisory LS audit manifest. Symbolic-link output paths are rejected. A primary API or filesystem failure removes only an unsealed partial output; a completed manifest is never deleted by cleanup.
 
@@ -78,7 +83,7 @@ The CLI is advisory-only. It cannot approve or merge a PR.
 ## Exit codes
 
 - `0`: bundle produced; inspect the Scorecard verdict.
-- `2`: invalid input or adjudication.
+- `2`: invalid input, adjudication, or tool source SHA.
 - `3`: initial or final exact-head mismatch; collection is fail-closed.
 - `4`: primary target GitHub API request failed.
-- `5`: local filesystem operation failed.
+- `5`: local filesystem or provenance-stamping failure.
