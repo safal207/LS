@@ -13,31 +13,18 @@ import ls_audit_cml_cli as cml_cli
 SOURCE_SHA_ENV = "LS_TOOL_SOURCE_SHA"
 
 
-def _option_value(args: Sequence[str], option: str) -> str | None:
-    for index, value in enumerate(args):
-        if value == option:
-            return args[index + 1] if index + 1 < len(args) else None
-        prefix = f"{option}="
-        if value.startswith(prefix):
-            return value[len(prefix) :]
-    return None
-
-
 def _output_path(args: Sequence[str]) -> Path | None:
-    explicit = _option_value(args, "--output")
-    if explicit:
-        return Path(explicit)
-    if not args or args[0].startswith("-"):
-        return None
-    expected = _option_value(args, "--expected-head")
-    if expected is None:
-        return None
+    parser = core.parser()
+    parser.add_argument("--cml-registry", type=Path)
     try:
-        ref = core.parse_url(args[0])
-        expected = core.validate_sha(expected)
-    except core.InputError:
+        parsed = parser.parse_args(list(args))
+        ref = core.parse_url(parsed.pr_url)
+        expected = core.validate_sha(parsed.expected_head)
+    except (SystemExit, core.InputError):
         return None
-    return Path(f"ls-audit-{ref.owner}-{ref.repo}-pr-{ref.number}-{expected[:12]}")
+    return parsed.output or Path(
+        f"ls-audit-{ref.owner}-{ref.repo}-pr-{ref.number}-{expected[:12]}"
+    )
 
 
 def _positive_int_env(name: str) -> int | None:
