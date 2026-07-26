@@ -15,11 +15,16 @@ jobs:
       issues: write
       security-events: write
     env:
+      EXACT_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       LIMINALQA_URL: ${{ secrets.LIMINALQA_URL }}
       LIMINALQA_TOKEN: ${{ secrets.LIMINALQA_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_SOURCE_SHA }}
+      - name: Verify checked-out source identity
+        run: test "$(git rev-parse HEAD)" = "$EXACT_SOURCE_SHA"
 
       - uses: actions/setup-python@v5
         with:
