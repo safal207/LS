@@ -81,7 +81,7 @@ class ProvenanceTests(unittest.TestCase):
             with self.assertRaises(core.InputError):
                 entrypoint.stamp_tool_provenance(root, "main")
 
-    def test_output_path_supports_default_and_explicit_forms(self) -> None:
+    def test_output_path_supports_default_explicit_and_reordered_forms(self) -> None:
         default = entrypoint._output_path(
             [
                 "https://github.com/acme/widget/pull/7",
@@ -99,6 +99,18 @@ class ProvenanceTests(unittest.TestCase):
                 ]
             ),
             Path("/tmp/bundle"),
+        )
+        self.assertEqual(
+            entrypoint._output_path(
+                [
+                    "--expected-head",
+                    HEAD,
+                    "--output",
+                    "/tmp/reordered",
+                    "https://github.com/acme/widget/pull/7",
+                ]
+            ),
+            Path("/tmp/reordered"),
         )
 
 
