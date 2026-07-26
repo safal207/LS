@@ -14,9 +14,12 @@ cd LS
 python3.11 -m venv .venv
 . .venv/bin/activate
 python -m pip install ./packages/ls-audit-cli
+export LS_TOOL_SOURCE_SHA="$(git rev-parse HEAD)"
 ls-audit https://github.com/OWNER/REPO/pull/123 \
   --expected-head 0123456789abcdef0123456789abcdef01234567
 ```
+
+`LS_TOOL_SOURCE_SHA` binds the bundle to the exact LS source revision used by the operator. It must be a full 40-character hexadecimal SHA. The final `manifest.json` and `scorecard.json` record this value and include it in the bundle digest. In GitHub Actions, LS also records available repository, workflow, run ID, and run-attempt metadata.
 
 For a private target repository:
 
@@ -66,16 +69,18 @@ adjudication-template.json
 evidence/
 ```
 
-With CML enabled, `evidence/` also contains `cml-memory.json`. The manifest binds its digest plus SHA-256 digests for `scorecard.json` and `SCORECARD.md`.
+With CML enabled, `evidence/` also contains `cml-memory.json`. The manifest binds its digest, SHA-256 digests for `scorecard.json` and `SCORECARD.md`, and the exact LS tool source SHA when supplied.
 
-The CLI verifies the expected head twice:
+The CLI verifies the expected target head twice:
 
 1. before secondary evidence collection;
 2. after evidence collection completes.
 
-If either observed head differs from the supplied SHA, the verdict is `HOLD`. If the final recheck cannot run, it is `INCOMPLETE`; the bundle cannot support PASS. Initial and final exact-head identity are non-waivable gates.
+If either observed target head differs from the supplied SHA, the verdict is `HOLD`. If the final recheck cannot run, it is `INCOMPLETE`; the bundle cannot support PASS. Initial and final exact-head identity are non-waivable gates.
 
-If the head remains stable, available changed-file, review, commit-status, and check-run evidence is frozen. Missing API access and detected pagination/truncation boundaries become `INCOMPLETE`, never success.
+The official pull-request workflows separately check out `github.event.pull_request.head.sha` rather than GitHub's synthetic merge ref and assert that `git rev-parse HEAD` equals the expected source SHA before tests execute.
+
+If the target head remains stable, available changed-file, review, commit-status, and check-run evidence is frozen. Missing API access and detected pagination/truncation boundaries become `INCOMPLETE`, never success.
 
 Review submission semantics are exact-head and fail-closed. The latest submission per reviewer determines that reviewer's current state:
 
@@ -115,14 +120,14 @@ ls-audit --help
 
 The implementation is standard-library-only at runtime. Build tooling is limited to setuptools and wheel.
 
-The path-scoped GitHub workflow installs the package on a clean Python 3.11 runner and audits its own pull request at the exact event head. The live path also reads the example CML source at its pinned commit, verifies the CML evidence digest and no-authority fields, and must finish within 15 minutes.
+The path-scoped GitHub workflow installs the package on a clean Python 3.11 runner checked out at the exact pull-request head, asserts source identity, and audits its own pull request at that same event head. The live path also reads the example CML source at its pinned commit, verifies the CML evidence digest and no-authority fields, and must finish within 15 minutes.
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | `0` | Bundle produced; inspect the Scorecard verdict. |
-| `2` | Invalid operator input, target boundary, registry, overwrite target, or adjudication. |
+| `2` | Invalid operator input, target boundary, registry, overwrite target, adjudication, or tool source SHA. |
 | `3` | Initial or final exact-head mismatch; the audit is fail-closed. |
 | `4` | Primary target GitHub API request failed. |
-| `5` | Local filesystem operation failed. |
+| `5` | Local filesystem or provenance-stamping failure. |
