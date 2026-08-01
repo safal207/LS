@@ -16,17 +16,17 @@ We built a minimal four-role software-change workflow using OpenAI Agents SDK:
 Coordinator → Developer → QA → Safety Reviewer
 ```
 
-Every typed handoff creates a deterministic dispatch receipt recording the parent, child, exact task, constraints, and proposed authority scope. A completed result can only come from the named child and must include evidence references. If an agent is replaced after interruption, the replacement must preserve the original task, constraints, and authority scope; the old dispatch is superseded and late work is rejected.
+Every typed handoff creates a deterministic dispatch receipt recording the parent, child, exact task, constraints, and proposed authority scope. Each parent also declares an authority allowlist, so model-generated handoff metadata cannot widen its own grant. A completed result can only come from the named child and must include evidence references. If an agent is replaced after interruption, the replacement must preserve the original task, constraints, and authority scope; the old dispatch is superseded and late work is rejected.
 
 The demo also separates recommendation from authority. A Safety Reviewer may recommend `merge`, but the protected-effect gate blocks it until a separate human approval receipt is recorded against that exact completed result. Pre-approval is rejected. Even after approval, the prototype emits only an `ALLOW` decision and never executes a merge.
 
-An append-only SHA-256 hash chain makes mutation within the observed local ledger sequence detectable. The prototype explicitly does not claim suffix-truncation detection without an external checkpoint. Adversarial tests cover agent substitution, evidence-free completion, stale recovery output, recovery scope escalation, premature approval, missing approval, and record mutation.
+An append-only SHA-256 hash chain makes mutation within the observed local ledger sequence detectable. The prototype explicitly does not claim suffix-truncation detection without an external checkpoint. Adversarial tests cover agent substitution, model-requested authority escalation, evidence-free completion, stale recovery output, recovery scope escalation, premature approval, missing approval, and record mutation.
 
 ## Why it matters
 
 OpenAI Agents SDK already provides excellent orchestration, handoffs, sessions, tracing, and human-in-the-loop primitives. LS explores a complementary contract for long-running teams:
 
-> Can we prove who delegated what, preserve constraints and freshness across recovery, and keep model conclusions separate from spendable human authority?
+> Can we prove who delegated what, constrain authority at every handoff, preserve freshness across recovery, and keep model conclusions separate from spendable human authority?
 
 ## Built with
 
@@ -41,7 +41,7 @@ OpenAI Agents SDK already provides excellent orchestration, handoffs, sessions, 
 
 ## Discussion opening
 
-We built a small Apache-2.0 prototype around the OpenAI Agents SDK rather than another orchestration framework. Typed handoff callbacks emit deterministic LS dispatch receipts. Terminal results are bound to the named child and require evidence. Recovery preserves constraints and authority while superseding stale work. Protected effects such as merge and deploy require a separate human approval receipt bound to the exact completed result, while the SDK remains responsible for agent execution and tracing.
+We built a small Apache-2.0 prototype around the OpenAI Agents SDK rather than another orchestration framework. Typed handoff callbacks emit deterministic LS dispatch receipts and enforce parent-side authority allowlists. Terminal results are bound to the named child and require evidence. Recovery preserves constraints and authority while superseding stale work. Protected effects such as merge and deploy require a separate human approval receipt bound to the exact completed result, while the SDK remains responsible for agent execution and tracing.
 
 We would value feedback on three questions:
 
