@@ -36,6 +36,7 @@ class ResultReceipt:
 class ApprovalReceipt:
     receipt_id: str
     dispatch_id: str
+    result_receipt_id: str
     effect: str
     approver: str
     reason: str
@@ -70,13 +71,16 @@ class TrustRuntime:
     )
 
     def __init__(self, protected_effects: Iterable[str] | None = None) -> None:
-        self.protected_effects = frozenset(
-            protected_effects or self.DEFAULT_PROTECTED_EFFECTS
+        configured_effects = (
+            self.DEFAULT_PROTECTED_EFFECTS
+            if protected_effects is None
+            else protected_effects
         )
+        self.protected_effects = frozenset(configured_effects)
         self._dispatches: dict[str, DispatchReceipt] = {}
         self._results: dict[str, ResultReceipt] = {}
         self._result_by_dispatch: dict[str, str] = {}
-        self._approvals: dict[tuple[str, str], ApprovalReceipt] = {}
+        self._approvals: dict[tuple[str, str, str], ApprovalReceipt] = {}
         self._superseded_by: dict[str, str] = {}
         self._ledger: list[dict[str, Any]] = []
 
@@ -125,8 +129,12 @@ class TrustRuntime:
         parent = self._clean_text(parent_agent, "parent_agent")
         child = self._clean_text(child_agent, "child_agent")
         normalized_task = self._clean_text(task, "task")
-        normalized_constraints = tuple(sorted({item.strip() for item in constraints if item.strip()}))
-        normalized_scope = tuple(sorted({item.strip() for item in authority_scope if item.strip()}))
+        normalized_constraints = tuple(
+            sorted({item.strip() for item in constraints if item.strip()})
+        )
+        normalized_scope = tuple(
+            sorted({item.strip() for item in authority_scope if item.strip()})
+        )
 
         if supersedes is not None:
             previous = self._dispatches.get(supersedes)
@@ -134,8 +142,14 @@ class TrustRuntime:
                 raise TrustViolation("superseded dispatch does not exist")
             if supersedes in self._superseded_by:
                 raise TrustViolation("dispatch is already superseded")
+            if supersedes in self._result_by_dispatch:
+                raise TrustViolation("terminal dispatch cannot be superseded")
             if previous.task != normalized_task:
                 raise TrustViolation("recovery must preserve the original task")
+            if previous.constraints != normalized_constraints:
+                raise TrustViolation("recovery must preserve the original constraints")
+            if previous.authority_scope != normalized_scope:
+                raise TrustViolation("recovery must preserve the original authority scope")
 
         payload: dict[str, Any] = {
             "parent_agent": parent,
@@ -197,15 +211,21 @@ class TrustRuntime:
         if normalized_status not in {"COMPLETED", "FAILED", "BLOCKED"}:
             raise TrustViolation("status must be COMPLETED, FAILED, or BLOCKED")
         normalized_summary = self._clean_text(summary, "summary")
-        normalized_evidence = tuple(sorted({item.strip() for item in evidence if item.strip()}))
+        normalized_evidence = tuple(
+            sorted({item.strip() for item in evidence if item.strip()})
+        )
         if normalized_status == "COMPLETED" and not normalized_evidence:
-            raise TrustViolation("completed results require at least one evidence reference")
+            raise TrustViolation(
+                "completed results require at least one evidence reference"
+            )
 
         payload = {
             "dispatch_id": dispatch_id,
             "agent": normalized_agent,
             "status": normalized_status,
-            "summary_digest": hashlib.sha256(normalized_summary.encode("utf-8")).hexdigest(),
+            "summary_digest": hashlib.sha256(
+                normalized_summary.encode("utf-8")
+            ).hexdigest(),
             "evidence": normalized_evidence,
         }
         receipt_id = self._digest(payload)
@@ -223,18 +243,33 @@ class TrustRuntime:
         approver: str,
         reason: str,
     ) -> ApprovalReceipt:
-        if dispatch_id not in self._dispatches:
+        dispatch = self._dispatches.get(dispatch_id)
+        if dispatch is None:
             raise TrustViolation("dispatch does not exist")
+        if dispatch_id in self._superseded_by:
+            raise TrustViolation("superseded dispatch cannot receive approval")
+
+        result_receipt_id = self._result_by_dispatch.get(dispatch_id)
+        result = self._results.get(result_receipt_id or "")
+        if result is None or result.status != "COMPLETED":
+            raise TrustViolation("human approval requires a completed result")
+
         normalized_effect = self._clean_text(effect, "effect")
+        if normalized_effect not in dispatch.authority_scope:
+            raise TrustViolation("approval effect is outside the delegated authority scope")
+
         payload = {
             "dispatch_id": dispatch_id,
+            "result_receipt_id": result.receipt_id,
             "effect": normalized_effect,
             "approver": self._clean_text(approver, "approver"),
             "reason": self._clean_text(reason, "reason"),
         }
         receipt_id = self._digest(payload)
         receipt = ApprovalReceipt(receipt_id=receipt_id, **payload)
-        self._approvals[(dispatch_id, normalized_effect)] = receipt
+        self._approvals[
+            (dispatch_id, result.receipt_id, normalized_effect)
+        ] = receipt
         self._append("HUMAN_APPROVAL_RECORDED", asdict(receipt))
         return receipt
 
@@ -263,7 +298,12 @@ class TrustRuntime:
             allowed, reason = False, "effect is outside the delegated authority scope"
         elif (
             normalized_effect in self.protected_effects
-            and (dispatch_id, normalized_effect) not in self._approvals
+            and (
+                dispatch_id,
+                result_receipt_id,
+                normalized_effect,
+            )
+            not in self._approvals
         ):
             allowed, reason = False, "protected effect requires human approval"
 
