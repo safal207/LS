@@ -32,12 +32,13 @@ Protected effect gate
   └── explicit approval receipt → ALLOW decision only
 ```
 
-The live example uses official OpenAI Agents SDK handoffs with typed handoff input. The trust runtime records an append-only hash-chained ledger alongside the SDK run.
+The live example uses official OpenAI Agents SDK handoffs with typed handoff input. Each handoff also has a parent-side authority allowlist, so validly shaped model output cannot expand its own authority. The trust runtime records an append-only hash-chained ledger alongside the SDK run.
 
 ## What v0.1 proves
 
 - every delegation has a deterministic dispatch receipt;
 - only the named child agent can submit the terminal result;
+- model-requested handoff authority must fit the parent's allowlist;
 - a completed result requires evidence references;
 - recovery preserves the original task, constraints, and authority scope;
 - recovered work supersedes the stale dispatch;
@@ -85,6 +86,7 @@ Tracing answers: **what happened during the agent run?**
 LS receipts additionally answer:
 
 - was this exact child agent authorized to return this task;
+- did its requested authority stay inside the parent's explicit grant;
 - was the result evidence-bound;
 - did recovery preserve the original constraints and authority;
 - was the dispatch superseded after a crash or replacement;
