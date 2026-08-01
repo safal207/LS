@@ -9,7 +9,7 @@ from typing import Sequence
 from agents import Agent, Runner, RunContextWrapper, handoff
 from pydantic import BaseModel, Field
 
-from .runtime import TrustRuntime
+from .runtime import TrustRuntime, TrustViolation
 
 
 class DispatchInput(BaseModel):
@@ -21,21 +21,44 @@ class DispatchInput(BaseModel):
     )
 
 
+def bounded_authority(
+    requested: Sequence[str], allowed: Sequence[str]
+) -> tuple[str, ...]:
+    normalized_requested = tuple(
+        sorted({item.strip() for item in requested if item.strip()})
+    )
+    normalized_allowed = frozenset(
+        item.strip() for item in allowed if item.strip()
+    )
+    unexpected = sorted(set(normalized_requested) - normalized_allowed)
+    if unexpected:
+        raise TrustViolation(
+            "handoff requested authority outside parent grant: "
+            + ", ".join(unexpected)
+        )
+    return normalized_requested
+
+
 def trusted_handoff(
     runtime: TrustRuntime,
     *,
     parent_name: str,
     child: Agent,
+    allowed_authority: Sequence[str],
 ):
     async def on_handoff(
         _ctx: RunContextWrapper[None], input_data: DispatchInput
     ) -> None:
+        authority_scope = bounded_authority(
+            input_data.requested_authority,
+            allowed_authority,
+        )
         receipt = runtime.issue_dispatch(
             parent_agent=parent_name,
             child_agent=child.name,
             task=input_data.task,
             constraints=input_data.constraints,
-            authority_scope=input_data.requested_authority,
+            authority_scope=authority_scope,
         )
         print(
             json.dumps(
@@ -49,13 +72,15 @@ def trusted_handoff(
             )
         )
 
+    allowed_text = ", ".join(sorted(set(allowed_authority))) or "none"
     return handoff(
         agent=child,
         on_handoff=on_handoff,
         input_type=DispatchInput,
         tool_description_override=(
-            f"Delegate a bounded task to {child.name}. State constraints and the exact "
-            "authority the agent may propose. This records an LS dispatch receipt."
+            f"Delegate a bounded task to {child.name}. State constraints and request only "
+            f"authority from this parent-side allowlist: [{allowed_text}]. "
+            "This records an LS dispatch receipt."
         ),
     )
 
@@ -82,7 +107,12 @@ def build_team(runtime: TrustRuntime) -> Agent:
             "demonstrate that a recommendation is not permission."
         ),
         handoffs=[
-            trusted_handoff(runtime, parent_name=qa_name, child=safety),
+            trusted_handoff(
+                runtime,
+                parent_name=qa_name,
+                child=safety,
+                allowed_authority=("merge",),
+            ),
         ],
     )
 
@@ -96,7 +126,12 @@ def build_team(runtime: TrustRuntime) -> Agent:
             "bounded validation task, constraints, and requested authority ['run_tests']."
         ),
         handoffs=[
-            trusted_handoff(runtime, parent_name=developer_name, child=qa),
+            trusted_handoff(
+                runtime,
+                parent_name=developer_name,
+                child=qa,
+                allowed_authority=("run_tests",),
+            ),
         ],
     )
 
@@ -109,7 +144,12 @@ def build_team(runtime: TrustRuntime) -> Agent:
             "authority ['write_patch', 'run_tests']."
         ),
         handoffs=[
-            trusted_handoff(runtime, parent_name=coordinator_name, child=developer),
+            trusted_handoff(
+                runtime,
+                parent_name=coordinator_name,
+                child=developer,
+                allowed_authority=("write_patch", "run_tests"),
+            ),
         ],
     )
 
@@ -266,7 +306,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
-    payload = dry_run() if args.dry_run else asyncio.run(run_live(args.goal, args.approve_merge))
+    payload = (
+        dry_run()
+        if args.dry_run
+        else asyncio.run(run_live(args.goal, args.approve_merge))
+    )
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
