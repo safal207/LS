@@ -60,12 +60,13 @@ Only the named child can submit the result. `COMPLETED` without evidence is reje
 
 Binds:
 
-- exact dispatch;
+- exact current dispatch;
+- exact completed result receipt;
 - exact protected effect;
 - human approver label;
 - reason.
 
-The current prototype records the receipt but does not authenticate the human. Production work would replace the label with a signed identity-provider assertion.
+Approval cannot be recorded before a completed result exists, against a superseded dispatch, or for an effect outside the dispatch scope. The current prototype records the receipt but does not authenticate the human. Production work would replace the label with a signed identity-provider assertion.
 
 ### EffectDecision
 
@@ -75,7 +76,7 @@ Evaluates whether:
 2. the result belongs to that dispatch;
 3. the result is completed;
 4. the effect is inside the declared scope;
-5. a protected effect has a separate human approval.
+5. a protected effect has a separate human approval bound to that exact result.
 
 `allowed=true` is a policy result, not execution.
 
@@ -99,7 +100,7 @@ A replacement agent does not overwrite the original task. It receives a new disp
 new_dispatch.supersedes = interrupted_dispatch.receipt_id
 ```
 
-The old dispatch becomes stale and cannot accept a terminal result or authorize an effect. This prevents a late response from a crashed or partitioned agent from winning a race against the recovered worker.
+Recovery must preserve the original task, constraints, and authority scope. A terminal dispatch cannot be superseded. The old interrupted dispatch becomes stale and cannot accept a terminal result, receive approval, or authorize an effect. This prevents a late response from a crashed or partitioned agent from winning a race against the recovered worker or using recovery to escalate authority.
 
 ## Ledger integrity
 
@@ -113,7 +114,7 @@ payload
 record_hash
 ```
 
-The hash chain detects mutation, deletion, insertion, and reordering inside the observed record sequence. It does not provide external timestamping or signer identity in v0.1.
+The hash chain detects mutation, insertion, reordering, and deletion within the observed record sequence. Without an externally stored final hash or signed checkpoint, a valid prefix remains valid, so suffix truncation is not detectable in v0.1. The prototype also does not provide external timestamping or signer identity.
 
 ## Deliberate non-goals
 
@@ -130,8 +131,9 @@ The hash chain detects mutation, deletion, insertion, and reordering inside the 
 The smallest valuable v0.2 would add:
 
 1. SQLite persistence with transaction boundaries;
-2. signed human approvals;
+2. signed human approvals with expiry and revocation;
 3. verified evidence artifacts, not string references;
 4. OpenTelemetry correlation with OpenAI trace and span IDs;
-5. a durable queue and idempotency key for effect adapters;
-6. one forced-crash integration test across two worker processes.
+5. an externally anchored ledger checkpoint;
+6. a durable queue and idempotency key for effect adapters;
+7. one forced-crash integration test across two worker processes.
