@@ -5,6 +5,7 @@ import copy
 import pytest
 
 from ls_agent_trust import TrustRuntime, TrustViolation
+from ls_agent_trust.openai_demo import bounded_authority
 
 
 def completed_dispatch(
@@ -72,6 +73,19 @@ def test_human_approval_requires_completed_result() -> None:
             effect="merge",
             approver="alex",
             reason="Premature approval must fail closed.",
+        )
+
+
+def test_handoff_authority_is_capped_by_parent_allowlist() -> None:
+    assert bounded_authority(
+        ["run_tests", "run_tests"],
+        ("write_patch", "run_tests"),
+    ) == ("run_tests",)
+
+    with pytest.raises(TrustViolation, match="outside parent grant"):
+        bounded_authority(
+            ["run_tests", "merge"],
+            ("run_tests",),
         )
 
 
