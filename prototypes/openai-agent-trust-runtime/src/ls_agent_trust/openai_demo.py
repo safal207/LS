@@ -71,8 +71,9 @@ def build_team(runtime: TrustRuntime) -> Agent:
         ),
     )
 
+    qa_name = "QA Agent"
     qa = Agent(
-        name="QA Agent",
+        name=qa_name,
         handoff_description="Validates the proposed change with adversarial tests.",
         instructions=(
             "Review the developer result, design focused positive and negative tests, and "
@@ -80,36 +81,37 @@ def build_team(runtime: TrustRuntime) -> Agent:
             "constraints, and requested authority ['merge'] so the protected-effect gate can "
             "demonstrate that a recommendation is not permission."
         ),
+        handoffs=[
+            trusted_handoff(runtime, parent_name=qa_name, child=safety),
+        ],
     )
-    qa.handoffs = [
-        trusted_handoff(runtime, parent_name=qa.name, child=safety),
-    ]
 
+    developer_name = "Developer Agent"
     developer = Agent(
-        name="Developer Agent",
+        name=developer_name,
         handoff_description="Creates the smallest bounded implementation proposal.",
         instructions=(
             "Produce the smallest implementation plan or patch proposal that addresses the "
             "goal. State assumptions and test evidence. Then hand off to QA Agent with the exact "
             "bounded validation task, constraints, and requested authority ['run_tests']."
         ),
+        handoffs=[
+            trusted_handoff(runtime, parent_name=developer_name, child=qa),
+        ],
     )
-    developer.handoffs = [
-        trusted_handoff(runtime, parent_name=developer.name, child=qa),
-    ]
 
-    coordinator = Agent(
-        name="Coordinator Agent",
+    coordinator_name = "Coordinator Agent"
+    return Agent(
+        name=coordinator_name,
         instructions=(
             "Turn the user's goal into one bounded software-change task. Do not solve the task "
             "yourself. Hand off to Developer Agent with explicit constraints and requested "
             "authority ['write_patch', 'run_tests']."
         ),
+        handoffs=[
+            trusted_handoff(runtime, parent_name=coordinator_name, child=developer),
+        ],
     )
-    coordinator.handoffs = [
-        trusted_handoff(runtime, parent_name=coordinator.name, child=developer),
-    ]
-    return coordinator
 
 
 def dry_run() -> dict[str, object]:
