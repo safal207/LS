@@ -90,6 +90,8 @@ constraints[]
 requested_authority[]
 ```
 
+Each handoff is also configured with a parent-side authority allowlist. Model-requested authority must be a subset of that allowlist or the handoff fails closed before a dispatch receipt is issued. This prevents validly shaped model output from widening its own authority.
+
 Before the receiving specialist takes over, the callback writes an LS dispatch receipt. The Agents SDK remains responsible for model turns, handoffs, tool calls, and tracing.
 
 ## Recovery
