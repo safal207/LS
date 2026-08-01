@@ -33,7 +33,9 @@ jobs:
 
       - name: Upgrade tooling
         run: |
-          python -m pip install --upgrade "pip>=26.0.1" setuptools wheel
+          # pip-tools 7.6.0 imports pip's internal stdlib_pkgs symbol, which was
+          # removed in pip 26.2. Keep the last known-compatible pip exact.
+          python -m pip install --upgrade "pip==26.1.2" setuptools wheel
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
