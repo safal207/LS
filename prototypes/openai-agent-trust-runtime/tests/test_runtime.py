@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 
 import pytest
 
 from ls_agent_trust import TrustRuntime, TrustViolation
-from ls_agent_trust.openai_demo import bounded_authority
+from ls_agent_trust.openai_demo import (
+    bounded_authority,
+    derive_live_result_metadata,
+)
 
 
 def completed_dispatch(
@@ -58,6 +62,40 @@ def test_protected_effect_requires_human_approval() -> None:
     assert allowed.allowed is True
 
 
+def test_protected_effect_identifiers_are_casefolded() -> None:
+    runtime = TrustRuntime()
+    dispatch, result = completed_dispatch(
+        runtime,
+        authority_scope=(" Merge ",),
+    )
+
+    assert dispatch.authority_scope == ("merge",)
+    blocked = runtime.authorize_effect(
+        dispatch_id=dispatch.receipt_id,
+        result_receipt_id=result.receipt_id,
+        effect="MERGE",
+    )
+    assert blocked.allowed is False
+    assert blocked.effect == "merge"
+    assert blocked.reason == "protected effect requires human approval"
+
+    approval = runtime.grant_human_approval(
+        dispatch_id=dispatch.receipt_id,
+        effect="mErGe",
+        approver="alex",
+        reason="Reviewed the exact result.",
+    )
+    assert approval.effect == "merge"
+
+    allowed = runtime.authorize_effect(
+        dispatch_id=dispatch.receipt_id,
+        result_receipt_id=result.receipt_id,
+        effect=" merge ",
+    )
+    assert allowed.allowed is True
+    assert allowed.effect == "merge"
+
+
 def test_human_approval_requires_completed_result() -> None:
     runtime = TrustRuntime()
     dispatch = runtime.issue_dispatch(
@@ -81,12 +119,40 @@ def test_handoff_authority_is_capped_by_parent_allowlist() -> None:
         ["run_tests", "run_tests"],
         ("write_patch", "run_tests"),
     ) == ("run_tests",)
+    assert bounded_authority([" MERGE "], ("merge",)) == ("merge",)
 
     with pytest.raises(TrustViolation, match="outside parent grant"):
         bounded_authority(
             ["run_tests", "merge"],
             ("run_tests",),
         )
+
+
+def test_live_result_without_output_is_blocked() -> None:
+    status, summary, evidence = derive_live_result_metadata(None, "QA Agent")
+
+    assert status == "BLOCKED"
+    assert "without a final output" in summary
+    assert evidence == (
+        "openai-agents-sdk:last-agent:QA Agent",
+        "openai-agents-sdk:final-output:none",
+    )
+
+
+def test_live_result_binds_completed_output_digest() -> None:
+    final_output = "Evidence supports the bounded change."
+    status, summary, evidence = derive_live_result_metadata(
+        final_output,
+        "Safety Reviewer",
+    )
+    digest = hashlib.sha256(final_output.encode("utf-8")).hexdigest()
+
+    assert status == "COMPLETED"
+    assert summary == final_output
+    assert evidence == (
+        "openai-agents-sdk:last-agent:Safety Reviewer",
+        f"openai-agents-sdk:final-output-sha256:{digest}",
+    )
 
 
 def test_wrong_agent_cannot_submit_result() -> None:
