@@ -28,7 +28,7 @@ QA Agent
 Safety Reviewer
   ↓ evidence-bound result receipt
 Protected effect gate
-  ├── no human approval → BLOCK
+  ├── no result-bound human approval → BLOCK
   └── explicit approval receipt → ALLOW decision only
 ```
 
@@ -39,10 +39,12 @@ The live example uses official OpenAI Agents SDK handoffs with typed handoff inp
 - every delegation has a deterministic dispatch receipt;
 - only the named child agent can submit the terminal result;
 - a completed result requires evidence references;
+- recovery preserves the original task, constraints, and authority scope;
 - recovered work supersedes the stale dispatch;
+- terminal work cannot be reopened as recovery;
 - an effect outside the delegated scope is blocked;
-- protected effects require a separate human approval receipt;
-- ledger tampering is detectable;
+- protected effects require a separate human approval bound to the exact completed result;
+- mutation inside the observed ledger sequence is detectable;
 - an `ALLOW` decision is still not effect execution.
 
 ## Quickstart
@@ -68,7 +70,7 @@ ls-agent-trust-demo \
 
 By default, the final `merge` proposal is blocked because model output is not human authority.
 
-To record an explicit demo approval receipt:
+To record an explicit demo approval receipt after the completed result exists:
 
 ```bash
 ls-agent-trust-demo --approve-merge
@@ -84,9 +86,10 @@ LS receipts additionally answer:
 
 - was this exact child agent authorized to return this task;
 - was the result evidence-bound;
+- did recovery preserve the original constraints and authority;
 - was the dispatch superseded after a crash or replacement;
 - was the requested effect inside the declared authority scope;
-- did a human separately approve the protected effect?
+- did a human separately approve this exact completed result and effect?
 
 The design complements, rather than replaces, OpenAI Agents SDK tracing.
 
@@ -110,7 +113,8 @@ v0.1 is a prototype, not a production authorization system. It has:
 - evidence references rather than evidence-content verification;
 - no identity provider or cryptographic human signature;
 - no durable queue;
-- no external effect adapters.
+- no external effect adapters;
+- no external ledger checkpoint, so a valid suffix truncation cannot be detected.
 
 Those omissions are intentional. The first public question is narrower:
 
