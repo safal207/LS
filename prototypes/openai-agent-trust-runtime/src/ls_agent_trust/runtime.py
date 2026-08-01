@@ -76,7 +76,10 @@ class TrustRuntime:
             if protected_effects is None
             else protected_effects
         )
-        self.protected_effects = frozenset(configured_effects)
+        self.protected_effects = frozenset(
+            self._clean_identifier(effect, "protected_effect")
+            for effect in configured_effects
+        )
         self._dispatches: dict[str, DispatchReceipt] = {}
         self._results: dict[str, ResultReceipt] = {}
         self._result_by_dispatch: dict[str, str] = {}
@@ -99,10 +102,32 @@ class TrustRuntime:
 
     @staticmethod
     def _clean_text(value: str, field: str) -> str:
+        if not isinstance(value, str):
+            raise TrustViolation(f"{field} must be a string")
         cleaned = value.strip()
         if not cleaned:
             raise TrustViolation(f"{field} must not be empty")
         return cleaned
+
+    @classmethod
+    def _clean_identifier(cls, value: str, field: str) -> str:
+        """Normalize policy identifiers so casing cannot bypass a gate."""
+
+        return cls._clean_text(value, field).casefold()
+
+    @classmethod
+    def _normalize_identifiers(
+        cls,
+        values: Sequence[str],
+        field: str,
+    ) -> tuple[str, ...]:
+        normalized: set[str] = set()
+        for value in values:
+            if not isinstance(value, str):
+                raise TrustViolation(f"{field} entries must be strings")
+            if value.strip():
+                normalized.add(cls._clean_identifier(value, field))
+        return tuple(sorted(normalized))
 
     def _append(self, event_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         previous_hash = self._ledger[-1]["record_hash"] if self._ledger else "GENESIS"
@@ -132,8 +157,9 @@ class TrustRuntime:
         normalized_constraints = tuple(
             sorted({item.strip() for item in constraints if item.strip()})
         )
-        normalized_scope = tuple(
-            sorted({item.strip() for item in authority_scope if item.strip()})
+        normalized_scope = self._normalize_identifiers(
+            authority_scope,
+            "authority_scope",
         )
 
         if supersedes is not None:
@@ -254,7 +280,7 @@ class TrustRuntime:
         if result is None or result.status != "COMPLETED":
             raise TrustViolation("human approval requires a completed result")
 
-        normalized_effect = self._clean_text(effect, "effect")
+        normalized_effect = self._clean_identifier(effect, "effect")
         if normalized_effect not in dispatch.authority_scope:
             raise TrustViolation("approval effect is outside the delegated authority scope")
 
@@ -280,7 +306,7 @@ class TrustRuntime:
         result_receipt_id: str,
         effect: str,
     ) -> EffectDecision:
-        normalized_effect = self._clean_text(effect, "effect")
+        normalized_effect = self._clean_identifier(effect, "effect")
         dispatch = self._dispatches.get(dispatch_id)
         result = self._results.get(result_receipt_id)
 
