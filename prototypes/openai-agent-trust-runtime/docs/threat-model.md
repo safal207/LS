@@ -16,6 +16,7 @@ The prototype aims to preserve five narrow properties:
 |---|---|
 | A different agent claims another agent's task | Child-agent identity check on result submission |
 | Agent returns `COMPLETED` with no support | Evidence-reference requirement |
+| Model requests more handoff authority than its parent grants | Parent-side allowlist; out-of-grant authority fails closed |
 | Crashed agent responds after replacement | Supersession lineage; old dispatch becomes stale |
 | Recovery weakens constraints or expands authority | Replacement must preserve task, constraints, and authority scope |
 | A completed task is reopened as recovery | Terminal dispatches cannot be superseded |
@@ -55,7 +56,7 @@ The in-memory registry is not a database, consensus system, or exactly-once queu
 
 ### Model prompt injection
 
-Typed handoff input narrows metadata shape but does not solve prompt injection in source documents or tool outputs. Tool guardrails and content isolation remain necessary.
+Typed handoff input and authority allowlists narrow metadata shape and scope but do not solve prompt injection in source documents or tool outputs. Tool guardrails and content isolation remain necessary.
 
 ### External effect race
 
@@ -63,6 +64,6 @@ The runtime returns a decision but has no transactional link to an effect adapte
 
 ## Safety stance
 
-The prototype fails closed for unknown dispatches, stale dispatches, mismatched results, missing evidence, recovery authority changes, out-of-scope effects, premature approval, and missing human approval.
+The prototype fails closed for unknown dispatches, stale dispatches, mismatched results, missing evidence, handoff authority escalation, recovery authority changes, out-of-scope effects, premature approval, and missing human approval.
 
 It does not claim that every safe-looking result is correct. It only prevents several unsafe state transitions from being represented as authorised success.
