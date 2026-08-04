@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ls-agent-trust-runtime"
-version = "0.1.0"
-description = "Evidence-bound dispatch, recovery, and human authority for OpenAI Agents SDK teams"
+version = "0.2.0"
+description = "Evidence-bound dispatch, safe cross-thread events, and human authority for agent teams"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
@@ -13,6 +13,7 @@ authors = [{name = "LS contributors"}]
 dependencies = [
   "openai-agents",
   "pydantic>=2",
+  "jsonschema>=4.23",
 ]
 
 [project.optional-dependencies]
@@ -20,12 +21,19 @@ dev = ["pytest>=8"]
 
 [project.scripts]
 ls-agent-trust-demo = "ls_agent_trust.openai_demo:main"
+ls-cross-thread-demo = "ls_agent_trust.cross_thread_demo:main"
+ls-cross-thread-validate = "ls_agent_trust.validator:main"
+ls-cross-thread-conformance = "ls_agent_trust.conformance:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+ls_agent_trust = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

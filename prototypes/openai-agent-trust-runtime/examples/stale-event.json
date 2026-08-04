@@ -1,0 +1,35 @@
+{
+  "schema_version": "cross-thread-event/v0.1",
+  "event_id": "evt-stale-state-001",
+  "trajectory_id": "project:migration",
+  "continuation_id": "executor-stale",
+  "source": {
+    "thread_id": "thread:executor",
+    "agent_id": "Executor Agent",
+    "role": "executor"
+  },
+  "target": {
+    "thread_id": "thread:stabilizer"
+  },
+  "event_type": "STATE_UPDATE",
+  "subject": "deployment.endpoint",
+  "payload": {
+    "value": "https://old-endpoint.example"
+  },
+  "evidence_refs": [
+    {
+      "ref": "artifact:stale-state",
+      "sha256": "c66a7dc8a17af90133126d8a32e41a877c7fef25a3ca7f56f15e8745ecd89bdb",
+      "media_type": "text/plain"
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "authority": {
+    "may_inform": true,
+    "may_request_action": false,
+    "may_authorize_execution": false
+  },
+  "sequence": 1,
+  "created_at": "2026-08-04T06:20:00Z",
+  "supersedes_event_id": null
+}

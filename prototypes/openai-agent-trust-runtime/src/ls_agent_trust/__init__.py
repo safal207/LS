@@ -1,5 +1,31 @@
 """LS Agent Trust Runtime public API."""
 
+from .council import (
+    AGENT_PROFILES,
+    AgentProfile,
+    CouncilRole,
+    CouncilRun,
+    CouncilStage,
+    SevenAgentCouncil,
+    agent_profile,
+    build_openai_agents_team,
+)
+from .cross_thread import (
+    AcceptedState,
+    Authority,
+    CapabilityGrant,
+    CrossThreadEvent,
+    CrossThreadRuntime,
+    CrossThreadViolation,
+    DecisionReceipt,
+    DispositionStatus,
+    EventType,
+    EvidenceRef,
+    EvidenceVerdict,
+    InMemoryEvidenceStore,
+    ThreadIdentity,
+    VerificationStatus,
+)
 from .runtime import (
     ApprovalReceipt,
     DispatchReceipt,
@@ -10,10 +36,32 @@ from .runtime import (
 )
 
 __all__ = [
+    "AGENT_PROFILES",
+    "AcceptedState",
+    "AgentProfile",
     "ApprovalReceipt",
+    "Authority",
+    "CapabilityGrant",
+    "CouncilRole",
+    "CouncilRun",
+    "CouncilStage",
+    "CrossThreadEvent",
+    "CrossThreadRuntime",
+    "CrossThreadViolation",
+    "DecisionReceipt",
     "DispatchReceipt",
+    "DispositionStatus",
     "EffectDecision",
+    "EventType",
+    "EvidenceRef",
+    "EvidenceVerdict",
+    "InMemoryEvidenceStore",
     "ResultReceipt",
+    "SevenAgentCouncil",
+    "ThreadIdentity",
     "TrustRuntime",
     "TrustViolation",
+    "VerificationStatus",
+    "agent_profile",
+    "build_openai_agents_team",
 ]

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/cross-thread-event-v0.1.schema.json",
+  "title": "CrossThreadEvent v0.1",
+  "description": "Typed, evidence-aware event exchanged between durable AI-agent threads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "trajectory_id",
+    "continuation_id",
+    "source",
+    "target",
+    "event_type",
+    "subject",
+    "payload",
+    "evidence_refs",
+    "verification_status",
+    "authority",
+    "sequence",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "cross-thread-event/v0.1"},
+    "event_id": {"type": "string", "minLength": 1},
+    "trajectory_id": {"type": "string", "minLength": 1},
+    "continuation_id": {"type": "string", "minLength": 1},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thread_id", "agent_id", "role"],
+      "properties": {
+        "thread_id": {"type": "string", "minLength": 1},
+        "agent_id": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thread_id"],
+      "properties": {
+        "thread_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "event_type": {
+      "enum": [
+        "QUESTION",
+        "PROPOSAL",
+        "OBSERVATION",
+        "STATE_UPDATE",
+        "RESULT",
+        "ACTION_REQUEST",
+        "BLOCKER",
+        "COMPLETION"
+      ]
+    },
+    "subject": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"},
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "media_type"],
+        "properties": {
+          "ref": {"type": "string", "minLength": 1},
+          "sha256": {
+            "type": ["string", "null"],
+            "pattern": "^[a-fA-F0-9]{64}$"
+          },
+          "media_type": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "verification_status": {
+      "enum": ["UNVERIFIED", "CLAIMED", "VERIFIED", "REJECTED"]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "may_inform",
+        "may_request_action",
+        "may_authorize_execution"
+      ],
+      "properties": {
+        "may_inform": {"type": "boolean"},
+        "may_request_action": {"type": "boolean"},
+        "may_authorize_execution": {"type": "boolean"}
+      }
+    },
+    "sequence": {"type": "integer", "minimum": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "supersedes_event_id": {"type": ["string", "null"], "minLength": 1}
+  }
+}
