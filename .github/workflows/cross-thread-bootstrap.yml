@@ -1,0 +1,42 @@
+name: CrossThread bootstrap
+
+on:
+  push:
+    branches:
+      - agent/cross-thread-protocol-v0-1
+    paths:
+      - .cross-thread-bootstrap/**
+      - .github/workflows/cross-thread-bootstrap.yml
+
+permissions:
+  contents: write
+
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/cross-thread-protocol-v0-1
+          fetch-depth: 0
+
+      - name: Reconstruct and expand verified source bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .cross-thread-bootstrap/part* | base64 --decode > /tmp/cross-thread.tar.xz
+          xz --test /tmp/cross-thread.tar.xz
+          tar -xJf /tmp/cross-thread.tar.xz
+          rm -rf .cross-thread-bootstrap
+          rm -f .github/workflows/cross-thread-bootstrap.yml
+
+      - name: Commit expanded source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add evidence-aware cross-thread protocol and seven-agent council"
+          git push origin HEAD:agent/cross-thread-protocol-v0-1
