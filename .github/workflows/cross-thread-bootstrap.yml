@@ -31,6 +31,7 @@ jobs:
           tar -xJf /tmp/cross-thread.tar.xz
           rm -rf .cross-thread-bootstrap
           rm -f .github/workflows/cross-thread-bootstrap.yml
+          rm -f .github/workflows/cross-thread-protocol.yml
 
       - name: Commit expanded source tree
         shell: bash
