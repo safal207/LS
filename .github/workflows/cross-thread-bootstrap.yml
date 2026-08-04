@@ -1,9 +1,9 @@
 name: CrossThread bootstrap
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/cross-thread-protocol-v0-1
+      - main
     paths:
       - .cross-thread-bootstrap/**
       - .github/workflows/cross-thread-bootstrap.yml
@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   expand:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Check out feature branch
