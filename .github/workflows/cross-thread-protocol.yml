@@ -1,0 +1,42 @@
+name: CrossThread Protocol
+
+on:
+  pull_request:
+    paths:
+      - "prototypes/openai-agent-trust-runtime/**"
+      - ".github/workflows/cross-thread-protocol.yml"
+  push:
+    branches: [main]
+    paths:
+      - "prototypes/openai-agent-trust-runtime/**"
+      - ".github/workflows/cross-thread-protocol.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototypes/openai-agent-trust-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: prototypes/openai-agent-trust-runtime/pyproject.toml
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Test
+        run: pytest
+      - name: Conformance
+        run: ls-cross-thread-conformance
+      - name: Offline seven-agent demo
+        run: ls-cross-thread-demo --brief 'CI reference run'
+      - name: Validate examples
+        run: |
+          for event in examples/*.json; do
+            ls-cross-thread-validate "$event"
+          done
