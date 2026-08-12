@@ -20,6 +20,11 @@
 [![LS Exact-Head Audit CLI](https://github.com/safal207/LS/actions/workflows/ls-audit-cli.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/ls-audit-cli.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 
+<p align="center">
+  <strong>🏆 OpenAI Build Week 2026 submission</strong><br />
+  <a href="https://devpost.com/software/ls-trust-layer-for-ai-software-delivery">LS — Trust Layer for AI Software Delivery on Devpost</a>
+</p>
+
 > **LS freezes one pull request at one exact commit and produces an evidence-backed, advisory-only risk Scorecard.** `NOT_RUN`, stale evidence, missing credentials, and incomplete collection never become success.
 >
 > **LS фиксирует один pull request на одном точном SHA и формирует доказательный advisory-only Scorecard.** Непройденные проверки, устаревшие данные и неполные evidence никогда не превращаются в успех.
