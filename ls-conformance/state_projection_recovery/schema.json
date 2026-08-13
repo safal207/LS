@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/ls-conformance/state_projection_recovery/schema.json",
+  "title": "LS State Projection Recovery Fixture v0.1",
+  "type": "object",
+  "required": ["case_id", "durable_threads", "projects", "persisted_projection"],
+  "properties": {
+    "case_id": {"type": "string", "minLength": 1},
+    "durable_threads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "cwd", "archived"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "cwd": {"type": "string", "minLength": 1},
+          "archived": {"type": "boolean"},
+          "content_digest": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": true
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "root"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "root": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "aliases": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "persisted_projection": {
+      "type": "object",
+      "properties": {
+        "generation": {"type": "integer", "minimum": 0},
+        "local-projects": {"type": "array"},
+        "project-order": {"type": "array"},
+        "thread-project-assignments": {"type": "object"},
+        "thread-writable-roots": {"type": "object"},
+        "projectless-thread-ids": {"type": "array"},
+        "thread-workspace-root-hints": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "incoming_projection": {
+      "type": "object",
+      "properties": {
+        "generation": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "live_projection": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["thread_id", "project_id"],
+        "properties": {
+          "thread_id": {"type": "string", "minLength": 1},
+          "project_id": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "candidate_content_digests": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "expected": {"type": "object"}
+  },
+  "additionalProperties": true
+}
