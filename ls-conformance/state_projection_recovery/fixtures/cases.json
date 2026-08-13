@@ -1,0 +1,225 @@
+{
+  "schema": "ls.state-projection-recovery-fixtures.v0.1",
+  "cases": [
+    {
+      "case_id": "collapsed_projection_durable_threads_intact",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "C:\\work\\beta\\src", "archived": false, "content_digest": "sha256:content-t2"},
+        {"id": "t3", "cwd": "C:\\scratch", "archived": false, "content_digest": "sha256:content-t3"},
+        {"id": "t4", "cwd": "C:\\archive", "archived": true, "content_digest": "sha256:content-t4"}
+      ],
+      "projects": [
+        {"id": "p-alpha", "root": "C:\\work\\alpha"},
+        {"id": "p-beta", "root": "C:\\work\\beta"}
+      ],
+      "persisted_projection": {
+        "local-projects": [{"id": "p-alpha", "root": "c:\\work\\alpha"}],
+        "project-order": ["p-alpha"],
+        "thread-project-assignments": {"t1": "p-alpha"},
+        "thread-writable-roots": {"t1": ["c:\\work\\alpha"]},
+        "projectless-thread-ids": ["t2", "t3"],
+        "thread-workspace-root-hints": {"t1": "c:\\work\\alpha"},
+        "generation": 3
+      },
+      "live_projection": [],
+      "expected": {
+        "status": "RECOVERED_PROJECTION",
+        "assignments_after": 2,
+        "projectless_active": 1,
+        "archived_unassigned": 1,
+        "conversation_content_mutations": 0,
+        "second_run_semantic_changes": 0
+      }
+    },
+    {
+      "case_id": "stale_generation_overwrites_richer_projection",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "C:\\work\\beta", "archived": false, "content_digest": "sha256:content-t2"}
+      ],
+      "projects": [
+        {"id": "p-alpha", "root": "C:\\work\\alpha"},
+        {"id": "p-beta", "root": "C:\\work\\beta"}
+      ],
+      "persisted_projection": {
+        "local-projects": [
+          {"id": "p-alpha", "root": "c:\\work\\alpha"},
+          {"id": "p-beta", "root": "c:\\work\\beta"}
+        ],
+        "project-order": ["p-alpha", "p-beta"],
+        "thread-project-assignments": {"t1": "p-alpha", "t2": "p-beta"},
+        "thread-writable-roots": {"t1": ["c:\\work\\alpha"], "t2": ["c:\\work\\beta"]},
+        "projectless-thread-ids": [],
+        "generation": 5
+      },
+      "incoming_projection": {
+        "generation": 4,
+        "thread-project-assignments": {"t1": "p-alpha"}
+      },
+      "live_projection": [],
+      "expected": {
+        "status": "BLOCK_STALE_GENERATION",
+        "assignments_after": 2,
+        "conversation_content_mutations": 0,
+        "second_run_semantic_changes": null
+      }
+    },
+    {
+      "case_id": "healthy_persisted_projection_broken_live_hydration",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "C:\\work\\beta", "archived": false, "content_digest": "sha256:content-t2"}
+      ],
+      "projects": [
+        {"id": "p-alpha", "root": "C:\\work\\alpha"},
+        {"id": "p-beta", "root": "C:\\work\\beta"}
+      ],
+      "persisted_projection": {
+        "local-projects": [
+          {"id": "p-alpha", "root": "c:\\work\\alpha"},
+          {"id": "p-beta", "root": "c:\\work\\beta"}
+        ],
+        "project-order": ["p-alpha", "p-beta"],
+        "thread-project-assignments": {"t1": "p-alpha", "t2": "p-beta"},
+        "thread-writable-roots": {"t1": ["c:\\work\\alpha"], "t2": ["c:\\work\\beta"]},
+        "projectless-thread-ids": []
+      },
+      "live_projection": [
+        {"thread_id": "t1", "project_id": null},
+        {"thread_id": "t2", "project_id": "p-beta"}
+      ],
+      "expected": {
+        "status": "RECOVERED_PROJECTION",
+        "assignments_after": 2,
+        "conversation_content_mutations": 0,
+        "second_run_semantic_changes": 0
+      }
+    },
+    {
+      "case_id": "schema_variant_without_workspace_root_hints",
+      "durable_threads": [
+        {"id": "t1", "cwd": "D:\\projects\\one", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "D:\\projects\\two\\pkg", "archived": false, "content_digest": "sha256:content-t2"}
+      ],
+      "projects": [
+        {"id": "p-one", "root": "D:\\projects\\one"},
+        {"id": "p-two", "root": "D:\\projects\\two"}
+      ],
+      "persisted_projection": {
+        "local-projects": [{"id": "p-one", "root": "d:\\projects\\one"}],
+        "project-order": ["p-one"],
+        "thread-project-assignments": {"t1": "p-one"},
+        "thread-writable-roots": {"t1": ["d:\\projects\\one"]},
+        "projectless-thread-ids": ["t2"]
+      },
+      "live_projection": [],
+      "expected": {
+        "status": "RECOVERED_PROJECTION",
+        "assignments_after": 2,
+        "thread_workspace_root_hints_capability": false,
+        "second_run_semantic_changes": 0
+      }
+    },
+    {
+      "case_id": "windows_verbatim_path_equivalence",
+      "durable_threads": [
+        {"id": "t1", "cwd": "\\\\?\\C:\\Work\\Project\\src", "archived": false, "content_digest": "sha256:content-t1"}
+      ],
+      "projects": [
+        {"id": "p-project", "root": "C:\\Work\\Project"}
+      ],
+      "persisted_projection": {
+        "local-projects": [],
+        "project-order": [],
+        "thread-project-assignments": {},
+        "thread-writable-roots": {},
+        "projectless-thread-ids": ["t1"]
+      },
+      "live_projection": [],
+      "expected": {
+        "status": "RECOVERED_PROJECTION",
+        "assignments_after": 1,
+        "projectless_active": 0,
+        "second_run_semantic_changes": 0
+      }
+    },
+    {
+      "case_id": "ambiguous_project_root_match",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\project\\src", "archived": false, "content_digest": "sha256:content-t1"}
+      ],
+      "projects": [
+        {"id": "p-normal", "root": "C:\\work\\project"},
+        {"id": "p-verbatim", "root": "\\\\?\\C:\\work\\project"}
+      ],
+      "persisted_projection": {
+        "local-projects": [],
+        "project-order": [],
+        "thread-project-assignments": {},
+        "thread-writable-roots": {},
+        "projectless-thread-ids": ["t1"]
+      },
+      "live_projection": [],
+      "expected": {
+        "status": "UNRESOLVED_AMBIGUOUS_PROJECT",
+        "ambiguous_matches": 1,
+        "second_run_semantic_changes": null
+      }
+    },
+    {
+      "case_id": "conversation_content_mutation_rejected",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:original-content"}
+      ],
+      "projects": [
+        {"id": "p-alpha", "root": "C:\\work\\alpha"}
+      ],
+      "persisted_projection": {
+        "local-projects": [],
+        "project-order": [],
+        "thread-project-assignments": {},
+        "thread-writable-roots": {},
+        "projectless-thread-ids": ["t1"]
+      },
+      "candidate_content_digests": {
+        "t1": "sha256:mutated-content"
+      },
+      "live_projection": [],
+      "expected": {
+        "status": "BLOCK_CONTENT_MUTATION",
+        "conversation_content_mutations": 1,
+        "second_run_semantic_changes": null
+      }
+    },
+    {
+      "case_id": "idempotent_second_recovery",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "C:\\scratch", "archived": false, "content_digest": "sha256:content-t2"}
+      ],
+      "projects": [
+        {"id": "p-alpha", "root": "c:\\work\\alpha"}
+      ],
+      "persisted_projection": {
+        "local-projects": [{"id": "p-alpha", "root": "c:\\work\\alpha"}],
+        "project-order": ["p-alpha"],
+        "thread-project-assignments": {"t1": "p-alpha"},
+        "thread-writable-roots": {"t1": ["c:\\work\\alpha"]},
+        "projectless-thread-ids": ["t2"],
+        "thread-workspace-root-hints": {"t1": "c:\\work\\alpha"}
+      },
+      "live_projection": [
+        {"thread_id": "t1", "project_id": "p-alpha"},
+        {"thread_id": "t2", "project_id": null}
+      ],
+      "expected": {
+        "status": "NO_CHANGES_REQUIRED",
+        "assignments_after": 1,
+        "projectless_active": 1,
+        "conversation_content_mutations": 0,
+        "second_run_semantic_changes": 0
+      }
+    }
+  ]
+}
