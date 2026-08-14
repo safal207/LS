@@ -47,7 +47,9 @@ Pins are intentionally treated differently from cwd-derived membership: **pinned
 
 ## Redaction boundary
 
-The generated report emits only counts, generations, trigger class, authorization state, and verdicts. It does not emit thread IDs, project IDs, paths, content digests, prompts, titles, tokens, or session contents.
+Detailed per-case reports exist only in-process for deterministic tests. The CLI/CI artifact crosses a stricter allowlist boundary and emits only the total case count plus counts per fixed verdict class. It does not log fixture identities, trigger strings, generations, thread IDs, project IDs, paths, content digests, prompts, titles, tokens, or session contents.
+
+This split is intentional: conformance logic can remain richly testable without turning synthetic or future vendor-supplied fixture fields into an accidental logging channel.
 
 ## Run
 
