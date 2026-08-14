@@ -4,7 +4,7 @@ services:
     container_name: liminal-postgres
     environment:
       POSTGRES_USER: liminal
-      POSTGRES_PASSWORD: liminal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       POSTGRES_DB: liminal
     ports:
       - "5432:5432"
@@ -26,7 +26,7 @@ services:
     container_name: liminal-ingest
     environment:
       LIMINAL_DB_PATH: /app/data/liminaldb
-      LIMINAL_AUTH_TOKEN: ${LIMINALQA_TOKEN:-devtoken}
+      LIMINAL_AUTH_TOKEN: ${LIMINALQA_TOKEN:?Set LIMINALQA_TOKEN}
       RUST_LOG: info
     ports:
       - "8080:8080"
