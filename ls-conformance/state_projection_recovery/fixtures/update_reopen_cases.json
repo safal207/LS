@@ -18,27 +18,16 @@
           {"id": "p-beta", "root": "C:\\work\\beta"},
           {"id": "p-gamma", "root": "C:\\work\\gamma"}
         ],
-        "thread-project-assignments": {
-          "t1": "p-alpha",
-          "t2": "p-beta",
-          "t3": "p-gamma"
-        },
+        "thread-project-assignments": {"t1": "p-alpha", "t2": "p-beta", "t3": "p-gamma"},
         "pinned-thread-ids": ["t1", "t3"]
       },
       "candidate_projection": {
         "generation": 10,
-        "local-projects": [
-          {"id": "p-alpha", "root": "C:\\work\\alpha"}
-        ],
-        "thread-project-assignments": {
-          "t1": "p-alpha"
-        },
+        "local-projects": [{"id": "p-alpha", "root": "C:\\work\\alpha"}],
+        "thread-project-assignments": {"t1": "p-alpha"},
         "pinned-thread-ids": []
       },
-      "transition": {
-        "trigger": "ordinary_update_reopen",
-        "explicit_user_mutation": false
-      },
+      "transition": {"trigger": "ordinary_update_reopen", "explicit_user_mutation": false},
       "expected": {
         "status": "BLOCK_REGRESSIVE_PROJECTION",
         "missing_projects": 2,
@@ -63,10 +52,7 @@
           {"id": "p-alpha", "root": "C:\\work\\alpha"},
           {"id": "p-beta", "root": "C:\\work\\beta"}
         ],
-        "thread-project-assignments": {
-          "t1": "p-alpha",
-          "t2": "p-beta"
-        },
+        "thread-project-assignments": {"t1": "p-alpha", "t2": "p-beta"},
         "pinned-thread-ids": ["t2"]
       },
       "candidate_projection": {
@@ -75,16 +61,10 @@
           {"id": "p-alpha", "root": "C:\\work\\alpha"},
           {"id": "p-beta", "root": "C:\\work\\beta"}
         ],
-        "thread-project-assignments": {
-          "t1": "p-alpha",
-          "t2": "p-beta"
-        },
+        "thread-project-assignments": {"t1": "p-alpha", "t2": "p-beta"},
         "pinned-thread-ids": ["t2"]
       },
-      "transition": {
-        "trigger": "ordinary_update_reopen",
-        "explicit_user_mutation": false
-      },
+      "transition": {"trigger": "ordinary_update_reopen", "explicit_user_mutation": false},
       "expected": {
         "status": "ACCEPT_CANDIDATE",
         "missing_projects": 0,
@@ -109,26 +89,16 @@
           {"id": "p-alpha", "root": "C:\\work\\alpha"},
           {"id": "p-beta", "root": "C:\\work\\beta"}
         ],
-        "thread-project-assignments": {
-          "t1": "p-alpha",
-          "t2": "p-beta"
-        },
+        "thread-project-assignments": {"t1": "p-alpha", "t2": "p-beta"},
         "pinned-thread-ids": ["t2"]
       },
       "candidate_projection": {
         "generation": 31,
-        "local-projects": [
-          {"id": "p-alpha", "root": "C:\\work\\alpha"}
-        ],
-        "thread-project-assignments": {
-          "t1": "p-alpha"
-        },
+        "local-projects": [{"id": "p-alpha", "root": "C:\\work\\alpha"}],
+        "thread-project-assignments": {"t1": "p-alpha"},
         "pinned-thread-ids": []
       },
-      "transition": {
-        "trigger": "explicit_user_edit",
-        "explicit_user_mutation": true
-      },
+      "transition": {"trigger": "explicit_user_edit", "explicit_user_mutation": true},
       "expected": {
         "status": "ACCEPT_CANDIDATE",
         "missing_projects": 1,
@@ -148,28 +118,17 @@
       ],
       "trusted_projection": {
         "generation": 42,
-        "local-projects": [
-          {"id": "p-alpha", "root": "C:\\work\\alpha"}
-        ],
-        "thread-project-assignments": {
-          "t1": "p-alpha"
-        },
+        "local-projects": [{"id": "p-alpha", "root": "C:\\work\\alpha"}],
+        "thread-project-assignments": {"t1": "p-alpha"},
         "pinned-thread-ids": ["t1"]
       },
       "candidate_projection": {
         "generation": 41,
-        "local-projects": [
-          {"id": "p-alpha", "root": "C:\\work\\alpha"}
-        ],
-        "thread-project-assignments": {
-          "t1": "p-alpha"
-        },
+        "local-projects": [{"id": "p-alpha", "root": "C:\\work\\alpha"}],
+        "thread-project-assignments": {"t1": "p-alpha"},
         "pinned-thread-ids": ["t1"]
       },
-      "transition": {
-        "trigger": "ordinary_update_reopen",
-        "explicit_user_mutation": false
-      },
+      "transition": {"trigger": "ordinary_update_reopen", "explicit_user_mutation": false},
       "expected": {
         "status": "BLOCK_STALE_GENERATION",
         "missing_projects": 0,
@@ -177,6 +136,37 @@
         "dropped_pins": 0,
         "conversation_content_mutations": 0,
         "accepted_generation": 42,
+        "accepted_project_memberships": 1,
+        "accepted_pins": 1
+      }
+    },
+    {
+      "case_id": "content_mutation_blocks_update_reopen_candidate",
+      "description": "Projection reconciliation must never mutate durable conversation content while accepting a startup candidate.",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:original-content"}
+      ],
+      "trusted_projection": {
+        "generation": 50,
+        "local-projects": [{"id": "p-alpha", "root": "C:\\work\\alpha"}],
+        "thread-project-assignments": {"t1": "p-alpha"},
+        "pinned-thread-ids": ["t1"]
+      },
+      "candidate_projection": {
+        "generation": 51,
+        "local-projects": [{"id": "p-alpha", "root": "C:\\work\\alpha"}],
+        "thread-project-assignments": {"t1": "p-alpha"},
+        "pinned-thread-ids": ["t1"]
+      },
+      "candidate_content_digests": {"t1": "sha256:mutated-content"},
+      "transition": {"trigger": "ordinary_update_reopen", "explicit_user_mutation": false},
+      "expected": {
+        "status": "BLOCK_CONTENT_MUTATION",
+        "missing_projects": 0,
+        "missing_project_memberships": 0,
+        "dropped_pins": 0,
+        "conversation_content_mutations": 1,
+        "accepted_generation": 50,
         "accepted_project_memberships": 1,
         "accepted_pins": 1
       }
