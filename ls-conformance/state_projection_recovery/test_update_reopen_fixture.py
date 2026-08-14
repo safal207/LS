@@ -11,7 +11,7 @@ HERE = Path(__file__).resolve().parent
 FIXTURES = HERE / "fixtures" / "update_reopen_cases.json"
 sys.path.insert(0, str(HERE))
 
-from run_update_reopen_fixture import evaluate  # noqa: E402
+from run_update_reopen_fixture import evaluate, summarize_reports  # noqa: E402
 
 
 class UpdateReopenProjectionTests(unittest.TestCase):
@@ -68,6 +68,15 @@ class UpdateReopenProjectionTests(unittest.TestCase):
             self.assertNotIn('"t1"', report_text)
             self.assertNotIn('"p-alpha"', report_text)
             self.assertNotIn("sha256:content", report_text)
+
+    def test_cli_summary_does_not_cross_fixture_identity_boundary(self) -> None:
+        reports = [evaluate(case) for case in self.payload["cases"]]
+        summary_text = json.dumps(summarize_reports(reports), sort_keys=True)
+        for case in self.payload["cases"]:
+            self.assertNotIn(case["case_id"], summary_text)
+        self.assertNotIn("trigger", summary_text)
+        self.assertNotIn("generation", summary_text)
+        self.assertEqual(len(reports), summarize_reports(reports)["case_count"])
 
 
 if __name__ == "__main__":
