@@ -2,8 +2,11 @@
 """Conformance oracle for update/reopen projection regressions.
 
 This module models a startup transition between a trusted committed projection and
-an update/reopen candidate. It is intentionally vendor-neutral and emits only
-redaction-safe counts and verdicts.
+an update/reopen candidate. It is intentionally vendor-neutral.
+
+Per-case reports are returned to tests in-process. The CLI intentionally emits only
+an aggregate verdict summary so fixture/user-derived values can never cross the
+logging/artifact boundary.
 
 The key distinction is that some projection state is derivable from durable
 thread metadata (for example project membership), while other state such as pins
@@ -178,12 +181,26 @@ def run_cases(path: Path) -> List[Dict[str, Any]]:
     return [evaluate(case) for case in cases]
 
 
+def summarize_reports(reports: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Return an allowlisted aggregate safe for stdout and CI artifacts."""
+    materialized = list(reports)
+    verdict_counts = {
+        verdict: sum(1 for report in materialized if report.get("status") == verdict)
+        for verdict in sorted(VERDICTS)
+    }
+    return {
+        "schema": "ls.update-reopen-projection-summary.v0.1",
+        "case_count": len(materialized),
+        "verdict_counts": verdict_counts,
+    }
+
+
 def main(argv: List[str]) -> int:
     if len(argv) != 2:
-        print(f"usage: {argv[0]} <update_reopen_cases.json>", file=sys.stderr)
+        print("usage: run_update_reopen_fixture.py <fixture-file>", file=sys.stderr)
         return 2
     reports = run_cases(Path(argv[1]))
-    print(json.dumps({"reports": reports}, indent=2, sort_keys=True))
+    print(json.dumps(summarize_reports(reports), indent=2, sort_keys=True))
     return 0
 
 
