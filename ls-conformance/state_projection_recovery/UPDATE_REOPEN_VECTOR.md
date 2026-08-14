@@ -21,6 +21,7 @@ update / reopen / startup reconciliation
         v
 candidate projection
         |
+        +-- missing/malformed generation? -----> FAIL CLOSED
         +-- stale generation? -----------------> BLOCK
         +-- content mutation? -----------------> BLOCK
         +-- silent project-membership loss? ---> BLOCK
@@ -36,6 +37,8 @@ If canonical thread/session evidence still exists, an update, reopen, migration,
 
 Pins are intentionally treated differently from cwd-derived membership: **pinned state is user-authored state and must be preserved, not reconstructed from paths.**
 
+Generation values are mandatory integers for normal projection verdict selection. Missing, string-valued, or boolean generations fail closed instead of bypassing stale-writer protection.
+
 ## Frozen cases
 
 `fixtures/update_reopen_cases.json` includes:
@@ -44,6 +47,9 @@ Pins are intentionally treated differently from cwd-derived membership: **pinned
 2. `ordinary_update_reopen_complete_projection_accepted` — a complete newer projection is accepted.
 3. `explicit_user_mutation_can_reduce_projection` — legitimate user-authorized reduction is accepted, so the oracle does not confuse intentional edits with data loss.
 4. `stale_update_reopen_candidate_blocked` — a stale startup writer cannot overwrite a newer committed generation.
+5. `content_mutation_blocks_update_reopen_candidate` — a candidate that changes durable conversation content is rejected even when its projection and generation are otherwise acceptable.
+
+Malformed-generation variants are also exercised directly in unit tests so the stale-generation guard cannot be bypassed through schema drift.
 
 ## Redaction boundary
 
