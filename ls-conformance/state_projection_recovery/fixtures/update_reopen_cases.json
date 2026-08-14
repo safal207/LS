@@ -1,0 +1,185 @@
+{
+  "schema": "ls.update-reopen-projection-fixtures.v0.1",
+  "evidence_ref": "openai/codex#26990 severe recurrence 2026-08-14",
+  "cases": [
+    {
+      "case_id": "ordinary_update_reopen_preserves_projection",
+      "description": "An update/reopen candidate that silently drops project membership and pins must be rejected when durable thread evidence still exists and no explicit user mutation occurred.",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "C:\\work\\beta", "archived": false, "content_digest": "sha256:content-t2"},
+        {"id": "t3", "cwd": "C:\\work\\gamma", "archived": false, "content_digest": "sha256:content-t3"},
+        {"id": "t4", "cwd": "C:\\scratch", "archived": false, "content_digest": "sha256:content-t4"}
+      ],
+      "trusted_projection": {
+        "generation": 9,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"},
+          {"id": "p-beta", "root": "C:\\work\\beta"},
+          {"id": "p-gamma", "root": "C:\\work\\gamma"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha",
+          "t2": "p-beta",
+          "t3": "p-gamma"
+        },
+        "pinned-thread-ids": ["t1", "t3"]
+      },
+      "candidate_projection": {
+        "generation": 10,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha"
+        },
+        "pinned-thread-ids": []
+      },
+      "transition": {
+        "trigger": "ordinary_update_reopen",
+        "explicit_user_mutation": false
+      },
+      "expected": {
+        "status": "BLOCK_REGRESSIVE_PROJECTION",
+        "missing_projects": 2,
+        "missing_project_memberships": 2,
+        "dropped_pins": 2,
+        "conversation_content_mutations": 0,
+        "accepted_generation": 9,
+        "accepted_project_memberships": 3,
+        "accepted_pins": 2
+      }
+    },
+    {
+      "case_id": "ordinary_update_reopen_complete_projection_accepted",
+      "description": "A newer update/reopen projection that preserves memberships and pins is accepted.",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "C:\\work\\beta", "archived": false, "content_digest": "sha256:content-t2"}
+      ],
+      "trusted_projection": {
+        "generation": 20,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"},
+          {"id": "p-beta", "root": "C:\\work\\beta"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha",
+          "t2": "p-beta"
+        },
+        "pinned-thread-ids": ["t2"]
+      },
+      "candidate_projection": {
+        "generation": 21,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"},
+          {"id": "p-beta", "root": "C:\\work\\beta"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha",
+          "t2": "p-beta"
+        },
+        "pinned-thread-ids": ["t2"]
+      },
+      "transition": {
+        "trigger": "ordinary_update_reopen",
+        "explicit_user_mutation": false
+      },
+      "expected": {
+        "status": "ACCEPT_CANDIDATE",
+        "missing_projects": 0,
+        "missing_project_memberships": 0,
+        "dropped_pins": 0,
+        "conversation_content_mutations": 0,
+        "accepted_generation": 21,
+        "accepted_project_memberships": 2,
+        "accepted_pins": 1
+      }
+    },
+    {
+      "case_id": "explicit_user_mutation_can_reduce_projection",
+      "description": "The oracle does not confuse an authorized user mutation with silent update/reopen data loss.",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"},
+        {"id": "t2", "cwd": "C:\\work\\beta", "archived": false, "content_digest": "sha256:content-t2"}
+      ],
+      "trusted_projection": {
+        "generation": 30,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"},
+          {"id": "p-beta", "root": "C:\\work\\beta"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha",
+          "t2": "p-beta"
+        },
+        "pinned-thread-ids": ["t2"]
+      },
+      "candidate_projection": {
+        "generation": 31,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha"
+        },
+        "pinned-thread-ids": []
+      },
+      "transition": {
+        "trigger": "explicit_user_edit",
+        "explicit_user_mutation": true
+      },
+      "expected": {
+        "status": "ACCEPT_CANDIDATE",
+        "missing_projects": 1,
+        "missing_project_memberships": 1,
+        "dropped_pins": 1,
+        "conversation_content_mutations": 0,
+        "accepted_generation": 31,
+        "accepted_project_memberships": 1,
+        "accepted_pins": 0
+      }
+    },
+    {
+      "case_id": "stale_update_reopen_candidate_blocked",
+      "description": "A stale startup writer cannot replace a newer trusted generation even when it is otherwise complete.",
+      "durable_threads": [
+        {"id": "t1", "cwd": "C:\\work\\alpha", "archived": false, "content_digest": "sha256:content-t1"}
+      ],
+      "trusted_projection": {
+        "generation": 42,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha"
+        },
+        "pinned-thread-ids": ["t1"]
+      },
+      "candidate_projection": {
+        "generation": 41,
+        "local-projects": [
+          {"id": "p-alpha", "root": "C:\\work\\alpha"}
+        ],
+        "thread-project-assignments": {
+          "t1": "p-alpha"
+        },
+        "pinned-thread-ids": ["t1"]
+      },
+      "transition": {
+        "trigger": "ordinary_update_reopen",
+        "explicit_user_mutation": false
+      },
+      "expected": {
+        "status": "BLOCK_STALE_GENERATION",
+        "missing_projects": 0,
+        "missing_project_memberships": 0,
+        "dropped_pins": 0,
+        "conversation_content_mutations": 0,
+        "accepted_generation": 42,
+        "accepted_project_memberships": 1,
+        "accepted_pins": 1
+      }
+    }
+  ]
+}
