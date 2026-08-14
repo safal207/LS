@@ -121,13 +121,19 @@ def _accepted_projection(case: Mapping[str, Any], status: str) -> Mapping[str, A
     return case.get("trusted_projection", {})
 
 
+def _require_generation(label: str, value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{label}_projection.generation must be an int")
+    return value
+
+
 def evaluate(case: Mapping[str, Any]) -> Dict[str, Any]:
     trusted = case.get("trusted_projection", {})
     candidate = case.get("candidate_projection", {})
     transition = case.get("transition", {})
 
-    trusted_generation = trusted.get("generation")
-    candidate_generation = candidate.get("generation")
+    trusted_generation_raw = trusted.get("generation")
+    candidate_generation_raw = candidate.get("generation")
     explicit_user_mutation = bool(transition.get("explicit_user_mutation", False))
 
     content_mutations = _content_mutation_count(case)
@@ -135,16 +141,20 @@ def evaluate(case: Mapping[str, Any]) -> Dict[str, Any]:
 
     if content_mutations:
         status = "BLOCK_CONTENT_MUTATION"
-    elif (
-        isinstance(trusted_generation, int)
-        and isinstance(candidate_generation, int)
-        and candidate_generation < trusted_generation
-    ):
-        status = "BLOCK_STALE_GENERATION"
-    elif not explicit_user_mutation and any(regressions.values()):
-        status = "BLOCK_REGRESSIVE_PROJECTION"
+        trusted_generation = trusted_generation_raw
+        candidate_generation = candidate_generation_raw
     else:
-        status = "ACCEPT_CANDIDATE"
+        trusted_generation = _require_generation("trusted", trusted_generation_raw)
+        candidate_generation = _require_generation("candidate", candidate_generation_raw)
+        if candidate_generation < trusted_generation:
+            status = "BLOCK_STALE_GENERATION"
+        elif not explicit_user_mutation and any(regressions.values()):
+            status = "BLOCK_REGRESSIVE_PROJECTION"
+        else:
+            status = "ACCEPT_CANDIDATE"
+
+    if status not in VERDICTS:
+        raise ValueError("unknown update/reopen verdict")
 
     accepted = _accepted_projection(case, status)
     accepted_assignments = _assignments(accepted)
@@ -171,7 +181,6 @@ def evaluate(case: Mapping[str, Any]) -> Dict[str, Any]:
         "dropped_pins": regressions["dropped_pins"],
         "conversation_content_mutations": content_mutations,
     }
-    assert status in VERDICTS
     return report
 
 
