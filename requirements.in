@@ -11,7 +11,7 @@ PyQt6>=6.1.0
 psutil==7.2.2
 pyinstaller==6.18.0
 soundfile==0.13.1
-sentence-transformers>=2.2.2
+sentence-transformers>=5.7.0
 # CI runners do not have enough disk for CUDA-enabled PyTorch wheels.
 # Keep the default install CPU-only; GPU builds should be opt-in in a separate profile.
 --extra-index-url https://download.pytorch.org/whl/cpu
