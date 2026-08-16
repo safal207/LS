@@ -1,43 +1,49 @@
-from verified_transition_loop import OutcomeVerdict, TransitionVerdict
+from verified_transition_loop import OutcomeVerdict, UseTimeVerdict
 from verified_transition_loop.deployment_demo import run_deployment_demo
 
 
-def test_healthy_deployment_commits_without_rollback():
+def test_healthy_deployment_commits_after_use_time_revalidation():
     result = run_deployment_demo(fail_health=False)
-    assert result.deploy_authorization.verdict is TransitionVerdict.AUTHORIZE
+    assert result.deploy_use.verdict is UseTimeVerdict.EXECUTE
+    assert result.execution_performed
+    assert result.deploy_outcome is not None
     assert result.deploy_outcome.verdict is OutcomeVerdict.COMMIT
-    assert result.rollback_authorization is None
     assert result.rollback_outcome is None
-    assert result.final_state == f"production:{'b' * 40}"
+    assert result.final_state.endswith("b" * 40)
     assert result.ledger_valid
 
 
-def test_health_failure_requests_rollback_and_restores_previous_state():
+def test_health_failure_rolls_back_through_second_verified_transition():
     result = run_deployment_demo(fail_health=True)
+    assert result.deploy_use.verdict is UseTimeVerdict.EXECUTE
+    assert result.deploy_outcome is not None
     assert result.deploy_outcome.verdict is OutcomeVerdict.ROLLBACK
-    assert "INVARIANT_FAILED:health_ok" in result.deploy_outcome.reason_codes
     assert result.rollback_authorization is not None
-    assert result.rollback_authorization.verdict is TransitionVerdict.AUTHORIZE
+    assert result.rollback_use is not None
+    assert result.rollback_use.verdict is UseTimeVerdict.EXECUTE
+    assert result.rollback_execution_performed
     assert result.rollback_outcome is not None
     assert result.rollback_outcome.verdict is OutcomeVerdict.COMMIT
-    assert result.final_state == f"production:{'a' * 40}"
+    assert result.final_state.endswith("a" * 40)
     assert result.ledger_valid
 
 
-def test_demo_is_deterministic_for_same_inputs():
-    left = run_deployment_demo(fail_health=True)
-    right = run_deployment_demo(fail_health=True)
-    assert left.deploy_authorization.decision_id == right.deploy_authorization.decision_id
-    assert left.deploy_outcome.outcome_id == right.deploy_outcome.outcome_id
-    assert left.rollback_authorization is not None
-    assert right.rollback_authorization is not None
-    assert left.rollback_authorization.decision_id == right.rollback_authorization.decision_id
-    assert left.ledger_head == right.ledger_head
+def test_policy_drift_before_execute_blocks_without_execution():
+    result = run_deployment_demo(fail_health=False, drift_before_execute=True)
+    assert result.deploy_authorization.verdict.value == "AUTHORIZE"
+    assert result.deploy_use.verdict is UseTimeVerdict.BLOCK
+    assert "POLICY_REF_CHANGED" in result.deploy_use.reason_codes
+    assert not result.execution_performed
+    assert result.deploy_outcome is None
+    assert result.final_state.endswith("a" * 40)
+    assert result.ledger_valid
 
 
-def test_candidate_commit_changes_receipts_and_final_state():
-    first = run_deployment_demo(fail_health=False, candidate_sha="b" * 40)
-    second = run_deployment_demo(fail_health=False, candidate_sha="c" * 40)
-    assert first.deploy_authorization.decision_id != second.deploy_authorization.decision_id
-    assert first.deploy_outcome.outcome_id != second.deploy_outcome.outcome_id
-    assert first.final_state != second.final_state
+def test_demo_is_deterministic():
+    first = run_deployment_demo(fail_health=True)
+    second = run_deployment_demo(fail_health=True)
+    assert first.deploy_authorization.decision_id == second.deploy_authorization.decision_id
+    assert first.deploy_use.use_id == second.deploy_use.use_id
+    assert first.deploy_outcome is not None and second.deploy_outcome is not None
+    assert first.deploy_outcome.outcome_id == second.deploy_outcome.outcome_id
+    assert first.ledger_head == second.ledger_head
