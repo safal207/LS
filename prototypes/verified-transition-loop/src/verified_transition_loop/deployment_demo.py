@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import json
 
 from .core import (
@@ -13,18 +13,26 @@ from .core import (
     TransitionIntent,
     TransitionProposal,
     TransitionVerdict,
+    UseTimeReceipt,
+    UseTimeVerdict,
+    UseTokenRegistry,
     evaluate_transition,
-    verify_authorized_outcome,
+    revalidate_authorization_for_use,
+    verify_executed_outcome,
 )
 
 
 @dataclass(frozen=True)
 class DeploymentDemoResult:
     deploy_authorization: AuthorizationReceipt
-    deploy_outcome: OutcomeReceipt
+    deploy_use: UseTimeReceipt
+    deploy_outcome: OutcomeReceipt | None
     rollback_authorization: AuthorizationReceipt | None
+    rollback_use: UseTimeReceipt | None
     rollback_outcome: OutcomeReceipt | None
     final_state: str
+    execution_performed: bool
+    rollback_execution_performed: bool
     ledger_valid: bool
     ledger_head: str
 
@@ -32,12 +40,14 @@ class DeploymentDemoResult:
 def run_deployment_demo(
     *,
     fail_health: bool,
+    drift_before_execute: bool = False,
     now_ms: int = 1_800_000_000_000,
     previous_sha: str = "a" * 40,
     candidate_sha: str = "b" * 40,
 ) -> DeploymentDemoResult:
     """Run a deterministic, side-effect-free deployment transition demo."""
     ledger = EvidenceLedger()
+    use_registry = UseTokenRegistry()
 
     deploy_action = f"deploy:{candidate_sha}"
     intent = TransitionIntent(
@@ -66,6 +76,9 @@ def run_deployment_demo(
             "approval:deploy-001",
             "artifact:sha256-demo",
         ),
+        source_ref=f"git:{candidate_sha}",
+        policy_ref="policy:production-deploy-v1",
+        approval_ref="approval:deploy-001",
     )
     deploy_auth = evaluate_transition(
         intent=intent,
@@ -82,6 +95,49 @@ def run_deployment_demo(
     if deploy_auth.verdict is not TransitionVerdict.AUTHORIZE:
         raise RuntimeError("reference deployment scenario must authorize")
 
+    current_evidence = evidence
+    if drift_before_execute:
+        current_evidence = replace(
+            evidence,
+            policy_ref="policy:production-deploy-v2",
+        )
+
+    deploy_use = revalidate_authorization_for_use(
+        proposal=proposal,
+        authorization=deploy_auth,
+        current_evidence=current_evidence,
+        executor_id="deployment-executor",
+        now_ms=now_ms + 1_000,
+        execution_nonce="deploy-occurrence-001",
+    )
+    ledger.append("use_time_receipt", asdict(deploy_use))
+
+    execution_performed = use_registry.consume(deploy_use)
+    ledger.append(
+        "execution_permit_consumption",
+        {
+            "use_id": deploy_use.use_id,
+            "accepted": execution_performed,
+            "simulated": True,
+        },
+    )
+
+    if not execution_performed:
+        records = ledger.records
+        return DeploymentDemoResult(
+            deploy_authorization=deploy_auth,
+            deploy_use=deploy_use,
+            deploy_outcome=None,
+            rollback_authorization=None,
+            rollback_use=None,
+            rollback_outcome=None,
+            final_state=proposal.pre_state,
+            execution_performed=False,
+            rollback_execution_performed=False,
+            ledger_valid=EvidenceLedger.verify(records),
+            ledger_head=records[-1].record_hash,
+        )
+
     observed = ObservedOutcome(
         transition_id=proposal.transition_id,
         observed_post_state=f"production:{candidate_sha}",
@@ -92,9 +148,10 @@ def run_deployment_demo(
         ),
         rollback_available=True,
     )
-    deploy_outcome = verify_authorized_outcome(
+    deploy_outcome = verify_executed_outcome(
         proposal=proposal,
         authorization=deploy_auth,
+        use_receipt=deploy_use,
         outcome=observed,
         verifier_id="post-action-verifier",
     )
@@ -102,7 +159,9 @@ def run_deployment_demo(
     ledger.append("outcome_receipt", asdict(deploy_outcome))
 
     rollback_auth: AuthorizationReceipt | None = None
+    rollback_use: UseTimeReceipt | None = None
     rollback_outcome: OutcomeReceipt | None = None
+    rollback_execution_performed = False
     final_state = observed.observed_post_state
 
     if deploy_outcome.verdict is OutcomeVerdict.ROLLBACK:
@@ -132,6 +191,9 @@ def run_deployment_demo(
                 f"last-verified:{previous_sha}",
                 f"failed-transition:{deploy_outcome.outcome_id}",
             ),
+            source_ref=f"git:{previous_sha}",
+            policy_ref="policy:auto-rollback-v1",
+            approval_ref=f"approval:auto-rollback:{deploy_outcome.outcome_id}",
         )
         rollback_auth = evaluate_transition(
             intent=rollback_intent,
@@ -148,6 +210,28 @@ def run_deployment_demo(
         if rollback_auth.verdict is not TransitionVerdict.AUTHORIZE:
             raise RuntimeError("reference rollback scenario must authorize")
 
+        rollback_use = revalidate_authorization_for_use(
+            proposal=rollback_proposal,
+            authorization=rollback_auth,
+            current_evidence=rollback_evidence,
+            executor_id="rollback-executor",
+            now_ms=now_ms + 2_000,
+            execution_nonce="rollback-occurrence-001",
+        )
+        ledger.append("recovery_use_time_receipt", asdict(rollback_use))
+        rollback_execution_performed = use_registry.consume(rollback_use)
+        ledger.append(
+            "recovery_execution_permit_consumption",
+            {
+                "use_id": rollback_use.use_id,
+                "accepted": rollback_execution_performed,
+                "simulated": True,
+            },
+        )
+
+        if not rollback_execution_performed:
+            raise RuntimeError("reference rollback use-time revalidation must execute")
+
         recovered = ObservedOutcome(
             transition_id=rollback_proposal.transition_id,
             observed_post_state=f"production:{previous_sha}",
@@ -157,9 +241,10 @@ def run_deployment_demo(
             ),
             rollback_available=False,
         )
-        rollback_outcome = verify_authorized_outcome(
+        rollback_outcome = verify_executed_outcome(
             proposal=rollback_proposal,
             authorization=rollback_auth,
+            use_receipt=rollback_use,
             outcome=recovered,
             verifier_id="recovery-outcome-verifier",
         )
@@ -170,10 +255,14 @@ def run_deployment_demo(
     records = ledger.records
     return DeploymentDemoResult(
         deploy_authorization=deploy_auth,
+        deploy_use=deploy_use,
         deploy_outcome=deploy_outcome,
         rollback_authorization=rollback_auth,
+        rollback_use=rollback_use,
         rollback_outcome=rollback_outcome,
         final_state=final_state,
+        execution_performed=execution_performed,
+        rollback_execution_performed=rollback_execution_performed,
         ledger_valid=EvidenceLedger.verify(records),
         ledger_head=records[-1].record_hash,
     )
@@ -182,17 +271,25 @@ def run_deployment_demo(
 def main() -> None:
     healthy = run_deployment_demo(fail_health=False)
     failing = run_deployment_demo(fail_health=True)
+    drifted = run_deployment_demo(fail_health=False, drift_before_execute=True)
     print(
         json.dumps(
             {
                 "healthy": {
-                    "deploy": healthy.deploy_outcome.verdict.value,
+                    "use_time": healthy.deploy_use.verdict.value,
+                    "deploy": healthy.deploy_outcome.verdict.value if healthy.deploy_outcome else None,
                     "final_state": healthy.final_state,
                     "ledger_valid": healthy.ledger_valid,
                     "ledger_head": healthy.ledger_head,
                 },
                 "health_failure": {
-                    "deploy": failing.deploy_outcome.verdict.value,
+                    "use_time": failing.deploy_use.verdict.value,
+                    "deploy": failing.deploy_outcome.verdict.value if failing.deploy_outcome else None,
+                    "rollback_use_time": (
+                        failing.rollback_use.verdict.value
+                        if failing.rollback_use
+                        else None
+                    ),
                     "rollback": (
                         failing.rollback_outcome.verdict.value
                         if failing.rollback_outcome
@@ -202,7 +299,15 @@ def main() -> None:
                     "ledger_valid": failing.ledger_valid,
                     "ledger_head": failing.ledger_head,
                 },
-                "side_effects_performed": False,
+                "pre_execute_drift": {
+                    "use_time": drifted.deploy_use.verdict.value,
+                    "execution_performed": drifted.execution_performed,
+                    "deploy": None,
+                    "final_state": drifted.final_state,
+                    "ledger_valid": drifted.ledger_valid,
+                    "ledger_head": drifted.ledger_head,
+                },
+                "external_side_effects_performed": False,
             },
             indent=2,
             sort_keys=True,
