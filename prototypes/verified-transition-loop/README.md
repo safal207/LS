@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.1
+# Verified Transition Loop (VTL) v0.2
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution.
 
@@ -17,9 +17,23 @@ Intent
 
 **The verifier cannot be the executor of the transition it verifies.**
 
-VTL does not grant authority, deploy software, merge code, change IAM, or perform payments. It produces deterministic receipts that a separately authorized executor may consume.
+VTL does not grant authority, deploy software, merge code, change IAM, send messages, or perform payments. It produces deterministic receipts that a separately authorized executor may consume.
 
-## v0.1 evidence gate
+## v0.2 authorization binding
+
+An authorization receipt now binds:
+
+- the transition ID and intent ID;
+- the exact transition proposal digest;
+- the evidence digest;
+- verifier and executor identities;
+- the final authorization verdict.
+
+Post-action verification accepts an observed outcome through `verify_authorized_outcome()` only when the authorization receipt is intact, is `AUTHORIZE`, and still binds the exact proposal being verified.
+
+This closes the v0.1 gap where a post-action verdict could be evaluated without carrying the exact pre-action authorization receipt forward.
+
+## Evidence gate
 
 A transition is eligible for `AUTHORIZE` only when all required evidence is explicit and current:
 
@@ -34,16 +48,61 @@ Missing evidence yields `HOLD`. Contradictory, failed, expired, or mismatched ev
 
 ## Post-action verification
 
-The observed outcome is recorded separately from the pre-action authorization decision. Expected invariants are checked against the observed post-state:
+Expected invariants are checked against the independently observed post-state:
 
 - all expected invariants hold and state matches -> `COMMIT`;
 - failed invariant with rollback path -> `ROLLBACK`;
 - failed invariant with retry-only path -> `RETRY`;
-- missing evidence, binding mismatch, or no safe recovery path -> `ESCALATE`.
+- missing evidence, binding mismatch, invalid authorization, or no safe recovery path -> `ESCALATE`.
+
+The observed outcome is stored separately from the pre-action authorization decision.
+
+## Deployment Transition Demo
+
+v0.2 adds a deterministic, **side-effect-free** deployment demo:
+
+```text
+AI coding agent
+  -> proposes deploy(candidate commit)
+  -> exact commit + tests + approval are checked
+  -> AUTHORIZE
+  -> simulated deployment
+  -> independent observer checks commit/artifact/health
+```
+
+Healthy path:
+
+```text
+AUTHORIZE -> simulated deploy -> health_ok -> COMMIT
+```
+
+Failure/recovery path:
+
+```text
+AUTHORIZE
+  -> simulated deploy
+  -> health invariant fails
+  -> ROLLBACK
+  -> rollback becomes a new evidence-gated transition
+  -> simulated restore of last verified commit
+  -> independent recovery verification
+  -> COMMIT
+```
+
+The rollback is intentionally modeled as a **second verified transition**, rather than treating `ROLLBACK` as magic authority to mutate state.
+
+Run it:
+
+```bash
+python -m pip install -e .
+vtl-deployment-demo
+```
+
+The CLI prints only deterministic decision/final-state metadata and states explicitly that no side effect was performed.
 
 ## Deterministic evidence
 
-Receipts and the append-only evidence ledger use canonical JSON plus SHA-256. The ledger is tamper-evident and can be replay-verified.
+Receipts and the append-only evidence ledger use canonical JSON plus SHA-256. The demo records intent, proposal, authorization, observed outcome, recovery intent, recovery authorization, and recovery outcome into one replay-verifiable chain.
 
 ## Development
 
@@ -52,16 +111,8 @@ python -m pip install -e '.[dev]'
 pytest
 ```
 
-## First integration target
+## Current boundary
 
-The first product-shaped adapter should sit immediately before a software deployment boundary:
+v0.2 is a reference transition protocol and simulation oracle. It has no production deployment adapter, credential, GitHub write capability, cloud API, IAM capability, payment capability, or automatic merge path.
 
-```text
-AI coding agent proposes deploy(commit X)
--> VTL checks mission + exact commit + tests + approval
--> authorized executor performs deploy
--> independent observer supplies health/artifact evidence
--> VTL commits or requests rollback
-```
-
-The demo remains side-effect-free until a separately reviewed executor adapter is introduced.
+A future real executor must remain separately authorized and independently reviewed.
