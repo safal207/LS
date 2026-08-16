@@ -54,10 +54,12 @@ class EvidenceBundle:
 class AuthorizationReceipt:
     decision_id: str
     transition_id: str
+    intent_id: str
     verdict: TransitionVerdict
     reason_codes: tuple[str, ...]
     verifier_id: str
     executor_id: str
+    proposal_digest: str
     evidence_digest: str
 
 
@@ -79,6 +81,7 @@ class OutcomeReceipt:
     verifier_id: str
     executor_id: str
     observed_outcome_digest: str
+    authorization_decision_id: str | None = None
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -100,6 +103,24 @@ def _stable_id(prefix: str, value: Any) -> str:
 
 def _evidence_payload(evidence: EvidenceBundle) -> dict[str, Any]:
     return asdict(evidence)
+
+
+def _authorization_payload(receipt: AuthorizationReceipt) -> dict[str, Any]:
+    return {
+        "transition_id": receipt.transition_id,
+        "intent_id": receipt.intent_id,
+        "verdict": receipt.verdict.value,
+        "reason_codes": list(receipt.reason_codes),
+        "verifier_id": receipt.verifier_id,
+        "executor_id": receipt.executor_id,
+        "proposal_digest": receipt.proposal_digest,
+        "evidence_digest": receipt.evidence_digest,
+    }
+
+
+def verify_authorization_receipt(receipt: AuthorizationReceipt) -> bool:
+    expected_id = _stable_id("auth", _authorization_payload(receipt))
+    return receipt.decision_id == expected_id
 
 
 def evaluate_transition(
@@ -155,6 +176,7 @@ def evaluate_transition(
         verdict = TransitionVerdict.HOLD
         reasons.append("EVIDENCE_REFS_MISSING")
 
+    proposal_digest = _digest(asdict(proposal))
     evidence_digest = _digest(_evidence_payload(evidence))
     decision_payload = {
         "transition_id": proposal.transition_id,
@@ -163,16 +185,19 @@ def evaluate_transition(
         "reason_codes": reasons,
         "verifier_id": verifier_id,
         "executor_id": executor_id,
+        "proposal_digest": proposal_digest,
         "evidence_digest": evidence_digest,
     }
 
     return AuthorizationReceipt(
         decision_id=_stable_id("auth", decision_payload),
         transition_id=proposal.transition_id,
+        intent_id=proposal.intent_id,
         verdict=verdict,
         reason_codes=tuple(reasons),
         verifier_id=verifier_id,
         executor_id=executor_id,
+        proposal_digest=proposal_digest,
         evidence_digest=evidence_digest,
     )
 
@@ -183,6 +208,7 @@ def verify_outcome(
     outcome: ObservedOutcome,
     verifier_id: str,
     executor_id: str,
+    authorization_decision_id: str | None = None,
 ) -> OutcomeReceipt:
     reasons: list[str] = []
 
@@ -196,7 +222,10 @@ def verify_outcome(
         expected = set(proposal.invariants)
         observed = {name for name, _ in outcome.invariant_results}
         missing = sorted(expected - observed)
-        failed = sorted(name for name, ok in outcome.invariant_results if name in expected and not ok)
+        failed = sorted(
+            name for name, ok in outcome.invariant_results
+            if name in expected and not ok
+        )
 
         if missing:
             verdict = OutcomeVerdict.ESCALATE
@@ -228,6 +257,7 @@ def verify_outcome(
         "verifier_id": verifier_id,
         "executor_id": executor_id,
         "observed_outcome_digest": outcome_digest,
+        "authorization_decision_id": authorization_decision_id,
     }
 
     return OutcomeReceipt(
@@ -238,6 +268,85 @@ def verify_outcome(
         verifier_id=verifier_id,
         executor_id=executor_id,
         observed_outcome_digest=outcome_digest,
+        authorization_decision_id=authorization_decision_id,
+    )
+
+
+def verify_authorized_outcome(
+    *,
+    proposal: TransitionProposal,
+    authorization: AuthorizationReceipt,
+    outcome: ObservedOutcome,
+    verifier_id: str,
+) -> OutcomeReceipt:
+    if not verify_authorization_receipt(authorization):
+        return _authorization_failure_outcome(
+            proposal=proposal,
+            outcome=outcome,
+            verifier_id=verifier_id,
+            executor_id=authorization.executor_id,
+            authorization_decision_id=authorization.decision_id,
+            reason="AUTHORIZATION_RECEIPT_INVALID",
+        )
+    if authorization.verdict is not TransitionVerdict.AUTHORIZE:
+        return _authorization_failure_outcome(
+            proposal=proposal,
+            outcome=outcome,
+            verifier_id=verifier_id,
+            executor_id=authorization.executor_id,
+            authorization_decision_id=authorization.decision_id,
+            reason="TRANSITION_NOT_AUTHORIZED",
+        )
+    if (
+        authorization.transition_id != proposal.transition_id
+        or authorization.intent_id != proposal.intent_id
+        or authorization.proposal_digest != _digest(asdict(proposal))
+    ):
+        return _authorization_failure_outcome(
+            proposal=proposal,
+            outcome=outcome,
+            verifier_id=verifier_id,
+            executor_id=authorization.executor_id,
+            authorization_decision_id=authorization.decision_id,
+            reason="AUTHORIZATION_TRANSITION_MISMATCH",
+        )
+    return verify_outcome(
+        proposal=proposal,
+        outcome=outcome,
+        verifier_id=verifier_id,
+        executor_id=authorization.executor_id,
+        authorization_decision_id=authorization.decision_id,
+    )
+
+
+def _authorization_failure_outcome(
+    *,
+    proposal: TransitionProposal,
+    outcome: ObservedOutcome,
+    verifier_id: str,
+    executor_id: str,
+    authorization_decision_id: str,
+    reason: str,
+) -> OutcomeReceipt:
+    outcome_digest = _digest(asdict(outcome))
+    receipt_payload = {
+        "transition_id": proposal.transition_id,
+        "verdict": OutcomeVerdict.ESCALATE.value,
+        "reason_codes": [reason],
+        "verifier_id": verifier_id,
+        "executor_id": executor_id,
+        "observed_outcome_digest": outcome_digest,
+        "authorization_decision_id": authorization_decision_id,
+    }
+    return OutcomeReceipt(
+        outcome_id=_stable_id("outcome", receipt_payload),
+        transition_id=proposal.transition_id,
+        verdict=OutcomeVerdict.ESCALATE,
+        reason_codes=(reason,),
+        verifier_id=verifier_id,
+        executor_id=executor_id,
+        observed_outcome_digest=outcome_digest,
+        authorization_decision_id=authorization_decision_id,
     )
 
 
