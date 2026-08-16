@@ -9,10 +9,16 @@ from .core import (
     TransitionIntent,
     TransitionProposal,
     TransitionVerdict,
+    UseTimeReceipt,
+    UseTimeVerdict,
+    UseTokenRegistry,
     evaluate_transition,
+    revalidate_authorization_for_use,
     verify_authorization_receipt,
     verify_authorized_outcome,
+    verify_executed_outcome,
     verify_outcome,
+    verify_use_time_receipt,
 )
 
 __all__ = [
@@ -26,8 +32,14 @@ __all__ = [
     "TransitionIntent",
     "TransitionProposal",
     "TransitionVerdict",
+    "UseTimeReceipt",
+    "UseTimeVerdict",
+    "UseTokenRegistry",
     "evaluate_transition",
+    "revalidate_authorization_for_use",
     "verify_authorization_receipt",
     "verify_authorized_outcome",
+    "verify_executed_outcome",
     "verify_outcome",
+    "verify_use_time_receipt",
 ]
