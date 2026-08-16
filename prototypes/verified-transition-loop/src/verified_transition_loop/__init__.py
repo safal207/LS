@@ -10,6 +10,8 @@ from .core import (
     TransitionProposal,
     TransitionVerdict,
     evaluate_transition,
+    verify_authorization_receipt,
+    verify_authorized_outcome,
     verify_outcome,
 )
 
@@ -25,5 +27,7 @@ __all__ = [
     "TransitionProposal",
     "TransitionVerdict",
     "evaluate_transition",
+    "verify_authorization_receipt",
+    "verify_authorized_outcome",
     "verify_outcome",
 ]
