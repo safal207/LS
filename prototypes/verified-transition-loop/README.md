@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.2
+# Verified Transition Loop (VTL) v0.3
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution.
 
@@ -7,7 +7,9 @@ Intent
   -> Transition Proposal
   -> Evidence Gate
   -> AUTHORIZE | HOLD | BLOCK
-  -> external executor
+  -> use-time revalidation
+  -> EXECUTE | BLOCK
+  -> separately authorized executor
   -> Observed Outcome
   -> invariant verification
   -> COMMIT | RETRY | ROLLBACK | ESCALATE
@@ -17,92 +19,201 @@ Intent
 
 **The verifier cannot be the executor of the transition it verifies.**
 
-VTL does not grant authority, deploy software, merge code, change IAM, send messages, or perform payments. It produces deterministic receipts that a separately authorized executor may consume.
+v0.3 adds a second boundary:
 
-## v0.2 authorization binding
+> **`AUTHORIZE` is not an execution token.**
 
-An authorization receipt now binds:
+An authorization only says that the proposed transition was acceptable at evaluation time. Immediately before execution, VTL revalidates the current source, policy, approval, evidence, executor, and approval lifetime.
 
-- the transition ID and intent ID;
-- the exact transition proposal digest;
-- the evidence digest;
-- verifier and executor identities;
-- the final authorization verdict.
+Only a fresh `EXECUTE` use-time receipt may cross the execution boundary.
 
-Post-action verification accepts an observed outcome through `verify_authorized_outcome()` only when the authorization receipt is intact, is `AUTHORIZE`, and still binds the exact proposal being verified.
+VTL itself does not deploy software, merge code, change IAM, send messages, make payments, use credentials, or grant external authority.
 
-This closes the v0.1 gap where a post-action verdict could be evaluated without carrying the exact pre-action authorization receipt forward.
+## Why use-time revalidation exists
 
-## Evidence gate
+Between:
 
-A transition is eligible for `AUTHORIZE` only when all required evidence is explicit and current:
+```text
+AUTHORIZE -> EXECUTE
+```
 
-- mission is aligned;
-- exact source/artifact is bound;
-- required tests passed;
-- approval is current and unexpired;
-- at least one evidence reference is retained;
-- verifier and executor identities are distinct.
+the world can change.
 
-Missing evidence yields `HOLD`. Contradictory, failed, expired, or mismatched evidence yields `BLOCK`.
+Examples:
+
+- the candidate commit moves;
+- a policy is replaced;
+- an approval is revoked or expires;
+- evidence is refreshed or contradicted;
+- a different executor attempts to consume the decision.
+
+v0.2 bound the post-action result to the pre-action authorization receipt. v0.3 closes the remaining TOCTOU window before the action occurs.
+
+## Authorization-time bindings
+
+An authorization receipt binds:
+
+- transition and intent identity;
+- exact proposal digest;
+- complete evidence digest;
+- source reference;
+- policy reference;
+- approval reference and expiry;
+- verifier identity;
+- executor identity;
+- final `AUTHORIZE | HOLD | BLOCK` verdict.
+
+Missing source, policy, or approval references produce `HOLD`.
+
+## Use-time receipt
+
+`revalidate_authorization_for_use()` compares current execution context against the frozen authorization context.
+
+A successful receipt contains:
+
+```text
+authorization_decision_id
+transition_id
+EXECUTE
+executor_id
+proposal_digest
+context_digest
+execution_nonce
+checked_at_ms
+```
+
+Changes fail closed with explicit reasons such as:
+
+```text
+SOURCE_REF_CHANGED
+POLICY_REF_CHANGED
+APPROVAL_REF_CHANGED
+EVIDENCE_CONTEXT_CHANGED
+APPROVAL_NOT_CURRENT_AT_USE
+APPROVAL_EXPIRED_AT_USE
+EXECUTOR_BINDING_MISMATCH
+```
+
+A use-time receipt is integrity-verifiable and bound to a non-empty execution occurrence nonce.
+
+## Single-use execution permit
+
+The reference `UseTokenRegistry` demonstrates one more property:
+
+```text
+valid EXECUTE receipt -> first consume succeeds
+same receipt replay   -> rejected
+```
+
+The in-memory registry is a conformance reference, not a production distributed replay store. A production integration needs durable/transactional consumption at the real side-effect boundary.
 
 ## Post-action verification
 
-Expected invariants are checked against the independently observed post-state:
+`verify_executed_outcome()` carries both proof layers forward:
+
+```text
+AuthorizationReceipt
+        +
+UseTimeReceipt
+        +
+ObservedOutcome
+        ↓
+COMMIT | RETRY | ROLLBACK | ESCALATE
+```
+
+A tampered or blocked use-time receipt cannot produce `COMMIT`.
+
+Expected invariants are checked against independently observed post-state:
 
 - all expected invariants hold and state matches -> `COMMIT`;
 - failed invariant with rollback path -> `ROLLBACK`;
 - failed invariant with retry-only path -> `RETRY`;
-- missing evidence, binding mismatch, invalid authorization, or no safe recovery path -> `ESCALATE`.
-
-The observed outcome is stored separately from the pre-action authorization decision.
+- missing evidence, invalid binding, or no safe recovery path -> `ESCALATE`.
 
 ## Deployment Transition Demo
 
-v0.2 adds a deterministic, **side-effect-free** deployment demo:
-
-```text
-AI coding agent
-  -> proposes deploy(candidate commit)
-  -> exact commit + tests + approval are checked
-  -> AUTHORIZE
-  -> simulated deployment
-  -> independent observer checks commit/artifact/health
-```
+The demo remains deterministic and **side-effect-free**.
 
 Healthy path:
 
 ```text
-AUTHORIZE -> simulated deploy -> health_ok -> COMMIT
+AI proposes deploy(commit X)
+  -> AUTHORIZE
+  -> source/policy/approval/evidence revalidated
+  -> EXECUTE
+  -> simulated deploy
+  -> independent observation
+  -> COMMIT
 ```
 
 Failure/recovery path:
 
 ```text
 AUTHORIZE
+  -> EXECUTE
   -> simulated deploy
   -> health invariant fails
   -> ROLLBACK
-  -> rollback becomes a new evidence-gated transition
-  -> simulated restore of last verified commit
-  -> independent recovery verification
+  -> rollback becomes a new verified transition
+  -> AUTHORIZE rollback
+  -> revalidate rollback at use time
+  -> EXECUTE
+  -> simulated restore
+  -> recovery verification
   -> COMMIT
 ```
 
-The rollback is intentionally modeled as a **second verified transition**, rather than treating `ROLLBACK` as magic authority to mutate state.
+TOCTOU path:
 
-Run it:
+```text
+AUTHORIZE under policy v1
+  -> policy changes to v2 before execution
+  -> use-time revalidation
+  -> BLOCK
+  -> execution_performed = false
+  -> production state unchanged
+```
+
+Run:
 
 ```bash
 python -m pip install -e .
 vtl-deployment-demo
 ```
 
-The CLI prints only deterministic decision/final-state metadata and states explicitly that no side effect was performed.
+Representative output:
+
+```text
+healthy.use_time              = EXECUTE
+healthy.deploy                = COMMIT
+health_failure.deploy         = ROLLBACK
+health_failure.rollback       = COMMIT
+pre_execute_drift.use_time    = BLOCK
+pre_execute_drift.execution   = false
+ledger_valid                  = true
+external_side_effects         = false
+```
 
 ## Deterministic evidence
 
-Receipts and the append-only evidence ledger use canonical JSON plus SHA-256. The demo records intent, proposal, authorization, observed outcome, recovery intent, recovery authorization, and recovery outcome into one replay-verifiable chain.
+Authorization, use-time, outcome, and recovery receipts use canonical JSON plus SHA-256.
+
+The append-only evidence ledger records:
+
+```text
+intent
+proposal
+authorization
+use-time revalidation
+execution-permit consumption
+observed outcome
+outcome verdict
+recovery transition
+recovery use-time revalidation
+recovery outcome
+```
+
+The full chain can be replay-verified for tampering.
 
 ## Development
 
@@ -111,8 +222,24 @@ python -m pip install -e '.[dev]'
 pytest
 ```
 
+Current focused suite:
+
+```text
+30 passed
+```
+
 ## Current boundary
 
-v0.2 is a reference transition protocol and simulation oracle. It has no production deployment adapter, credential, GitHub write capability, cloud API, IAM capability, payment capability, or automatic merge path.
+v0.3 is still a reference protocol and simulation oracle.
 
-A future real executor must remain separately authorized and independently reviewed.
+It has:
+
+- no production deployment adapter;
+- no GitHub write capability;
+- no cloud API or IAM capability;
+- no credential access;
+- no payment capability;
+- no automatic merge path;
+- no durable distributed use-token registry.
+
+A real executor must remain separately authorized, pin the exact VTL implementation, consume the use token atomically with the protected side effect, and be independently reviewed.
