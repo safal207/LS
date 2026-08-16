@@ -10,6 +10,8 @@ from verified_transition_loop import (
     TransitionProposal,
     TransitionVerdict,
     evaluate_transition,
+    verify_authorization_receipt,
+    verify_authorized_outcome,
     verify_outcome,
 )
 
@@ -30,9 +32,9 @@ def fixtures():
     return intent, proposal, evidence
 
 
-def test_authorizes_complete_bound_evidence():
+def authorization():
     intent, proposal, evidence = fixtures()
-    receipt = evaluate_transition(
+    return proposal, evaluate_transition(
         intent=intent,
         proposal=proposal,
         evidence=evidence,
@@ -40,8 +42,13 @@ def test_authorizes_complete_bound_evidence():
         executor_id="executor",
         now_ms=NOW,
     )
+
+
+def test_authorizes_complete_bound_evidence():
+    _, receipt = authorization()
     assert receipt.verdict is TransitionVerdict.AUTHORIZE
     assert receipt.reason_codes == ()
+    assert verify_authorization_receipt(receipt)
 
 
 def test_missing_evidence_holds():
@@ -105,6 +112,28 @@ def test_authorization_receipt_is_deterministic():
     b = evaluate_transition(intent=intent, proposal=proposal, evidence=evidence, verifier_id="v", executor_id="e", now_ms=NOW)
     assert a.decision_id == b.decision_id
     assert a.evidence_digest == b.evidence_digest
+    assert a.proposal_digest == b.proposal_digest
+
+
+def test_tampered_authorization_receipt_is_rejected():
+    proposal, receipt = authorization()
+    tampered = replace(receipt, evidence_digest="0" * 64)
+    assert not verify_authorization_receipt(tampered)
+
+    outcome = ObservedOutcome(
+        "transition-1",
+        "production-healthy",
+        (("healthcheck_ok", True), ("artifact_matches", True)),
+        rollback_available=True,
+    )
+    result = verify_authorized_outcome(
+        proposal=proposal,
+        authorization=tampered,
+        outcome=outcome,
+        verifier_id="outcome-verifier",
+    )
+    assert result.verdict is OutcomeVerdict.ESCALATE
+    assert result.reason_codes == ("AUTHORIZATION_RECEIPT_INVALID",)
 
 
 def test_successful_outcome_commits():
@@ -117,6 +146,50 @@ def test_successful_outcome_commits():
     )
     receipt = verify_outcome(proposal=proposal, outcome=outcome, verifier_id="verifier", executor_id="executor")
     assert receipt.verdict is OutcomeVerdict.COMMIT
+
+
+def test_authorized_outcome_binds_authorization_receipt():
+    proposal, auth = authorization()
+    outcome = ObservedOutcome(
+        "transition-1",
+        "production-healthy",
+        (("healthcheck_ok", True), ("artifact_matches", True)),
+        rollback_available=True,
+    )
+    receipt = verify_authorized_outcome(
+        proposal=proposal,
+        authorization=auth,
+        outcome=outcome,
+        verifier_id="outcome-verifier",
+    )
+    assert receipt.verdict is OutcomeVerdict.COMMIT
+    assert receipt.authorization_decision_id == auth.decision_id
+
+
+def test_non_authorized_receipt_cannot_commit_outcome():
+    intent, proposal, evidence = fixtures()
+    held = evaluate_transition(
+        intent=intent,
+        proposal=proposal,
+        evidence=replace(evidence, tests_passed=None),
+        verifier_id="verifier",
+        executor_id="executor",
+        now_ms=NOW,
+    )
+    outcome = ObservedOutcome(
+        "transition-1",
+        "production-healthy",
+        (("healthcheck_ok", True), ("artifact_matches", True)),
+        rollback_available=True,
+    )
+    receipt = verify_authorized_outcome(
+        proposal=proposal,
+        authorization=held,
+        outcome=outcome,
+        verifier_id="outcome-verifier",
+    )
+    assert receipt.verdict is OutcomeVerdict.ESCALATE
+    assert receipt.reason_codes == ("TRANSITION_NOT_AUTHORIZED",)
 
 
 def test_failed_invariant_requests_rollback():
