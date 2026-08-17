@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "verified-transition-loop"
-version = "0.11.0"
+version = "0.12.0"
 description = "Evidence-gated state transitions for AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,6 +23,7 @@ vtl-attestation-verify = "verified_transition_loop.attestation:main"
 vtl-trust-root-verify = "verified_transition_loop.trust_snapshot:main"
 vtl-canonical-verify = "verified_transition_loop.canonical:main"
 vtl-canonical-envelope-verify = "verified_transition_loop.canonical_signed_envelope:main"
+vtl-canonical-trust-root-verify = "verified_transition_loop.canonical_trust_snapshot_conformance:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
