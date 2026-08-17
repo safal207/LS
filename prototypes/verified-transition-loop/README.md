@@ -21,34 +21,97 @@ Intent
 
 - verifier and executor are distinct;
 - historical authorization/alignment is not execution authority;
-- current source/policy/approval/evidence/executor state is revalidated immediately before use;
-- a valid `EXECUTE` receipt is occurrence-bound and single-use;
+- exact proposal, source, policy, approval, evidence, executor, and occurrence bindings are revalidated at use time;
+- a valid `EXECUTE` receipt is single-use;
+- repeating the first framework call after release cannot recreate fresh authority for the same occurrence;
 - the final runtime action envelope is frozen before dispatch;
 - grant authority and grant consumption are different claims;
 - sibling/equivalent-effect capability substitution fails closed;
 - mission-version drift fails closed rather than silently reinterpreting the goal;
-- recovery is a new verified transition rather than implicit mutation authority;
-- observed outcome remains separate from the pre-action verdict and dispatch record.
+- observed outcome remains separate from pre-action and dispatch records.
 
 VTL itself does not deploy software, execute framework tools, merge code, change IAM, send messages, make payments, use credentials, or grant external authority.
 
-## What v0.7 adds
+## Hardened v0.6 base carried into v0.7
 
-v0.6 established a portable use-time semantic oracle across two independent framework-shaped surfaces:
+v0.7 is stacked on the reviewed v0.6 interoperability layer and now carries its independent-review hardening as merge ancestry.
+
+### CrewAI-shaped continuation boundary
 
 ```text
-VTL semantic oracle
-        |
-        +-> CrewAI-shaped deferred tool authorization
-        |
-        +-> AutoGen-shaped Mission Keeper transition gate
+GuardrailRequest
+-> authorization
+-> DEFER
+-> secret continuation token
+-> fresh use-time revalidation
+-> ALLOW | DENY
 ```
 
-v0.7 extends that chain past authorization and asks a different question:
+The reference adapter now enforces:
+
+```text
+mutated request             -> REQUEST_BINDING_MISMATCH
+wrong secret token          -> CONTINUATION_TOKEN_INVALID
+continuation replay         -> CONTINUATION_ALREADY_USED
+repeat evaluate after ALLOW -> OCCURRENCE_ALREADY_RELEASED
+```
+
+Continuation tokens are cryptographically random rather than derivable from public decision/request identifiers, and are checked with constant-time comparison. Repeated evaluation while an occurrence is still pending is idempotent and returns the existing continuation rather than resetting state.
+
+### AutoGen-shaped Mission Keeper boundary
+
+```text
+MissionTransitionRequest
+-> MissionIntegrityRecord
+-> exact occurrence-bound gate
+-> CONTINUE | HALT | REQUIRE_REVIEW
+```
+
+`occurrence_id` is stored with pending authority. The gate-time execution nonce must reproduce that occurrence exactly:
+
+```text
+execution_nonce != occurrence_id
+-> OCCURRENCE_BINDING_MISMATCH
+-> HALT
+```
+
+After `CONTINUE`, repeating assessment for the same occurrence fails with `OCCURRENCE_ALREADY_RELEASED`.
+
+### Strict portable v0.4 oracle
+
+The vendor-neutral profile now contains **10 executable vectors**:
+
+```text
+stable context              -> EXECUTE
+source changed              -> BLOCK
+policy changed              -> BLOCK
+approval identity changed   -> BLOCK
+evidence context changed    -> BLOCK
+approval revoked            -> BLOCK
+approval expired            -> BLOCK
+executor substituted        -> BLOCK
+execution nonce missing     -> BLOCK
+proposal/transition changed -> BLOCK / AUTHORIZATION_TRANSITION_MISMATCH
+```
+
+The built-in fixture validator enforces the consumed JSON contract strictly: exact keys, nested required fields, primitive types without coercion, bounds/enums, and proposal/invariant constraints.
+
+Framework adapters may reject some invalid states earlier than the generic core oracle. For example, AutoGen requires its framework occurrence at assessment and uses it as the exact use-time nonce; proposal mutation is also prevented by the bound request digest.
+
+Artifacts:
+
+```text
+schemas/use-time-conformance-v0.4.schema.json
+fixtures/use-time-conformance-v0.4.json
+docs/USE_TIME_CONFORMANCE_V0_4.md
+src/verified_transition_loop/conformance.py
+```
+
+## What v0.7 adds: detached grant-consumption proof
+
+v0.7 extends verification beyond “authority was granted and still fresh” to:
 
 > Can a third party inspect a saved transcript and verify that the **exact use-time grant** was consumed by the **exact dispatch occurrence** and linked to the **exact observed outcome**?
-
-The new proof chain is:
 
 ```text
 AuthorizationReceipt
@@ -64,11 +127,9 @@ Observed Outcome
 detached verifier
 ```
 
-### Why `ActionGrantBinding` exists
+### ActionGrantBinding
 
-The v0.6 use-time receipt binds proposal, evidence/policy context, executor, and execution nonce. Framework-specific final arguments still need an explicit frozen boundary before dispatch.
-
-`ActionGrantBinding` commits to:
+Immediately before external dispatch, the reference proof freezes:
 
 ```text
 authorization_decision_id
@@ -85,33 +146,21 @@ policy_ref
 bound_at_ms
 ```
 
-`ToolDispatchReceipt` must consume that same binding. A different `dispatched_action_id`, changed envelope, changed executor, changed occurrence, replayed grant, or changed outcome fails detached verification.
+The later dispatch receipt must consume the same binding. Envelope drift, executor/occurrence substitution, replay, or sibling capability substitution fails detached verification.
 
-Full v0.7 contract and trust-boundary notes:
-
-```text
-docs/TOOL_DISPATCH_RECEIPT_V0_7.md
-```
-
-## Detached dispatch verification (v0.7)
+### Detached dispatch conformance
 
 Machine-readable artifacts:
 
 ```text
 schemas/tool-dispatch-receipt-v0.7.schema.json
 fixtures/tool-dispatch-receipt-v0.7.json
+docs/TOOL_DISPATCH_RECEIPT_V0_7.md
 src/verified_transition_loop/dispatch_receipt.py
 tests/test_dispatch_receipt.py
 ```
 
-Run:
-
-```bash
-python -m pip install -e .
-vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
-```
-
-Current deterministic vectors:
+The v0.7 fixture has **11 deterministic vectors**:
 
 ```text
 exact authorized dispatch              -> PASS
@@ -127,147 +176,32 @@ outcome bound to different transition  -> FAIL
 tampered observed outcome              -> FAIL
 ```
 
-The same detached verifier is exercised against both CrewAI-shaped and AutoGen-shaped reference transcripts.
-
-## Trust boundary: integrity != authenticity
-
-v0.7 uses deterministic canonical JSON and SHA-256 IDs/digests to make transcript mutations and inconsistent bindings detectable.
-
-This proves **internal transcript integrity/consistency**, not producer identity.
-
-A producer that controls every input could create another self-consistent unsigned transcript and recompute the hashes. If hostile-producer provenance is in scope, a production system needs an external trust root such as a signature, transparency log, hardware-backed identity, or attestation over the canonical transcript/root digest.
-
-Likewise, the reference replay set demonstrates the single-use rule but is not a distributed durable replay database. The embedding runtime must own durable permit consumption and the real dispatch seam.
-
-## CrewAI-shaped adapter (v0.5)
-
-```text
-GuardrailRequest
--> VTL authorization
--> DEFER | DENY
--> continuation / external approval
--> fresh authorization when prior state was HOLD
--> use-time revalidation
--> ALLOW | DENY
-```
-
-A VTL `AUTHORIZE` maps to `DEFER`, never directly to `ALLOW`. Only `resume(...)` may release a tool, and only after fresh use-time revalidation.
-
-Continuation safety includes:
-
-```text
-mutated request             -> REQUEST_BINDING_MISMATCH
-wrong continuation token    -> CONTINUATION_TOKEN_INVALID
-successful continuation x2  -> CONTINUATION_ALREADY_USED
-```
-
-The adapter reports `execution_binding = external` because it cannot claim atomicity with a real CrewAI tool side effect.
-
-Artifacts:
-
-```text
-src/verified_transition_loop/crewai_adapter.py
-docs/CREWAI_ADAPTER_V0_5.md
-tests/test_crewai_adapter.py
-```
-
-## AutoGen-shaped Mission Keeper adapter (v0.6)
-
-```text
-MissionTransitionRequest
-        ↓
-MissionIntegrityRecord
-        ↓
-use-time revalidation
-        ↓
-CONTINUE | HALT | REQUIRE_REVIEW
-```
-
-`MissionIntegrityRecord.assessment = ALIGNED` is historical evidence only. It is not an execution permit. The adapter intentionally exposes no executor/repair/rewrite API.
-
-Important boundaries:
-
-```text
-same verifier + executor
--> VERIFIER_EXECUTOR_NOT_SEPARATED
-
-mission version changes after assessment
--> MISSION_VERSION_CHANGED
--> HALT
-```
-
-A historical `HOLD` carries no latent authority; new approval/evidence requires a fresh authorization.
-
-Artifacts:
-
-```text
-src/verified_transition_loop/autogen_adapter.py
-docs/AUTOGEN_ADAPTER_V0_6.md
-tests/test_autogen_adapter.py
-```
-
-## Vendor-neutral use-time conformance (v0.4)
-
-The portable use-time semantic oracle remains:
-
-```text
-schemas/use-time-conformance-v0.4.schema.json
-fixtures/use-time-conformance-v0.4.json
-docs/USE_TIME_CONFORMANCE_V0_4.md
-src/verified_transition_loop/conformance.py
-```
-
-Reference vectors:
-
-```text
-stable context              -> EXECUTE
-source changed              -> BLOCK
-policy changed              -> BLOCK
-approval identity changed   -> BLOCK
-evidence context changed    -> BLOCK
-approval revoked            -> BLOCK
-approval expired            -> BLOCK
-executor substituted        -> BLOCK
-execution nonce missing     -> BLOCK
-```
-
-Cross-runtime mapping:
-
-```text
-stable context              -> EXECUTE / CrewAI ALLOW / AutoGen CONTINUE
-source changed              -> BLOCK   / DENY         / HALT
-policy changed              -> BLOCK   / DENY         / HALT
-approval identity changed   -> BLOCK   / DENY         / HALT
-evidence context changed    -> BLOCK   / DENY         / HALT
-approval revoked            -> BLOCK   / DENY         / HALT
-approval expired            -> BLOCK   / DENY         / HALT
-executor substituted        -> BLOCK   / DENY         / HALT
-execution nonce missing     -> BLOCK   / DENY         / HALT
-```
+The same detached verifier accepts both CrewAI-shaped and AutoGen-shaped reference transcripts when their bindings are exact.
 
 Run:
 
 ```bash
 vtl-conformance fixtures/use-time-conformance-v0.4.json
+vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 ```
 
-## Post-action and recovery verification
+## Evidence ledger hardening
 
-The existing outcome layer remains separate:
+The reference `EvidenceLedger` deep-copies appended payloads into internal state and returns defensive copies. Mutating the caller's original payload, the returned append result, or a `records` snapshot cannot silently alter the internal hash preimage.
 
-```text
-AuthorizationReceipt
-        +
-UseTimeReceipt
-        +
-ObservedOutcome
-        ↓
-COMMIT | RETRY | ROLLBACK | ESCALATE
-```
+This is still an integrity reference chain, not producer authentication.
 
-The deterministic deployment demo is side-effect-free and covers healthy commit, rollback/recovery, and TOCTOU policy drift before execution.
+## Trust ceiling: integrity != authenticity
 
-Run:
+v0.7 uses canonical JSON and deterministic SHA-256 bindings to detect internal transcript inconsistency, mutation, replay within the supplied replay context, and sibling-capability substitution.
+
+Those hashes do **not** prove producer identity. A producer controlling every input could manufacture a new self-consistent unsigned transcript. A hostile-producer threat model therefore requires an external signature, attestation, transparency log, hardware-backed identity, or equivalent trust root over the canonical transcript/root digest.
+
+Likewise, in-memory pending/released/use-token sets are conformance mechanisms, not a durable distributed transaction database. Production runtimes must own durable occurrence/grant consumption and make it atomic enough with real dispatch to prevent duplicate effects under retries or concurrency.
+
+## Side-effect-free recovery demo
+
+The deterministic demo still covers healthy commit, rollback/recovery, and TOCTOU policy drift immediately before execution without performing external side effects.
 
 ```bash
 vtl-deployment-demo
@@ -288,38 +222,12 @@ permissions: contents: read
 checkout.persist-credentials: false
 ```
 
-The workflow:
-
-- validates the v0.4 and v0.7 machine-readable contracts;
-- installs the isolated package;
-- verifies package version `0.7.0`;
-- runs the complete focused suite;
-- runs all nine use-time vectors;
-- runs all eleven detached dispatch vectors;
-- verifies the side-effect-free deployment / rollback / TOCTOU demo.
-
-## Development
-
-```bash
-python -m pip install -e '.[dev]'
-pytest
-```
+The workflow validates v0.4 and v0.7 machine-readable contracts, verifies package `0.7.0`, runs the complete focused suite, all **10** portable use-time vectors, all **11** detached dispatch vectors, and the deployment/rollback/TOCTOU demo.
 
 ## Current boundary
 
-v0.7 is a reference protocol, simulation oracle, two framework-shaped compatibility adapters, and a detached dispatch-transcript verifier.
+v0.7 is a reference protocol, semantic/conformance oracle, two framework-shaped compatibility adapters, and a detached dispatch-transcript verifier.
 
-It has:
+It has no native CrewAI/AutoGen dependency, no framework-adoption claim, no production dispatch adapter, no cloud/IAM/credential/payment capability, no automatic merge authority, no durable distributed consumption registry, and no cryptographic producer-provenance signer.
 
-- no native CrewAI dependency;
-- no native AutoGen dependency;
-- no claim of framework adoption;
-- no production deployment or tool-execution adapter;
-- no GitHub write capability inside VTL;
-- no cloud API or IAM capability;
-- no credential or payment capability;
-- no automatic merge path;
-- no durable distributed use-token / continuation / grant-consumption registry;
-- no cryptographic signer identity or provenance attestation for v0.7 transcripts.
-
-A production integration must own the real execution boundary, persist continuation/consumption state durably, consume permits atomically enough to prevent duplicate effects, and add an external authenticity mechanism when producer identity is part of the threat model.
+A production integration must own the real execution boundary, durable replay/grant state, atomic-enough permit consumption, and an external authenticity mechanism when producer identity is part of the threat model.
