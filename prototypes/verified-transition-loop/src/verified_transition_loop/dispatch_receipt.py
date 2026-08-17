@@ -257,27 +257,189 @@ def _add(reasons: list[str], reason: str, condition: bool) -> None:
         reasons.append(reason)
 
 
-def verify_dispatch_transcript(
-    transcript: Mapping[str, Any],
-    *,
-    seen_use_ids: MutableSet[str] | None = None,
-) -> VerificationResult:
+def _non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _string(value: Any) -> bool:
+    return isinstance(value, str)
+
+
+def _integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _nullable_string(value: Any) -> bool:
+    return value is None or isinstance(value, str)
+
+
+def _nullable_integer(value: Any) -> bool:
+    return value is None or _integer(value)
+
+
+def _hex64(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(ch in "0123456789abcdef" for ch in value)
+    )
+
+
+def _string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _object(value: Any) -> bool:
+    return isinstance(value, Mapping)
+
+
+def _enum(*allowed: str):
+    return lambda value: isinstance(value, str) and value in allowed
+
+
+_TRANSCRIPT_REQUIRED_FIELDS: dict[str, dict[str, Any]] = {
+    "proposal": {
+        "transition_id": _non_empty_string,
+        "intent_id": _non_empty_string,
+        "pre_state": _string,
+        "action": _non_empty_string,
+        "expected_post_state": _string,
+        "invariants": _string_list,
+    },
+    "authorization": {
+        "decision_id": _non_empty_string,
+        "transition_id": _non_empty_string,
+        "intent_id": _non_empty_string,
+        "verdict": _enum("AUTHORIZE", "HOLD", "BLOCK"),
+        "reason_codes": _string_list,
+        "verifier_id": _non_empty_string,
+        "executor_id": _non_empty_string,
+        "proposal_digest": _hex64,
+        "evidence_digest": _hex64,
+        "policy_ref": _nullable_string,
+    },
+    "use_time": {
+        "use_id": _non_empty_string,
+        "authorization_decision_id": _non_empty_string,
+        "transition_id": _non_empty_string,
+        "verdict": _enum("EXECUTE", "HOLD", "BLOCK"),
+        "reason_codes": _string_list,
+        "executor_id": _non_empty_string,
+        "proposal_digest": _hex64,
+        "context_digest": _hex64,
+        "execution_nonce": _string,
+        "checked_at_ms": _integer,
+    },
+    "action_envelope": {
+        "runtime_surface": _non_empty_string,
+        "transition_id": _non_empty_string,
+        "occurrence_id": _non_empty_string,
+        "action": _non_empty_string,
+        "payload": _object,
+    },
+    "grant_binding": {
+        "binding_id": _non_empty_string,
+        "profile_id": lambda value: value == PROFILE_ID,
+        "schema_version": lambda value: value == SCHEMA_VERSION,
+        "authorization_decision_id": _non_empty_string,
+        "use_id": _non_empty_string,
+        "transition_id": _non_empty_string,
+        "proposal_digest": _hex64,
+        "action_id": _non_empty_string,
+        "action_envelope_digest": _hex64,
+        "executor_id": _non_empty_string,
+        "execution_nonce": _string,
+        "occurrence_id": _non_empty_string,
+        "context_digest": _hex64,
+        "policy_ref": _nullable_string,
+        "bound_at_ms": _integer,
+    },
+    "dispatch_receipt": {
+        "receipt_id": _non_empty_string,
+        "profile_id": lambda value: value == PROFILE_ID,
+        "schema_version": lambda value: value == SCHEMA_VERSION,
+        "authorization_decision_id": _non_empty_string,
+        "use_id": _non_empty_string,
+        "grant_binding_id": _non_empty_string,
+        "transition_id": _non_empty_string,
+        "proposal_digest": _hex64,
+        "authorized_action_id": _non_empty_string,
+        "dispatched_action_id": _non_empty_string,
+        "action_envelope_digest": _hex64,
+        "executor_id": _non_empty_string,
+        "execution_nonce": _string,
+        "occurrence_id": _non_empty_string,
+        "context_digest": _hex64,
+        "policy_ref": _nullable_string,
+        "dispatch_ref": _non_empty_string,
+        "observed_outcome_ref": _non_empty_string,
+        "observed_outcome_digest": _hex64,
+        "dispatched_at_ms": _integer,
+        "observed_at_ms": _integer,
+    },
+    "observed_outcome": {
+        "outcome_ref": _non_empty_string,
+        "transition_id": _non_empty_string,
+    },
+}
+
+_AUTHORIZATION_OPTIONAL_FIELDS = {
+    "source_ref": _nullable_string,
+    "approval_ref": _nullable_string,
+    "approval_valid_until_ms": _nullable_integer,
+}
+
+
+def validate_transcript_shape(transcript: Any) -> tuple[str, ...]:
+    """Mirror the published transcript schema before any binding comparison.
+
+    This remains dependency-free by enforcing the schema's required fields and
+    field types directly. Missing fields never become matching ``None`` values.
+    """
+
+    if not isinstance(transcript, Mapping):
+        return ("TRANSCRIPT_ROOT_INVALID",)
+
     reasons: list[str] = []
     _add(reasons, "PROFILE_ID_MISMATCH", transcript.get("profile_id") != PROFILE_ID)
     _add(
-        reasons, "SCHEMA_VERSION_MISMATCH",
+        reasons,
+        "SCHEMA_VERSION_MISMATCH",
         transcript.get("schema_version") != SCHEMA_VERSION,
     )
 
-    names = (
-        "proposal", "authorization", "use_time", "action_envelope",
-        "grant_binding", "dispatch_receipt", "observed_outcome",
-    )
-    for name in names:
-        _add(
-            reasons, f"SECTION_INVALID:{name}",
-            not isinstance(transcript.get(name), Mapping),
-        )
+    for section_name, field_specs in _TRANSCRIPT_REQUIRED_FIELDS.items():
+        section = transcript.get(section_name)
+        if not isinstance(section, Mapping):
+            _add(reasons, f"SECTION_INVALID:{section_name}", True)
+            continue
+        for field_name, predicate in field_specs.items():
+            if field_name not in section or not predicate(section[field_name]):
+                _add(
+                    reasons,
+                    f"TRANSCRIPT_SCHEMA_INVALID:{section_name}.{field_name}",
+                    True,
+                )
+
+    authorization = transcript.get("authorization")
+    if isinstance(authorization, Mapping):
+        for field_name, predicate in _AUTHORIZATION_OPTIONAL_FIELDS.items():
+            if field_name in authorization and not predicate(authorization[field_name]):
+                _add(
+                    reasons,
+                    f"TRANSCRIPT_SCHEMA_INVALID:authorization.{field_name}",
+                    True,
+                )
+
+    return tuple(reasons)
+
+
+def verify_dispatch_transcript(
+    transcript: Any,
+    *,
+    seen_use_ids: MutableSet[str] | None = None,
+) -> VerificationResult:
+    reasons = list(validate_transcript_shape(transcript))
     if reasons:
         return VerificationResult(False, tuple(reasons))
 
@@ -358,7 +520,7 @@ def verify_dispatch_transcript(
         use.get("checked_at_ms"), grant.get("bound_at_ms"),
         dispatch.get("dispatched_at_ms"), dispatch.get("observed_at_ms"),
     )
-    if not all(isinstance(value, int) for value in times):
+    if not all(_integer(value) for value in times):
         _add(reasons, "TIMESTAMP_INVALID", True)
     else:
         checked, bound, dispatched, observed = times
@@ -413,13 +575,21 @@ def _materialize_case(base: Mapping[str, Any], case: Mapping[str, Any]) -> dict[
     return transcript
 
 
-def validate_fixture_shape(fixture: Mapping[str, Any]) -> None:
+def validate_fixture_shape(fixture: Any) -> None:
+    if not isinstance(fixture, Mapping):
+        raise ValueError("fixture root must be an object")
     if fixture.get("schema_version") != FIXTURE_SCHEMA_VERSION:
         raise ValueError("fixture schema_version mismatch")
     if fixture.get("profile_id") != PROFILE_ID:
         raise ValueError("fixture profile_id mismatch")
-    if not isinstance(fixture.get("base_transcript"), Mapping):
+    base_transcript = fixture.get("base_transcript")
+    if not isinstance(base_transcript, Mapping):
         raise ValueError("fixture base_transcript missing")
+    base_errors = validate_transcript_shape(base_transcript)
+    if base_errors:
+        raise ValueError(
+            "fixture base_transcript schema invalid: " + ", ".join(base_errors)
+        )
     cases = fixture.get("cases")
     if not isinstance(cases, list) or not cases:
         raise ValueError("fixture cases must be a non-empty list")
@@ -490,7 +660,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("path", help="JSON transcript or v0.7 fixture file")
     args = parser.parse_args(argv)
     data = json.loads(Path(args.path).read_text(encoding="utf-8"))
-    if data.get("schema_version") == FIXTURE_SCHEMA_VERSION:
+    if isinstance(data, Mapping) and data.get("schema_version") == FIXTURE_SCHEMA_VERSION:
         result = run_fixture(data)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0 if result["summary"]["all_passed"] else 1
