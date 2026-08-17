@@ -22,6 +22,7 @@ Intent
 - current source/policy/approval/evidence/executor state is revalidated immediately before use;
 - exact proposal/transition identity is revalidated at use time;
 - a valid `EXECUTE` receipt is occurrence-bound and single-use;
+- at most one pending authority path exists for one framework occurrence;
 - framework occurrences cannot be re-assessed/re-evaluated after successful release to recreate fresh authority;
 - mission-version drift fails closed rather than silently reinterpreting the goal;
 - recovery is a new verified transition rather than implicit mutation authority;
@@ -68,7 +69,7 @@ repeat evaluate after ALLOW -> OCCURRENCE_ALREADY_RELEASED
 
 Continuation tokens are generated with cryptographically strong randomness rather than derived from public request/decision identifiers, and resume uses constant-time comparison.
 
-Repeated `evaluate()` while one occurrence is still pending is idempotent: the adapter returns the existing pending continuation instead of resetting single-use state.
+Repeated `evaluate()` while one occurrence is still pending is idempotent **only when the complete request digest is unchanged**: the adapter returns the existing pending continuation instead of resetting state. Reusing the same occurrence id with changed request/tool arguments fails with `REQUEST_BINDING_MISMATCH` and returns no continuation token.
 
 The adapter reports `execution_binding = external` because it cannot claim atomicity with a real CrewAI tool side effect.
 
@@ -110,6 +111,8 @@ execution_nonce != occurrence_id
 -> HALT
 ```
 
+Only one unconsumed pending record may exist for one occurrence. A second `assess()` before release fails with `OCCURRENCE_ALREADY_PENDING`; if the original record was `HOLD`, fresh evidence must be applied through `gate()` on that record, where fresh authorization happens.
+
 After one `CONTINUE`, repeating `assess()` for the same occurrence fails with `OCCURRENCE_ALREADY_RELEASED`; it cannot recreate a fresh pending permit.
 
 A historical `HOLD` carries no latent authority. New approval/evidence triggers fresh authorization before use-time revalidation.
@@ -133,7 +136,7 @@ docs/USE_TIME_CONFORMANCE_V0_4.md
 src/verified_transition_loop/conformance.py
 ```
 
-The portable oracle now contains **ten executable vectors**:
+The portable oracle contains **ten executable vectors**:
 
 ```text
 stable context              -> EXECUTE
@@ -150,7 +153,7 @@ proposal/transition changed -> BLOCK / AUTHORIZATION_TRANSITION_MISMATCH
 
 The final vector keeps evidence stable while changing proposal identity so an implementation cannot claim conformance while silently ignoring proposal binding.
 
-The reference fixture validator now enforces the consumed schema strictly before execution: exact keys, nested required fields, primitive types without coercion, bounds, enums, and proposal/invariant constraints.
+The reference fixture validator enforces the consumed schema strictly before execution: exact keys, nested required fields, primitive types without coercion, bounds, enums, and proposal/invariant constraints.
 
 Framework adapters may enforce some invariants earlier than the generic oracle. For example, AutoGen requires its framework occurrence id before assessment and uses it as the exact gate nonce; a missing occurrence is therefore rejected before the portable empty-nonce path. The portable ten-vector profile remains the semantic reference.
 
