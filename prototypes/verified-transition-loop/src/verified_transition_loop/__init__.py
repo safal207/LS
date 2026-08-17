@@ -27,9 +27,21 @@ from .core import (
     verify_outcome,
     verify_use_time_receipt,
 )
+from .crewai_adapter import (
+    CrewGuardrailDecision,
+    CrewGuardrailDisposition,
+    CrewGuardrailRequest,
+    CrewVTLContext,
+    CrewVTLGuardrailProvider,
+)
 
 __all__ = [
     "AuthorizationReceipt",
+    "CrewGuardrailDecision",
+    "CrewGuardrailDisposition",
+    "CrewGuardrailRequest",
+    "CrewVTLContext",
+    "CrewVTLGuardrailProvider",
     "EvidenceBundle",
     "EvidenceLedger",
     "LedgerRecord",
