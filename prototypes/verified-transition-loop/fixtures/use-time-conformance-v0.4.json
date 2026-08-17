@@ -1,0 +1,247 @@
+{
+  "schema_version": "vtl.use-time-conformance/v0.4",
+  "profile": {
+    "profile_id": "vtl-use-time-v0.4",
+    "receipt_ids": "implementation-local",
+    "reason_code_order": "normative",
+    "comparison_rule": "exact equality for frozen source, policy, approval, proposal, evidence, and executor bindings",
+    "authorization_is_execution_authority": false,
+    "execute_receipt_single_use": true
+  },
+  "base": {
+    "intent": {
+      "intent_id": "intent-1",
+      "actor": "agent",
+      "action": "deploy",
+      "purpose": "release exact commit"
+    },
+    "proposal": {
+      "transition_id": "transition-1",
+      "intent_id": "intent-1",
+      "pre_state": "staging",
+      "action": "deploy",
+      "expected_post_state": "production-healthy",
+      "invariants": [
+        "healthcheck_ok",
+        "artifact_matches"
+      ]
+    },
+    "authorization_evidence": {
+      "mission_aligned": true,
+      "exact_source_bound": true,
+      "tests_passed": true,
+      "approval_current": true,
+      "approval_valid_until_ms": 1500,
+      "evidence_refs": [
+        "ci:42",
+        "approval:7"
+      ],
+      "source_ref": "git:abc",
+      "policy_ref": "policy:deploy-v1",
+      "approval_ref": "approval:7"
+    },
+    "authorization_verifier_id": "verifier",
+    "executor_id": "executor",
+    "authorized_at_ms": 1000
+  },
+  "cases": [
+    {
+      "id": "stable-context-executes",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-1",
+      "expected": {
+        "verdict": "EXECUTE",
+        "reason_codes": [],
+        "consume_results": [true, false]
+      }
+    },
+    {
+      "id": "source-ref-drift-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:def",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-2",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["SOURCE_REF_CHANGED", "EVIDENCE_CONTEXT_CHANGED"],
+        "consume_results": [false]
+      }
+    },
+    {
+      "id": "policy-ref-drift-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v2",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-3",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["POLICY_REF_CHANGED", "EVIDENCE_CONTEXT_CHANGED"],
+        "consume_results": [false]
+      }
+    },
+    {
+      "id": "approval-ref-drift-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:8"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-4",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["APPROVAL_REF_CHANGED", "EVIDENCE_CONTEXT_CHANGED"],
+        "consume_results": [false]
+      }
+    },
+    {
+      "id": "evidence-context-drift-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7", "scan:fresh"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-5",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["EVIDENCE_CONTEXT_CHANGED"],
+        "consume_results": [false]
+      }
+    },
+    {
+      "id": "approval-revoked-at-use-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": false,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-6",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["EVIDENCE_CONTEXT_CHANGED", "APPROVAL_NOT_CURRENT_AT_USE"],
+        "consume_results": [false]
+      }
+    },
+    {
+      "id": "approval-expired-at-use-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1501,
+      "execution_nonce": "occurrence-7",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["APPROVAL_EXPIRED_AT_USE"],
+        "consume_results": [false]
+      }
+    },
+    {
+      "id": "executor-substitution-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "other-executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-8",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["EXECUTOR_BINDING_MISMATCH"],
+        "consume_results": [false]
+      }
+    },
+    {
+      "id": "empty-execution-nonce-blocks",
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["EXECUTION_NONCE_INVALID"],
+        "consume_results": [false]
+      }
+    }
+  ]
+}
