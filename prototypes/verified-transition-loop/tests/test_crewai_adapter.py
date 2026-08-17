@@ -106,6 +106,24 @@ def test_repeated_pending_evaluate_is_idempotent_and_keeps_secret_token():
     assert other_first.continuation_token != first.continuation_token
 
 
+def test_same_occurrence_with_mutated_request_does_not_disclose_pending_token():
+    provider, _ = provider_and_resolver()
+    request = base_request()
+    first = provider.evaluate(request, now_ms=NOW)
+    assert first.continuation_token
+
+    mutated = replace(
+        request,
+        tool_input={"commit": "c" * 40, "environment": "production"},
+    )
+    denied = provider.evaluate(mutated, now_ms=NOW + 1)
+
+    assert denied.disposition is CrewGuardrailDisposition.DENY
+    assert denied.reason_codes == ("REQUEST_BINDING_MISMATCH",)
+    assert denied.decision_ref == first.decision_ref
+    assert denied.continuation_token is None
+
+
 def test_repeating_first_call_after_allow_cannot_reset_single_use_state():
     provider, _ = provider_and_resolver()
     request = base_request()
