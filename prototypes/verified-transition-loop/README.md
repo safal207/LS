@@ -21,8 +21,10 @@ Intent
 
 - verifier and executor are distinct;
 - historical authorization/alignment is not execution authority;
-- exact proposal, source, policy, approval, evidence, executor, and occurrence bindings are revalidated at use time;
+- exact proposal, source, policy, approval, evidence, executor, request, and occurrence bindings are revalidated at use time;
 - a valid `EXECUTE` receipt is single-use;
+- one framework occurrence has at most one unconsumed pending authority path;
+- a pending continuation is reusable only by the exact same request digest;
 - repeating the first framework call after release cannot recreate fresh authority for the same occurrence;
 - the final runtime action envelope is frozen before dispatch;
 - grant authority and grant consumption are different claims;
@@ -34,7 +36,7 @@ VTL itself does not deploy software, execute framework tools, merge code, change
 
 ## Hardened v0.6 base carried into v0.7
 
-v0.7 is stacked on the reviewed v0.6 interoperability layer and now carries its independent-review hardening as merge ancestry.
+v0.7 is stacked on the reviewed v0.6 interoperability layer and carries its security hardening as actual merge ancestry.
 
 ### CrewAI-shaped continuation boundary
 
@@ -47,7 +49,7 @@ GuardrailRequest
 -> ALLOW | DENY
 ```
 
-The reference adapter now enforces:
+The reference adapter enforces:
 
 ```text
 mutated request             -> REQUEST_BINDING_MISMATCH
@@ -56,7 +58,9 @@ continuation replay         -> CONTINUATION_ALREADY_USED
 repeat evaluate after ALLOW -> OCCURRENCE_ALREADY_RELEASED
 ```
 
-Continuation tokens are cryptographically random rather than derivable from public decision/request identifiers, and are checked with constant-time comparison. Repeated evaluation while an occurrence is still pending is idempotent and returns the existing continuation rather than resetting state.
+Continuation tokens are cryptographically random rather than derivable from public decision/request identifiers and are checked with constant-time comparison.
+
+Repeated `evaluate()` while an occurrence is still pending is idempotent **only for the exact same request digest**. A reused occurrence id with changed request/tool arguments is denied with `REQUEST_BINDING_MISMATCH` and the pending continuation token is not returned. This prevents occurrence reuse from becoming a secret-retrieval path.
 
 ### AutoGen-shaped Mission Keeper boundary
 
@@ -75,11 +79,19 @@ execution_nonce != occurrence_id
 -> HALT
 ```
 
+Only one unconsumed pending record may exist for one occurrence. A second `assess()` before release fails with:
+
+```text
+OCCURRENCE_ALREADY_PENDING
+```
+
+If the original record is `HOLD`, new approval/evidence must flow through `gate()` on that original record, where fresh authorization happens. This prevents a second assessment from creating a parallel `ALIGNED` authority path for the same occurrence.
+
 After `CONTINUE`, repeating assessment for the same occurrence fails with `OCCURRENCE_ALREADY_RELEASED`.
 
 ### Strict portable v0.4 oracle
 
-The vendor-neutral profile now contains **10 executable vectors**:
+The vendor-neutral profile contains **10 executable vectors**:
 
 ```text
 stable context              -> EXECUTE
