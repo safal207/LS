@@ -109,6 +109,7 @@ class MissionOutcomeLink:
 @dataclass
 class _PendingMissionDecision:
     request_digest: str
+    occurrence_id: str
     intent: TransitionIntent
     proposal: TransitionProposal
     authorization: AuthorizationReceipt
@@ -231,6 +232,7 @@ class AutoGenMissionKeeperAdapter:
     def __init__(self, context_resolver: ContextResolver) -> None:
         self._resolve = context_resolver
         self._pending: dict[str, _PendingMissionDecision] = {}
+        self._released_occurrences: set[str] = set()
         self._use_registry = UseTokenRegistry()
 
     def assess(
@@ -253,6 +255,14 @@ class AutoGenMissionKeeperAdapter:
                 context=context,
                 assessment=MissionAssessment.REJECTED,
                 reason_codes=("OCCURRENCE_ID_MISSING",),
+            )
+        if request.occurrence_id in self._released_occurrences:
+            return _assessment_record(
+                request=request,
+                request_digest=request_digest,
+                context=context,
+                assessment=MissionAssessment.REJECTED,
+                reason_codes=("OCCURRENCE_ALREADY_RELEASED",),
             )
         if context.verifier_id == context.executor_id:
             return _assessment_record(
@@ -320,14 +330,17 @@ class AutoGenMissionKeeperAdapter:
         )
 
         if authorization.verdict is not TransitionVerdict.BLOCK:
-            self._pending[record.record_id] = _PendingMissionDecision(
-                request_digest=request_digest,
-                intent=intent,
-                proposal=proposal,
-                authorization=authorization,
-                mission_id=request.mission_id,
-                mission_version=request.mission_version,
-            )
+            existing = self._pending.get(record.record_id)
+            if existing is None:
+                self._pending[record.record_id] = _PendingMissionDecision(
+                    request_digest=request_digest,
+                    occurrence_id=request.occurrence_id,
+                    intent=intent,
+                    proposal=proposal,
+                    authorization=authorization,
+                    mission_id=request.mission_id,
+                    mission_version=request.mission_version,
+                )
 
         return record
 
@@ -357,6 +370,12 @@ class AutoGenMissionKeeperAdapter:
                 record_id=integrity_record_id,
                 decision=MissionControlDecision.HALT,
                 reasons=("REQUEST_BINDING_MISMATCH",),
+            )
+        if execution_nonce != pending.occurrence_id:
+            return _control(
+                record_id=integrity_record_id,
+                decision=MissionControlDecision.HALT,
+                reasons=("OCCURRENCE_BINDING_MISMATCH",),
             )
 
         try:
@@ -432,6 +451,7 @@ class AutoGenMissionKeeperAdapter:
                     use_id=use_receipt.use_id,
                 )
             pending.consumed = True
+            self._released_occurrences.add(pending.occurrence_id)
             return _control(
                 record_id=integrity_record_id,
                 decision=MissionControlDecision.CONTINUE,
