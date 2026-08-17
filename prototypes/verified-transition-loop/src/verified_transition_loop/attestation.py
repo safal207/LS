@@ -20,6 +20,7 @@ SCHEMA_VERSION = "vtl.attested-dispatch/v0.8"
 FIXTURE_SCHEMA_VERSION = "vtl.attested-dispatch-fixture/v0.8"
 TRUST_ROOT_PROFILE_ID = "vtl-trust-root/v0.8"
 ED25519 = "ED25519"
+ED25519_PUBLIC_KEY_BYTES = 32
 
 
 @dataclass(frozen=True)
@@ -264,15 +265,36 @@ def verify_attested_dispatch(
             key["algorithm"] != algorithm,
         )
         _add(trust_reasons, "SIGNER_REVOKED", key["revoked"] is True)
+        key_interval_valid = key["not_after_ms"] >= key["not_before_ms"]
+        _add(
+            trust_reasons,
+            "SIGNER_KEY_VALIDITY_INVALID",
+            not key_interval_valid,
+        )
         _add(
             trust_reasons,
             "SIGNER_KEY_NOT_CURRENT",
-            now_ms < key["not_before_ms"] or now_ms > key["not_after_ms"],
+            key_interval_valid
+            and (now_ms < key["not_before_ms"] or now_ms > key["not_after_ms"]),
         )
 
         signature_bytes = _decode_base64(attestation["signature"])
         public_key_bytes = _decode_base64(key["public_key_base64"])
-        if algorithm_allowed and key["algorithm"] == ED25519 and signature_bytes and public_key_bytes:
+        public_key_material_valid = (
+            public_key_bytes is not None
+            and len(public_key_bytes) == ED25519_PUBLIC_KEY_BYTES
+        )
+        _add(
+            trust_reasons,
+            "TRUST_KEY_MATERIAL_INVALID",
+            not public_key_material_valid,
+        )
+        if (
+            algorithm_allowed
+            and key["algorithm"] == ED25519
+            and signature_bytes is not None
+            and public_key_material_valid
+        ):
             try:
                 Ed25519PublicKey.from_public_bytes(public_key_bytes).verify(
                     signature_bytes,
@@ -281,7 +303,11 @@ def verify_attested_dispatch(
                 signature_valid = True
             except (InvalidSignature, ValueError):
                 signature_valid = False
-        _add(reasons, "SIGNATURE_INVALID", not signature_valid and algorithm_allowed)
+        _add(
+            reasons,
+            "SIGNATURE_INVALID",
+            not signature_valid and algorithm_allowed and public_key_material_valid,
+        )
 
     _add(
         trust_reasons,
