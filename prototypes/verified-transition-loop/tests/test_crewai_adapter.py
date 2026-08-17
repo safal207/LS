@@ -90,6 +90,33 @@ def test_authorized_tool_call_defers_until_use_time_then_allows():
     assert resumed.use_id
 
 
+def test_repeated_pending_evaluate_is_idempotent_and_keeps_secret_token():
+    provider, _ = provider_and_resolver()
+    request = base_request()
+    first = provider.evaluate(request, now_ms=NOW)
+    repeated = provider.evaluate(request, now_ms=NOW + 1)
+
+    assert repeated.disposition is CrewGuardrailDisposition.DEFER
+    assert repeated.decision_ref == first.decision_ref
+    assert repeated.continuation_token == first.continuation_token
+
+    other = replace(request, tool_call_id="tool-call-002")
+    other_first = provider.evaluate(other, now_ms=NOW)
+    assert other_first.continuation_token
+    assert other_first.continuation_token != first.continuation_token
+
+
+def test_repeating_first_call_after_allow_cannot_reset_single_use_state():
+    provider, _ = provider_and_resolver()
+    request = base_request()
+    first = provider.evaluate(request, now_ms=NOW)
+    assert _resume(provider, first, request).disposition is CrewGuardrailDisposition.ALLOW
+
+    repeated = provider.evaluate(request, now_ms=NOW + 2)
+    assert repeated.disposition is CrewGuardrailDisposition.DENY
+    assert repeated.reason_codes == ("OCCURRENCE_ALREADY_RELEASED",)
+
+
 def test_wrong_continuation_token_is_rejected():
     provider, _ = provider_and_resolver()
     request = base_request()
@@ -195,6 +222,12 @@ def test_v04_vectors_map_to_crewai_allow_or_deny_with_same_reasons():
     authorized_evidence = EvidenceBundle(**authorized_data)
 
     for case in fixture["cases"]:
+        # Proposal drift is exercised directly by the portable core oracle.
+        # Framework adapters bind their own generated proposal to the request and
+        # cover request mutation separately rather than accepting case overrides.
+        if "proposal" in case:
+            continue
+
         current_data = dict(case["current_evidence"])
         current_data["evidence_refs"] = tuple(current_data["evidence_refs"])
         current_evidence = EvidenceBundle(**current_data)
