@@ -1,3 +1,15 @@
+from .autogen_adapter import (
+    AutoGenMissionKeeperAdapter,
+    AutoGenVTLContext,
+    MissionAssessment,
+    MissionControlDecision,
+    MissionControlRecord,
+    MissionIntegrityRecord,
+    MissionObservedOutcome,
+    MissionOutcomeLink,
+    MissionTransitionRequest,
+    link_observed_outcome,
+)
 from .conformance import (
     PROFILE_ID,
     SCHEMA_VERSION,
@@ -37,6 +49,8 @@ from .crewai_adapter import (
 
 __all__ = [
     "AuthorizationReceipt",
+    "AutoGenMissionKeeperAdapter",
+    "AutoGenVTLContext",
     "CrewGuardrailDecision",
     "CrewGuardrailDisposition",
     "CrewGuardrailRequest",
@@ -45,6 +59,13 @@ __all__ = [
     "EvidenceBundle",
     "EvidenceLedger",
     "LedgerRecord",
+    "MissionAssessment",
+    "MissionControlDecision",
+    "MissionControlRecord",
+    "MissionIntegrityRecord",
+    "MissionObservedOutcome",
+    "MissionOutcomeLink",
+    "MissionTransitionRequest",
     "ObservedOutcome",
     "OutcomeReceipt",
     "OutcomeVerdict",
@@ -57,6 +78,7 @@ __all__ = [
     "UseTimeVerdict",
     "UseTokenRegistry",
     "evaluate_transition",
+    "link_observed_outcome",
     "load_fixture",
     "revalidate_authorization_for_use",
     "run_fixture",
