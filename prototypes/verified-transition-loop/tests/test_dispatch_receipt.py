@@ -163,7 +163,7 @@ def transcript_for_autogen():
         transition_id=request.transition_id,
         intent_id="autogen-intent-v07",
         executor_id="autogen-runtime-executor",
-        execution_nonce="autogen-use-v07",
+        execution_nonce=request.occurrence_id,
     )
     envelope = ActionEnvelope(
         runtime_surface="autogen",
