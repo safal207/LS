@@ -21,6 +21,8 @@ def test_schema_and_fixture_are_valid_json_documents():
     assert fixture["schema_version"] == SCHEMA_VERSION
     assert fixture["profile"]["profile_id"] == PROFILE_ID
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert schema["properties"]["schema_version"]["const"] == SCHEMA_VERSION
+    assert schema["properties"]["profile"]["properties"]["profile_id"]["const"] == PROFILE_ID
 
 
 def test_vendor_neutral_use_time_vectors_all_pass():
