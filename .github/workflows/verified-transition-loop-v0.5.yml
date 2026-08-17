@@ -57,7 +57,7 @@ jobs:
           from pathlib import Path
 
           data = json.loads(Path('/tmp/vtl-demo.json').read_text())
-          assert data['side_effects_performed'] is False
+          assert data['external_side_effects_performed'] is False
           assert data['healthy']['deploy'] == 'COMMIT'
           assert data['health_failure']['deploy'] == 'ROLLBACK'
           assert data['health_failure']['rollback'] == 'COMMIT'
