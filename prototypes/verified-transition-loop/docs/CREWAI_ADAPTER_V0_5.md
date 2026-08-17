@@ -55,7 +55,16 @@ After one successful `ALLOW`, the occurrence is marked released for the lifetime
 OCCURRENCE_ALREADY_RELEASED
 ```
 
-A repeated `evaluate()` while the occurrence is still pending is idempotent: it returns the existing decision and continuation rather than replacing pending state.
+A repeated `evaluate()` while the occurrence is still pending is idempotent **only for the same request digest**. It returns the existing decision and continuation rather than replacing pending state.
+
+If a caller reuses the same occurrence id with changed tool arguments or any other request field, the adapter fails closed before returning the pending continuation secret:
+
+```text
+REQUEST_BINDING_MISMATCH
+continuation_token = null
+```
+
+This prevents a guessable/reused occurrence id from becoming a way to retrieve another request's pending continuation token.
 
 ## Decision shape
 
@@ -139,7 +148,7 @@ The adapter preserves ordered VTL reason codes for denied use-time cases that re
 
 ## Reference-state boundary
 
-The pending-continuation map, released-occurrence set, and use-token registry are in-memory reference mechanisms. They demonstrate the normative idempotency and single-use rules but are not a durable distributed transaction system.
+The pending-continuation map, occurrence-to-pending index, released-occurrence set, and use-token registry are in-memory reference mechanisms. They demonstrate the normative request-binding, idempotency and single-use rules but are not a durable distributed transaction system.
 
 A production integration must persist continuation and occurrence-consumption state durably and make permit consumption atomic enough with the actual tool dispatch that retries or concurrent workers cannot produce a second side effect.
 
