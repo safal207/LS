@@ -261,6 +261,8 @@ python -m pip install -e '.[dev]'
 pytest
 ```
 
+v0.4 adds five focused interoperability tests on top of the v0.3 transition suite.
+
 ## Current boundary
 
 v0.4 is still a reference protocol, simulation oracle, and interoperability fixture.
