@@ -159,10 +159,13 @@ class CrewVTLGuardrailProvider:
         if occurrence_id in self._released_occurrences:
             return _deny("OCCURRENCE_ALREADY_RELEASED")
 
+        request_digest = _request_digest(request)
         existing_ref = self._pending_by_occurrence.get(occurrence_id)
         if existing_ref is not None:
             existing = self._pending.get(existing_ref)
             if existing is not None and not existing.consumed:
+                if request_digest != existing.request_digest:
+                    return _deny("REQUEST_BINDING_MISMATCH", decision_ref=existing_ref)
                 reasons = existing.authorization.reason_codes
                 if existing.authorization.verdict is TransitionVerdict.AUTHORIZE:
                     reasons = ("USE_TIME_REVALIDATION_REQUIRED",)
@@ -181,7 +184,6 @@ class CrewVTLGuardrailProvider:
         except Exception:
             return _deny("CONTEXT_RESOLUTION_FAILED")
 
-        request_digest = _request_digest(request)
         action = _tool_action(request)
         suffix = request_digest[:20]
         intent = TransitionIntent(
