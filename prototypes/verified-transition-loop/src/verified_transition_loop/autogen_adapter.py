@@ -232,6 +232,7 @@ class AutoGenMissionKeeperAdapter:
     def __init__(self, context_resolver: ContextResolver) -> None:
         self._resolve = context_resolver
         self._pending: dict[str, _PendingMissionDecision] = {}
+        self._pending_by_occurrence: dict[str, str] = {}
         self._released_occurrences: set[str] = set()
         self._use_registry = UseTokenRegistry()
 
@@ -289,6 +290,18 @@ class AutoGenMissionKeeperAdapter:
                 reason_codes=("MISSION_VERSION_CHANGED",),
             )
 
+        existing_ref = self._pending_by_occurrence.get(request.occurrence_id)
+        if existing_ref is not None:
+            existing = self._pending.get(existing_ref)
+            if existing is not None and not existing.consumed:
+                return _assessment_record(
+                    request=request,
+                    request_digest=request_digest,
+                    context=context,
+                    assessment=MissionAssessment.REJECTED,
+                    reason_codes=("OCCURRENCE_ALREADY_PENDING",),
+                )
+
         suffix = request_digest[:20]
         intent = TransitionIntent(
             intent_id=f"autogen-intent-{suffix}",
@@ -341,6 +354,7 @@ class AutoGenMissionKeeperAdapter:
                     mission_id=request.mission_id,
                     mission_version=request.mission_version,
                 )
+                self._pending_by_occurrence[request.occurrence_id] = record.record_id
 
         return record
 
@@ -364,6 +378,12 @@ class AutoGenMissionKeeperAdapter:
                 record_id=integrity_record_id,
                 decision=MissionControlDecision.HALT,
                 reasons=("INTEGRITY_RECORD_ALREADY_USED",),
+            )
+        if pending.occurrence_id in self._released_occurrences:
+            return _control(
+                record_id=integrity_record_id,
+                decision=MissionControlDecision.HALT,
+                reasons=("OCCURRENCE_ALREADY_RELEASED",),
             )
         if _request_digest(request) != pending.request_digest:
             return _control(
