@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/vtl/trust-root-snapshot-v0.9.schema.json",
+  "title": "VTL v0.9 Trust Root Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "snapshot_id", "profile_id", "schema_version", "trust_root_id",
+    "policy_version", "generation", "previous_snapshot_digest",
+    "trust_root_digest", "issued_at_ms", "not_before_ms", "not_after_ms",
+    "issuer_id", "bootstrap_authority_id", "bootstrap_key_id",
+    "signature_algorithm", "signature", "trust_root"
+  ],
+  "properties": {
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "profile_id": {"const": "vtl-trust-root-snapshot-v0.9"},
+    "schema_version": {"const": "vtl.trust-root-snapshot/v0.9"},
+    "trust_root_id": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "generation": {"type": "integer", "minimum": 1},
+    "previous_snapshot_digest": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/hex64"}
+      ]
+    },
+    "trust_root_digest": {"$ref": "#/$defs/hex64"},
+    "issued_at_ms": {"type": "integer"},
+    "not_before_ms": {"type": "integer"},
+    "not_after_ms": {"type": "integer"},
+    "issuer_id": {"type": "string", "minLength": 1},
+    "bootstrap_authority_id": {"type": "string", "minLength": 1},
+    "bootstrap_key_id": {"type": "string", "minLength": 1},
+    "signature_algorithm": {"const": "ED25519"},
+    "signature": {"type": "string", "minLength": 1},
+    "trust_root": {"type": "object"}
+  },
+  "$defs": {
+    "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "bootstrapAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "bootstrap_authority_id", "allowed_algorithms", "keys"],
+      "properties": {
+        "profile_id": {"const": "vtl-bootstrap-authority/v0.9"},
+        "bootstrap_authority_id": {"type": "string", "minLength": 1},
+        "allowed_algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bootstrap_key_id", "issuer_id", "algorithm", "public_key_base64",
+              "not_before_ms", "not_after_ms", "revoked"
+            ],
+            "properties": {
+              "bootstrap_key_id": {"type": "string", "minLength": 1},
+              "issuer_id": {"type": "string", "minLength": 1},
+              "algorithm": {"const": "ED25519"},
+              "public_key_base64": {"type": "string", "minLength": 1},
+              "not_before_ms": {"type": "integer"},
+              "not_after_ms": {"type": "integer"},
+              "revoked": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id", "trust_root_id", "minimum_generation",
+        "known_generation", "known_snapshot_digest", "checkpointed_at_ms"
+      ],
+      "properties": {
+        "profile_id": {"const": "vtl-trust-checkpoint/v0.9"},
+        "trust_root_id": {"type": "string", "minLength": 1},
+        "minimum_generation": {"type": "integer", "minimum": 1},
+        "known_generation": {
+          "oneOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]
+        },
+        "known_snapshot_digest": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/hex64"}]
+        },
+        "checkpointed_at_ms": {"type": "integer"}
+      }
+    }
+  }
+}
