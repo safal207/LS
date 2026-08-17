@@ -286,7 +286,11 @@ def _hex64(value: Any) -> bool:
 
 
 def _string_list(value: Any) -> bool:
-    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+    # JSON input can only supply lists. Tuples are also accepted for direct
+    # in-memory transcripts produced from frozen dataclasses before JSON encoding.
+    return isinstance(value, (list, tuple)) and all(
+        isinstance(item, str) for item in value
+    )
 
 
 def _object(value: Any) -> bool:
