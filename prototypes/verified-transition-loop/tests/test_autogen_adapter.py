@@ -27,6 +27,11 @@ class MutableResolver:
         return self.context
 
 
+class FailingResolver:
+    def __call__(self, request: MissionTransitionRequest) -> AutoGenVTLContext:
+        raise RuntimeError("context unavailable")
+
+
 def base_evidence() -> EvidenceBundle:
     return EvidenceBundle(
         mission_aligned=True,
@@ -66,6 +71,17 @@ def adapter_and_resolver():
         )
     )
     return AutoGenMissionKeeperAdapter(resolver), resolver
+
+
+def test_context_resolution_failure_rejects_without_secondary_exception():
+    adapter = AutoGenMissionKeeperAdapter(FailingResolver())
+    record = adapter.assess(base_request(), now_ms=NOW)
+
+    assert record.assessment is MissionAssessment.REJECTED
+    assert record.reason_codes == ("CONTEXT_RESOLUTION_FAILED",)
+    assert record.execution_allowed is False
+    assert record.authorization_decision_id is None
+    assert record.proposal_digest is None
 
 
 def test_historical_alignment_is_not_execution_authority_then_use_time_continues():
