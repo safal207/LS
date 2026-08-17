@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "verified-transition-loop"
-version = "0.7.0"
+version = "0.8.0"
 description = "Evidence-gated state transitions for AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [{name = "LS contributors"}]
-dependencies = []
+dependencies = ["cryptography>=42"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
@@ -19,6 +19,7 @@ dev = ["pytest>=8"]
 vtl-deployment-demo = "verified_transition_loop.deployment_demo:main"
 vtl-conformance = "verified_transition_loop.conformance:main"
 vtl-dispatch-verify = "verified_transition_loop.dispatch_receipt:main"
+vtl-attestation-verify = "verified_transition_loop.attestation:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
