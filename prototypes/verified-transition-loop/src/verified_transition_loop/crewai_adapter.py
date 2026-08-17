@@ -66,6 +66,7 @@ class CrewGuardrailDecision:
 class _PendingDecision:
     request_digest: str
     occurrence_id: str
+    continuation_token: str
     intent: TransitionIntent
     proposal: TransitionProposal
     authorization: AuthorizationReceipt
@@ -201,6 +202,7 @@ class CrewVTLGuardrailProvider:
         self._pending[decision_ref] = _PendingDecision(
             request_digest=request_digest,
             occurrence_id=occurrence_id,
+            continuation_token=token,
             intent=intent,
             proposal=proposal,
             authorization=authorization,
@@ -224,6 +226,7 @@ class CrewVTLGuardrailProvider:
     def resume(
         self,
         decision_ref: str,
+        continuation_token: str,
         request: CrewGuardrailRequest,
         *,
         now_ms: int,
@@ -234,6 +237,8 @@ class CrewVTLGuardrailProvider:
             return _deny("CONTINUATION_NOT_FOUND", decision_ref=decision_ref)
         if pending.consumed:
             return _deny("CONTINUATION_ALREADY_USED", decision_ref=decision_ref)
+        if continuation_token != pending.continuation_token:
+            return _deny("CONTINUATION_TOKEN_INVALID", decision_ref=decision_ref)
         if _request_digest(request) != pending.request_digest:
             return _deny("REQUEST_BINDING_MISMATCH", decision_ref=decision_ref)
 
@@ -270,10 +275,7 @@ class CrewVTLGuardrailProvider:
                     disposition=CrewGuardrailDisposition.DEFER,
                     reason_codes=authorization.reason_codes,
                     decision_ref=decision_ref,
-                    continuation_token=_continuation_token(
-                        decision_ref,
-                        pending.occurrence_id,
-                    ),
+                    continuation_token=pending.continuation_token,
                     execution_allowed=False,
                     execution_binding="external",
                     authorization_decision_id=authorization.decision_id,
