@@ -63,13 +63,21 @@ execution_nonce != assessed occurrence_id
 -> HALT
 ```
 
+At most one pending authority path may exist for one occurrence. Repeating `assess()` for an occurrence that already has an unconsumed pending record fails closed:
+
+```text
+OCCURRENCE_ALREADY_PENDING
+```
+
+This is particularly important for `HOLD -> approval arrives`: callers must resume through `gate()` on the original record, where fresh authorization is performed. A second assessment cannot create a parallel `ALIGNED` record for the same occurrence.
+
 After a successful `CONTINUE`, that occurrence is marked released for the lifetime of the reference adapter instance. Repeating `assess()` for the same occurrence cannot recreate unconsumed authority:
 
 ```text
 OCCURRENCE_ALREADY_RELEASED
 ```
 
-Repeated assessment before release does not overwrite the existing pending record.
+`gate()` also checks the released-occurrence set before consuming a pending permit, so a stale pending record cannot release an occurrence that has already been released through another path.
 
 ## Verifier / executor separation
 
@@ -151,7 +159,7 @@ The outcome cannot mutate the historical pre-action verdict. `link_observed_outc
 
 ## Reference-state boundary
 
-The pending-decision map, released-occurrence set, and use-token registry are in-memory conformance mechanisms. They demonstrate the intended single-use and no-reset semantics but are not a durable distributed replay store.
+The pending-decision map, occurrence-to-pending index, released-occurrence set, and use-token registry are in-memory conformance mechanisms. They demonstrate the intended one-pending-path, single-use, and no-reset semantics but are not a durable distributed replay store.
 
 A production runtime must persist occurrence/grant consumption durably and make release atomic enough with the actual transition execution to prevent duplicate side effects under retries or concurrency.
 
