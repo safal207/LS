@@ -373,7 +373,7 @@ function runFixture(fixture) {
       id: testCase.id,
       actual,
       expected: testCase.expected,
-      passed: JSON.stringify(actual) === JSON.stringify(testCase.expected),
+      passed: canonicalSha256(actual) === canonicalSha256(testCase.expected),
     };
   });
 
