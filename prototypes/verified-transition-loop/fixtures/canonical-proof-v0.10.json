@@ -1,0 +1,104 @@
+{
+  "profile_id": "vtl-canonical-proof-v0.10",
+  "schema_version": "vtl.canonical-proof/v0.10",
+  "canonical_profile": "rfc8785-safe-integer/v0.10",
+  "cases": [
+    {
+      "id": "key-order-and-whitespace",
+      "raw_json": "{ \"b\" : 2 , \"a\" : 1 }",
+      "canonical_utf8_base64": "eyJhIjoxLCJiIjoyfQ==",
+      "sha256": "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+    },
+    {
+      "id": "nested-object-order",
+      "raw_json": "{\"z\":[3,{\"b\":false,\"a\":null}],\"a\":\"x\"}",
+      "canonical_utf8_base64": "eyJhIjoieCIsInoiOlszLHsiYSI6bnVsbCwiYiI6ZmFsc2V9XX0=",
+      "sha256": "a66b8db42d40689e0b56ff1b8c70ace39d4f9550b11a9897c5aad23a068081dd"
+    },
+    {
+      "id": "escape-spelling-normalizes",
+      "raw_json": "{\"slash\":\"\\/\",\"s\":\"caf\\u00e9\",\"quote\":\"\\\"\",\"backslash\":\"\\\\\"}",
+      "canonical_utf8_base64": "eyJiYWNrc2xhc2giOiJcXCIsInF1b3RlIjoiXCIiLCJzIjoiY2Fmw6kiLCJzbGFzaCI6Ii8ifQ==",
+      "sha256": "a13730b015312b5af9117b70c53553b3877f66926bdae82353a946dfe73848e3"
+    },
+    {
+      "id": "unicode-composed-preserved",
+      "raw_json": "{\"text\":\"é\"}",
+      "canonical_utf8_base64": "eyJ0ZXh0Ijoiw6kifQ==",
+      "sha256": "42d3cbf59fdccced04e5dff14433fb52d34d58e385e9770ffd896ff517d63b92"
+    },
+    {
+      "id": "unicode-decomposed-preserved",
+      "raw_json": "{\"text\":\"é\"}",
+      "canonical_utf8_base64": "eyJ0ZXh0IjoiZcyBIn0=",
+      "sha256": "9b53287cd41955684903378d2b1b4a3ddea9d80d67dcd026319a7c5a9a8a8b42"
+    },
+    {
+      "id": "utf16-key-order-supplementary-plane",
+      "raw_json": "{\"\":\"bmp-private\",\"😀\":\"grinning\",\"a\":\"ascii\"}",
+      "canonical_utf8_base64": "eyJhIjoiYXNjaWkiLCLwn5iAIjoiZ3Jpbm5pbmciLCLugIAiOiJibXAtcHJpdmF0ZSJ9",
+      "sha256": "a7f99f7b45981878c11811ebddc2e06fb1c491cbec94e928c73c8f7bfd8eaa2b"
+    },
+    {
+      "id": "controls-booleans-null",
+      "raw_json": "{\"t\":true,\"s\":\"line\\n\\t\\u0001\",\"n\":null,\"f\":false}",
+      "canonical_utf8_base64": "eyJmIjpmYWxzZSwibiI6bnVsbCwicyI6ImxpbmVcblx0XHUwMDAxIiwidCI6dHJ1ZX0=",
+      "sha256": "9c45ab772b171d2b09c5b2fd9542c961aa577199098eb54b3e6e808e9f519eaf"
+    },
+    {
+      "id": "arrays-and-greek-keys",
+      "raw_json": "[3,2,1,{\"β\":\"beta\",\"α\":\"alpha\"}]",
+      "canonical_utf8_base64": "WzMsMiwxLHsizrEiOiJhbHBoYSIsIs6yIjoiYmV0YSJ9XQ==",
+      "sha256": "5d0acf858194309aa141b3cad884cb23bfe0f5eef8e36f22417d6f64b0019c8b"
+    },
+    {
+      "id": "safe-integer-boundaries",
+      "raw_json": "{\"zero\":-0,\"max\":9007199254740991,\"min\":-9007199254740991}",
+      "canonical_utf8_base64": "eyJtYXgiOjkwMDcxOTkyNTQ3NDA5OTEsIm1pbiI6LTkwMDcxOTkyNTQ3NDA5OTEsInplcm8iOjB9",
+      "sha256": "b7b2401ddca2165824e98c61890c0aaec470258d3119dd265d02be9438bf47e6"
+    },
+    {
+      "id": "vtl-shaped-transition",
+      "raw_json": "{\"transition_id\":\"tr_001\",\"actor_ref\":\"agent-a\",\"action\":{\"tool\":\"deploy\",\"payload\":{\"commit\":\"abc123\",\"dry_run\":true}},\"invariants\":[\"healthcheck\",\"exact-head\"],\"attempt\":1}",
+      "canonical_utf8_base64": "eyJhY3Rpb24iOnsicGF5bG9hZCI6eyJjb21taXQiOiJhYmMxMjMiLCJkcnlfcnVuIjp0cnVlfSwidG9vbCI6ImRlcGxveSJ9LCJhY3Rvcl9yZWYiOiJhZ2VudC1hIiwiYXR0ZW1wdCI6MSwiaW52YXJpYW50cyI6WyJoZWFsdGhjaGVjayIsImV4YWN0LWhlYWQiXSwidHJhbnNpdGlvbl9pZCI6InRyXzAwMSJ9",
+      "sha256": "df5c21e5d8732a0f0e7e7d02d9f1ae6e63ccbe74d753724bc825ad5b57257e62"
+    }
+  ],
+  "negative_cases": [
+    {
+      "id": "float-rejected",
+      "raw_json": "{\"x\":1.5}",
+      "error_code": "UNSUPPORTED_NUMBER"
+    },
+    {
+      "id": "exponent-number-rejected",
+      "raw_json": "{\"x\":1e3}",
+      "error_code": "UNSUPPORTED_NUMBER"
+    },
+    {
+      "id": "unsafe-integer-rejected",
+      "raw_json": "{\"x\":9007199254740992}",
+      "error_code": "INTEGER_OUT_OF_RANGE"
+    },
+    {
+      "id": "duplicate-key-rejected",
+      "raw_json": "{\"a\":1,\"a\":2}",
+      "error_code": "DUPLICATE_KEY"
+    },
+    {
+      "id": "lone-surrogate-rejected",
+      "raw_json": "{\"x\":\"\\ud800\"}",
+      "error_code": "INVALID_UNICODE_SCALAR"
+    }
+  ],
+  "mutation_cases": [
+    {
+      "id": "semantic-mutation-changes-digest",
+      "base_raw_json": "{\"actor\":\"agent-a\",\"action\":\"deploy\",\"version\":1}",
+      "mutated_raw_json": "{\"actor\":\"agent-a\",\"action\":\"deploy\",\"version\":2}",
+      "base_sha256": "2590977486230a6d46acf8e0a3c8cb512927a9363eec2c96d42769db2b134214",
+      "mutated_sha256": "93f74443972f2b1cd1ccddc5c2beb10317a2d0b845f98b4a116aa2232f2ee7f6",
+      "digests_differ": true
+    }
+  ]
+}
