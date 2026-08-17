@@ -177,6 +177,29 @@ def _assessment_record(
     )
 
 
+def _context_failure_record(
+    request: MissionTransitionRequest,
+    request_digest: str,
+) -> MissionIntegrityRecord:
+    """Fail closed without fabricating an EvidenceBundle or execution authority."""
+
+    return MissionIntegrityRecord(
+        record_id=_record_id(request_digest, None),
+        request_digest=request_digest,
+        mission_id=request.mission_id,
+        mission_version=request.mission_version,
+        transition_id=request.transition_id,
+        actor_id=request.actor_id,
+        verifier_id="vtl-autogen-mission-keeper",
+        executor_id="unknown-executor",
+        assessment=MissionAssessment.REJECTED,
+        reason_codes=("CONTEXT_RESOLUTION_FAILED",),
+        authorization_decision_id=None,
+        proposal_digest=None,
+        execution_allowed=False,
+    )
+
+
 def _control(
     *,
     record_id: str,
@@ -221,19 +244,7 @@ class AutoGenMissionKeeperAdapter:
         try:
             context = self._resolve(request)
         except Exception:
-            fallback = AutoGenVTLContext(
-                current_mission_id=request.mission_id,
-                current_mission_version=request.mission_version,
-                evidence=EvidenceBundle(),
-                executor_id="unknown-executor",
-            )
-            return _assessment_record(
-                request=request,
-                request_digest=request_digest,
-                context=fallback,
-                assessment=MissionAssessment.REJECTED,
-                reason_codes=("CONTEXT_RESOLUTION_FAILED",),
-            )
+            return _context_failure_record(request, request_digest)
 
         if not request.occurrence_id:
             return _assessment_record(
@@ -428,7 +439,7 @@ class AutoGenMissionKeeperAdapter:
                 use_id=use_receipt.use_id,
             )
 
-        if use_receipt.verdict.value == "HOLD":
+        if use_receipt.verdict is UseTimeVerdict.HOLD:
             return _control(
                 record_id=integrity_record_id,
                 decision=MissionControlDecision.REQUIRE_REVIEW,
