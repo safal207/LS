@@ -147,6 +147,31 @@ def test_repeating_assess_after_continue_cannot_reset_single_use_state():
     assert repeated.reason_codes == ("OCCURRENCE_ALREADY_RELEASED",)
 
 
+def test_same_occurrence_cannot_create_parallel_pending_authority():
+    adapter, resolver = adapter_and_resolver()
+    resolver.context = replace(
+        resolver.context,
+        evidence=replace(
+            resolver.context.evidence,
+            approval_current=None,
+            approval_ref=None,
+        ),
+    )
+    request = base_request()
+    original = adapter.assess(request, now_ms=NOW)
+    assert original.assessment is MissionAssessment.REVIEW_REQUIRED
+
+    resolver.context = replace(resolver.context, evidence=base_evidence())
+    duplicate = adapter.assess(request, now_ms=NOW + 1)
+    assert duplicate.assessment is MissionAssessment.REJECTED
+    assert duplicate.reason_codes == ("OCCURRENCE_ALREADY_PENDING",)
+
+    # The original HOLD remains the only pending authority path. It must perform
+    # the fresh authorization at gate time before it can continue.
+    control = _gate(adapter, original, request, now_ms=NOW + 2)
+    assert control.decision is MissionControlDecision.CONTINUE
+
+
 def test_mission_version_drift_halts_instead_of_silent_reinterpretation():
     adapter, resolver = adapter_and_resolver()
     request = base_request()
