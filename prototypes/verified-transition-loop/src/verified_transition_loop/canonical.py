@@ -58,12 +58,7 @@ def _utf16_sort_key(value: str) -> bytes:
 
 
 def canonical_text(value: Any) -> str:
-    """Canonicalize the RFC 8785-compatible VTL safe subset.
-
-    The v0.10 profile intentionally excludes floating-point values. All integers
-    must fit the interoperable IEEE-754 safe-integer range so Python and
-    JavaScript cannot silently disagree about numeric identity.
-    """
+    """Canonicalize the RFC 8785-compatible VTL safe subset."""
 
     if value is None:
         return "null"
@@ -77,7 +72,7 @@ def canonical_text(value: Any) -> str:
         raise CanonicalizationError("UNSUPPORTED_NUMBER")
     if isinstance(value, str):
         return _escape_string(value)
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list):
         return "[" + ",".join(canonical_text(item) for item in value) + "]"
     if isinstance(value, dict):
         for key in value:
@@ -133,7 +128,6 @@ def strict_loads(raw: str) -> Any:
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise CanonicalizationError("INVALID_JSON", str(exc)) from exc
 
-    # Canonicalization performs safe-integer, key-type, and Unicode-scalar checks.
     canonical_bytes(value)
     return value
 
@@ -231,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("fixture", type=Path)
     args = parser.parse_args(argv)
 
-    fixture = json.loads(args.fixture.read_text(encoding="utf-8"))
+    fixture = strict_loads(args.fixture.read_text(encoding="utf-8"))
     result = verify_fixture(fixture)
     print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
     return 0 if result["summary"]["all_passed"] else 1

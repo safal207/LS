@@ -65,18 +65,12 @@ function canonicalText(value) {
   if (value === null) return 'null';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') {
-    if (!Number.isInteger(value)) {
-      throw new CanonicalizationError('UNSUPPORTED_NUMBER');
-    }
-    if (!Number.isSafeInteger(value)) {
-      throw new CanonicalizationError('INTEGER_OUT_OF_RANGE');
-    }
+    if (!Number.isInteger(value)) throw new CanonicalizationError('UNSUPPORTED_NUMBER');
+    if (!Number.isSafeInteger(value)) throw new CanonicalizationError('INTEGER_OUT_OF_RANGE');
     return Object.is(value, -0) ? '0' : String(value);
   }
   if (typeof value === 'string') return escapeString(value);
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalText(item)).join(',')}]`;
-  }
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalText(item)).join(',')}]`;
   if (typeof value === 'object') {
     const keys = Object.keys(value);
     for (const key of keys) validateUnicodeScalarString(key);
@@ -306,7 +300,7 @@ if (!fixturePath) {
   process.exit(2);
 }
 
-const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+const fixture = strictParse(fs.readFileSync(fixturePath, 'utf8'));
 const result = verifyFixture(fixture);
 console.log(JSON.stringify(result, null, 2));
 if (!result.summary.all_passed) process.exitCode = 1;

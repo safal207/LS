@@ -34,6 +34,12 @@
       "sha256": "9b53287cd41955684903378d2b1b4a3ddea9d80d67dcd026319a7c5a9a8a8b42"
     },
     {
+      "id": "escaped-surrogate-pair-normalizes",
+      "raw_json": "{\"emoji\":\"\\ud83d\\ude00\"}",
+      "canonical_utf8_base64": "eyJlbW9qaSI6IvCfmIAifQ==",
+      "sha256": "4525cb52c6a0122eacc150bacd11eb4a1d4615485ca8a5639c28d70f1c240193"
+    },
+    {
       "id": "utf16-key-order-supplementary-plane",
       "raw_json": "{\"\":\"bmp-private\",\"😀\":\"grinning\",\"a\":\"ascii\"}",
       "canonical_utf8_base64": "eyJhIjoiYXNjaWkiLCLwn5iAIjoiZ3Jpbm5pbmciLCLugIAiOiJibXAtcHJpdmF0ZSJ9",
@@ -83,6 +89,11 @@
     {
       "id": "duplicate-key-rejected",
       "raw_json": "{\"a\":1,\"a\":2}",
+      "error_code": "DUPLICATE_KEY"
+    },
+    {
+      "id": "escaped-duplicate-key-rejected",
+      "raw_json": "{\"a\":1,\"\\u0061\":2}",
       "error_code": "DUPLICATE_KEY"
     },
     {
