@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.8
+# Verified Transition Loop (VTL) v0.9
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution and proof.
 
@@ -14,24 +14,26 @@ Intent
 -> Observed Outcome
 -> detached integrity verification
 -> AttestedDispatchEnvelope
--> detached signature + trust-root verification
+-> detached signature + current-authority verification
+-> signed TrustRootSnapshot
+-> verifier-controlled freshness checkpoint
+-> rollback / fork / continuity verification
 ```
 
-## The three claims are deliberately separate
+## Proof layers stay separate
 
-v0.8 makes the trust model explicit:
+VTL deliberately does not collapse different claims into one boolean.
 
 ```text
-integrity_valid
-signature_valid
-trusted_current_authority
+use-time authority
+-> dispatch consumption integrity
+-> producer signature authenticity
+-> current signer authority
+-> trust-root snapshot authenticity
+-> trust-root freshness / continuity
 ```
 
-A transition is not accepted merely because one of those claims is true.
-
-- A self-consistent transcript without a trusted signature proves integrity, not producer identity.
-- A mathematically valid signature over an invalid v0.7 transcript does not repair the transcript.
-- A valid historical signature from a revoked/expired/untrusted signer is not current authority.
+A valid higher-layer proof never repairs an invalid lower-layer proof.
 
 ## v0.4 — use-time authority
 
@@ -43,8 +45,6 @@ AUTHORIZE != EXECUTE
 
 Current proposal/source/policy/approval/evidence/executor state is revalidated at the point of use. The profile contains 10 executable vectors, including proposal/transition drift and single-use permit semantics.
 
-Artifacts:
-
 ```text
 schemas/use-time-conformance-v0.4.schema.json
 fixtures/use-time-conformance-v0.4.json
@@ -53,20 +53,18 @@ docs/USE_TIME_CONFORMANCE_V0_4.md
 
 ## v0.5/v0.6 — framework-shaped compatibility
 
-The same semantic contract is exercised through:
+The same semantic contract is exercised through independent shapes:
 
 ```text
 CrewAI-shaped DEFER -> continuation -> ALLOW | DENY
 AutoGen-shaped MissionIntegrityRecord -> CONTINUE | HALT | REQUIRE_REVIEW
 ```
 
-The reference adapters enforce request/occurrence binding, verifier/executor separation, fresh authorization after HOLD, replay prevention, mission-version binding, and no latent historical authority.
+The adapters enforce request/occurrence binding, verifier/executor separation, fresh authorization after HOLD, replay prevention, mission-version binding, and no latent historical authority.
 
 ## v0.7 — grant consumption at dispatch
 
-v0.7 proves a different claim from authorization:
-
-> Did the exact use-time grant get consumed by the exact dispatch occurrence and linked to the exact observed outcome?
+v0.7 proves that the exact use-time grant was consumed by the exact dispatch occurrence and linked to the exact observed outcome.
 
 ```text
 AuthorizationReceipt
@@ -79,9 +77,7 @@ AuthorizationReceipt
 
 The 11-vector dispatch profile covers wrong decision/use IDs, action-envelope drift, executor/occurrence substitution, context/policy mismatch, replay, sibling-capability substitution, cross-transition outcome binding, and outcome tamper.
 
-The detached verifier performs schema/structure validation before digest comparisons so matching missing values cannot accidentally validate a malformed transcript.
-
-Artifacts:
+The verifier performs schema/structure validation before digest comparisons, so a self-consistent malformed transcript cannot pass through matching missing values.
 
 ```text
 schemas/tool-dispatch-receipt-v0.7.schema.json
@@ -98,36 +94,78 @@ canonical v0.7 transcript digest
 -> attestation statement
 -> signer key / issuer
 -> external trust-root id + policy version
--> validity interval
+-> validity interval / revocation
 -> Ed25519 signature
 -> detached authenticity verification
 ```
 
-The reference v0.8 profile checks:
+It keeps these claims distinct:
 
-- exact transcript digest binding;
-- deterministic attestation id;
-- trusted signer lookup from external trust-root input;
-- issuer/key identity binding;
-- allowed signature algorithm;
-- key and attestation validity intervals;
-- signer revocation;
-- trust-policy version binding;
-- Ed25519 signature validity;
-- v0.7 integrity as a prerequisite.
+```text
+integrity_valid
+signature_valid
+trusted_current_authority
+```
 
-The 14-vector authenticity profile includes tamper, self-consistent replacement transcripts, wrong signature/key, unknown signer, issuer/root mismatch, expiry, not-yet-valid authority, revocation, trust-policy drift, algorithm substitution, and a valid signature over an invalid v0.7 transcript.
+A self-consistent replacement transcript fails exact attested-digest binding; a valid signature over an invalid v0.7 transcript still fails; revoked or expired signer authority remains separate from mathematical signature validity. Ambiguous signer IDs and malformed trust-root key material fail closed.
 
-Artifacts:
+The v0.8 authenticity profile contains 14 deterministic vectors.
 
 ```text
 schemas/attested-dispatch-v0.8.schema.json
 fixtures/attested-dispatch-v0.8.json
 docs/ATTESTED_DISPATCH_V0_8.md
-src/verified_transition_loop/attestation.py
 ```
 
-Run all portable layers:
+## v0.9 — rollback-resistant trust-root freshness
+
+v0.9 closes the next gap:
+
+```text
+trusted root != fresh trusted root
+```
+
+A historically valid trust-root file may become stale after key revocation or policy replacement. v0.9 therefore authenticates the root itself and compares it with an independently retained verifier checkpoint.
+
+```text
+out-of-band bootstrap authority
+-> signed TrustRootSnapshot generation N
+-> verifier-controlled TrustCheckpoint
+-> fresh v0.8 trust-root payload
+-> v0.8 attested dispatch verification
+```
+
+The snapshot verifier exposes separate claims:
+
+```text
+snapshot_integrity_valid
+bootstrap_signature_valid
+bootstrap_authority_valid
+freshness_valid
+continuity_valid
+```
+
+The checkpoint can carry a generation floor plus an optional known generation/digest. With known state, the verifier rejects:
+
+```text
+older generation                    -> SNAPSHOT_ROLLBACK
+same generation / different digest  -> SNAPSHOT_FORK_DETECTED
+next generation / wrong predecessor -> PREVIOUS_SNAPSHOT_DIGEST_MISMATCH
+skipped unseen generations           -> SNAPSHOT_CONTINUITY_GAP
+```
+
+The 14-vector v0.9 profile additionally covers bad snapshot signatures, unknown bootstrap keys, root-payload tamper, expiry/not-yet-valid state, generation floors, root/policy mismatch, and algorithm substitution. Direct regressions cover ambiguous bootstrap key IDs, malformed/wrong-length bootstrap key material, invalid key validity intervals, future checkpoints, and incomplete checkpoint state.
+
+A fresh valid snapshot still cannot rescue an invalid v0.8 attestation.
+
+```text
+schemas/trust-root-snapshot-v0.9.schema.json
+fixtures/trust-root-snapshot-v0.9.json
+docs/TRUST_ROOT_SNAPSHOT_V0_9.md
+src/verified_transition_loop/trust_snapshot.py
+```
+
+## Run the full portable stack
 
 ```bash
 python -m pip install -e '.[dev]'
@@ -135,22 +173,24 @@ pytest
 vtl-conformance fixtures/use-time-conformance-v0.4.json
 vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
+vtl-trust-root-verify fixtures/trust-root-snapshot-v0.9.json
 ```
 
-For a single signed envelope, the trust root is a separate verifier-controlled file:
+For a single v0.9 snapshot, both authority and freshness state are external verifier inputs:
 
 ```bash
-vtl-attestation-verify envelope.json \
-  --trust-root trust-root.json \
+vtl-trust-root-verify snapshot.json \
+  --bootstrap-authority bootstrap-authority.json \
+  --checkpoint checkpoint.json \
   --now-ms 1800000001000
 ```
 
 ## Safety and trust ceiling
 
-VTL remains a reference verification protocol. It does not execute framework tools, deploy software, merge code, call cloud IAM/KMS, send messages, make payments, or grant production authority.
+VTL remains a reference verification protocol. It does not execute framework tools, deploy software, merge code, call cloud IAM/KMS/HSM, send messages, make payments, or grant production authority.
 
-v0.8 uses real asymmetric Ed25519 verification, but its static reference trust-root model is not production PKI. Production integrations still need independently managed key issuance/custody, rotation, revocation distribution, certificate or workload identity, optional transparency evidence, and atomic coupling between grant consumption and the real side-effect seam.
+v0.9 protects against rollback and same-generation forks **relative to verifier-controlled bootstrap and checkpoint state**. It does not yet provide a globally available source of the latest generation, independent witness quorum, transparency-log inclusion, hardware-backed checkpoint storage, or cross-language canonical-byte standardization.
 
-The central rule remains:
+The central rule is now:
 
-> **Historical authorization is not execution authority; integrity is not authenticity; a signature is not current trust authority.**
+> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; and a trusted root is not automatically the freshest root the verifier may accept.**
