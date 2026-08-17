@@ -128,6 +128,7 @@
       ],
       "properties": {
         "id": {"type": "string", "minLength": 1},
+        "proposal": {"$ref": "#/$defs/proposal"},
         "current_evidence": {"$ref": "#/$defs/evidence"},
         "executor_id": {"type": "string", "minLength": 1},
         "checked_at_ms": {"type": "integer", "minimum": 0},

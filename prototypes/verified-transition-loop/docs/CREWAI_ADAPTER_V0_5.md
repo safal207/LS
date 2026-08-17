@@ -27,7 +27,7 @@ GuardrailRequest
 
 Only the resumed path may return `ALLOW`, and only after VTL emits a valid single-use `EXECUTE` receipt.
 
-## Request shape
+## Request and occurrence shape
 
 `CrewGuardrailRequest` mirrors the proposal's useful fields without importing CrewAI:
 
@@ -46,6 +46,16 @@ tool_call_id
 ```text
 OCCURRENCE_ID_MISSING
 ```
+
+The resolved occurrence is stored with pending continuation state. A resumed request must reproduce the same serialized request and therefore the same occurrence identity.
+
+After one successful `ALLOW`, the occurrence is marked released for the lifetime of the reference adapter instance. Repeating the initial `evaluate()` for the same occurrence cannot recreate fresh single-use authority:
+
+```text
+OCCURRENCE_ALREADY_RELEASED
+```
+
+A repeated `evaluate()` while the occurrence is still pending is idempotent: it returns the existing decision and continuation rather than replacing pending state.
 
 ## Decision shape
 
@@ -88,7 +98,7 @@ HOLD
 
 A previous `HOLD` is never treated as latent authority.
 
-## Continuation binding
+## Continuation security and binding
 
 A continuation is bound to the exact serialized CrewAI-shaped request.
 
@@ -96,6 +106,14 @@ Changing tool arguments, tool identity, role, task, crew, timestamp, or tool-cal
 
 ```text
 REQUEST_BINDING_MISMATCH
+```
+
+Continuation tokens are generated with cryptographically strong randomness and stored only in pending adapter state. They are **not derivable** from `decision_ref`, the request digest, or occurrence id. Resume checks the supplied token with constant-time `secrets.compare_digest()`.
+
+A forged or incorrect token fails with:
+
+```text
+CONTINUATION_TOKEN_INVALID
 ```
 
 After a continuation successfully releases the tool once, reusing it fails:
@@ -106,32 +124,24 @@ CONTINUATION_ALREADY_USED
 
 ## VTL v0.4 interoperability proof
 
-`tests/test_crewai_adapter.py` runs the same nine v0.4 use-time vectors through this CrewAI-shaped adapter.
+The portable v0.4 oracle now contains ten vectors, including an explicit proposal/transition-drift case.
 
-Expected mapping:
+`tests/test_crewai_adapter.py` maps the framework-applicable use-time vectors through the CrewAI-shaped adapter. The portable proposal override is exercised directly by the core oracle because this adapter constructs its proposal from the bound request; request mutation is covered separately by `REQUEST_BINDING_MISMATCH`.
+
+Expected semantic mapping remains:
 
 ```text
 VTL EXECUTE -> CrewAI-shaped ALLOW
 VTL BLOCK   -> CrewAI-shaped DENY
 ```
 
-The adapter preserves the same ordered VTL reason codes for denied use-time cases.
+The adapter preserves ordered VTL reason codes for denied use-time cases that reach the portable revalidation layer.
 
-The vectors cover:
+## Reference-state boundary
 
-```text
-stable context
-source drift
-policy drift
-approval identity drift
-evidence-context drift
-approval revocation
-approval expiry
-executor substitution
-missing execution nonce
-```
+The pending-continuation map, released-occurrence set, and use-token registry are in-memory reference mechanisms. They demonstrate the normative idempotency and single-use rules but are not a durable distributed transaction system.
 
-The stable path also proves that one continuation cannot release the same tool twice.
+A production integration must persist continuation and occurrence-consumption state durably and make permit consumption atomic enough with the actual tool dispatch that retries or concurrent workers cannot produce a second side effect.
 
 ## Non-claims
 

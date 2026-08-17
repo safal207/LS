@@ -1,5 +1,8 @@
+import copy
 import json
 from pathlib import Path
+
+import pytest
 
 from verified_transition_loop.conformance import (
     PROFILE_ID,
@@ -14,8 +17,12 @@ FIXTURE_PATH = ROOT / "fixtures" / "use-time-conformance-v0.4.json"
 SCHEMA_PATH = ROOT / "schemas" / "use-time-conformance-v0.4.schema.json"
 
 
+def fixture_dict():
+    return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+
+
 def test_schema_and_fixture_are_valid_json_documents():
-    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+    fixture = fixture_dict()
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     validate_fixture_shape(fixture)
     assert fixture["schema_version"] == SCHEMA_VERSION
@@ -23,13 +30,40 @@ def test_schema_and_fixture_are_valid_json_documents():
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["properties"]["schema_version"]["const"] == SCHEMA_VERSION
     assert schema["properties"]["profile"]["properties"]["profile_id"]["const"] == PROFILE_ID
+    assert schema["$defs"]["case"]["properties"]["proposal"] == {"$ref": "#/$defs/proposal"}
+
+
+def test_strict_validation_rejects_unknown_fields():
+    fixture = fixture_dict()
+    fixture["base"]["unknown"] = "not-in-schema"
+    with pytest.raises(ValueError, match="unknown keys"):
+        validate_fixture_shape(fixture)
+
+
+def test_strict_validation_rejects_missing_nested_evidence_fields():
+    fixture = fixture_dict()
+    del fixture["cases"][0]["current_evidence"]["policy_ref"]
+    with pytest.raises(ValueError, match="missing keys"):
+        validate_fixture_shape(fixture)
+
+
+def test_strict_validation_rejects_invalid_primitive_types_without_coercion():
+    fixture = fixture_dict()
+    fixture["base"]["authorized_at_ms"] = "1000"
+    with pytest.raises(ValueError, match="non-negative integer"):
+        validate_fixture_shape(fixture)
+
+    fixture = fixture_dict()
+    fixture["base"]["proposal"]["transition_id"] = 123
+    with pytest.raises(ValueError, match="non-empty string"):
+        validate_fixture_shape(fixture)
 
 
 def test_vendor_neutral_use_time_vectors_all_pass():
     result = run_fixture(load_fixture(FIXTURE_PATH))
     assert result["summary"] == {
-        "total": 9,
-        "passed": 9,
+        "total": 10,
+        "passed": 10,
         "failed": 0,
         "all_passed": True,
     }
@@ -55,8 +89,19 @@ def test_policy_drift_vector_blocks_before_execution():
     assert case["actual"]["consume_results"] == [False]
 
 
+def test_proposal_drift_vector_blocks_exact_transition_mismatch():
+    result = run_fixture(load_fixture(FIXTURE_PATH))
+    case = next(
+        item for item in result["cases"]
+        if item["id"] == "proposal-transition-drift-blocks"
+    )
+    assert case["actual"]["verdict"] == "BLOCK"
+    assert case["actual"]["reason_codes"] == ["AUTHORIZATION_TRANSITION_MISMATCH"]
+    assert case["actual"]["consume_results"] == [False]
+
+
 def test_conformance_run_is_deterministic_for_same_fixture():
     fixture = load_fixture(FIXTURE_PATH)
-    left = run_fixture(fixture)
-    right = run_fixture(fixture)
+    left = run_fixture(copy.deepcopy(fixture))
+    right = run_fixture(copy.deepcopy(fixture))
     assert left == right

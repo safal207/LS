@@ -242,6 +242,39 @@
         "reason_codes": ["EXECUTION_NONCE_INVALID"],
         "consume_results": [false]
       }
+    },
+    {
+      "id": "proposal-transition-drift-blocks",
+      "proposal": {
+        "transition_id": "transition-2",
+        "intent_id": "intent-1",
+        "pre_state": "staging",
+        "action": "deploy",
+        "expected_post_state": "production-healthy",
+        "invariants": [
+          "healthcheck_ok",
+          "artifact_matches"
+        ]
+      },
+      "current_evidence": {
+        "mission_aligned": true,
+        "exact_source_bound": true,
+        "tests_passed": true,
+        "approval_current": true,
+        "approval_valid_until_ms": 1500,
+        "evidence_refs": ["ci:42", "approval:7"],
+        "source_ref": "git:abc",
+        "policy_ref": "policy:deploy-v1",
+        "approval_ref": "approval:7"
+      },
+      "executor_id": "executor",
+      "checked_at_ms": 1001,
+      "execution_nonce": "occurrence-9",
+      "expected": {
+        "verdict": "BLOCK",
+        "reason_codes": ["AUTHORIZATION_TRANSITION_MISMATCH"],
+        "consume_results": [false]
+      }
     }
   ]
 }

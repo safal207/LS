@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 import hashlib
 import json
+import secrets
 from typing import Any, Callable
 
 from .core import (
@@ -111,8 +112,8 @@ def _decision_ref(request_digest: str, authorization_id: str) -> str:
     return f"crew_vtl_{_digest({'request': request_digest, 'authorization': authorization_id})[:24]}"
 
 
-def _continuation_token(decision_ref: str, occurrence_id: str) -> str:
-    return f"cont_{_digest({'decision_ref': decision_ref, 'occurrence_id': occurrence_id})[:24]}"
+def _continuation_token() -> str:
+    return f"cont_{secrets.token_urlsafe(32)}"
 
 
 def _deny(*reasons: str, decision_ref: str | None = None) -> CrewGuardrailDecision:
@@ -139,6 +140,8 @@ class CrewVTLGuardrailProvider:
     def __init__(self, context_resolver: ContextResolver) -> None:
         self._resolve = context_resolver
         self._pending: dict[str, _PendingDecision] = {}
+        self._pending_by_occurrence: dict[str, str] = {}
+        self._released_occurrences: set[str] = set()
         self._use_registry = UseTokenRegistry()
 
     def health_check(self) -> bool:
@@ -153,6 +156,25 @@ class CrewVTLGuardrailProvider:
         occurrence_id = _occurrence_id(request)
         if occurrence_id is None:
             return _deny("OCCURRENCE_ID_MISSING")
+        if occurrence_id in self._released_occurrences:
+            return _deny("OCCURRENCE_ALREADY_RELEASED")
+
+        existing_ref = self._pending_by_occurrence.get(occurrence_id)
+        if existing_ref is not None:
+            existing = self._pending.get(existing_ref)
+            if existing is not None and not existing.consumed:
+                reasons = existing.authorization.reason_codes
+                if existing.authorization.verdict is TransitionVerdict.AUTHORIZE:
+                    reasons = ("USE_TIME_REVALIDATION_REQUIRED",)
+                return CrewGuardrailDecision(
+                    disposition=CrewGuardrailDisposition.DEFER,
+                    reason_codes=reasons,
+                    decision_ref=existing_ref,
+                    continuation_token=existing.continuation_token,
+                    execution_allowed=False,
+                    execution_binding="external",
+                    authorization_decision_id=existing.authorization.decision_id,
+                )
 
         try:
             context = self._resolve(request)
@@ -186,7 +208,6 @@ class CrewVTLGuardrailProvider:
         )
 
         decision_ref = _decision_ref(request_digest, authorization.decision_id)
-        token = _continuation_token(decision_ref, occurrence_id)
 
         if authorization.verdict is TransitionVerdict.BLOCK:
             return CrewGuardrailDecision(
@@ -199,6 +220,7 @@ class CrewVTLGuardrailProvider:
                 authorization_decision_id=authorization.decision_id,
             )
 
+        token = _continuation_token()
         self._pending[decision_ref] = _PendingDecision(
             request_digest=request_digest,
             occurrence_id=occurrence_id,
@@ -208,6 +230,7 @@ class CrewVTLGuardrailProvider:
             authorization=authorization,
             frozen_evidence=context.evidence,
         )
+        self._pending_by_occurrence[occurrence_id] = decision_ref
 
         reasons = authorization.reason_codes
         if authorization.verdict is TransitionVerdict.AUTHORIZE:
@@ -237,10 +260,12 @@ class CrewVTLGuardrailProvider:
             return _deny("CONTINUATION_NOT_FOUND", decision_ref=decision_ref)
         if pending.consumed:
             return _deny("CONTINUATION_ALREADY_USED", decision_ref=decision_ref)
-        if continuation_token != pending.continuation_token:
+        if not secrets.compare_digest(continuation_token, pending.continuation_token):
             return _deny("CONTINUATION_TOKEN_INVALID", decision_ref=decision_ref)
         if _request_digest(request) != pending.request_digest:
             return _deny("REQUEST_BINDING_MISMATCH", decision_ref=decision_ref)
+        if _occurrence_id(request) != pending.occurrence_id:
+            return _deny("OCCURRENCE_BINDING_MISMATCH", decision_ref=decision_ref)
 
         try:
             context = self._resolve(request)
@@ -317,6 +342,7 @@ class CrewVTLGuardrailProvider:
             )
 
         pending.consumed = True
+        self._released_occurrences.add(pending.occurrence_id)
         return CrewGuardrailDecision(
             disposition=CrewGuardrailDisposition.ALLOW,
             reason_codes=(),

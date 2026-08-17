@@ -73,6 +73,15 @@ def adapter_and_resolver():
     return AutoGenMissionKeeperAdapter(resolver), resolver
 
 
+def _gate(adapter, record, request, *, now_ms=NOW + 1, execution_nonce=None):
+    return adapter.gate(
+        record.record_id,
+        request,
+        now_ms=now_ms,
+        execution_nonce=request.occurrence_id if execution_nonce is None else execution_nonce,
+    )
+
+
 def test_context_resolution_failure_rejects_without_secondary_exception():
     adapter = AutoGenMissionKeeperAdapter(FailingResolver())
     record = adapter.assess(base_request(), now_ms=NOW)
@@ -93,15 +102,25 @@ def test_historical_alignment_is_not_execution_authority_then_use_time_continues
     assert record.execution_allowed is False
     assert not hasattr(adapter, "execute")
 
-    control = adapter.gate(
-        record.record_id,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="use-001",
-    )
+    control = _gate(adapter, record, request)
     assert control.decision is MissionControlDecision.CONTINUE
     assert control.transition_may_proceed is True
     assert control.execution_binding == "external"
+
+
+def test_occurrence_is_bound_to_the_use_time_gate():
+    adapter, _ = adapter_and_resolver()
+    request = base_request()
+    record = adapter.assess(request, now_ms=NOW)
+
+    control = _gate(
+        adapter,
+        record,
+        request,
+        execution_nonce="different-occurrence",
+    )
+    assert control.decision is MissionControlDecision.HALT
+    assert control.reason_codes == ("OCCURRENCE_BINDING_MISMATCH",)
 
 
 def test_same_integrity_record_cannot_release_transition_twice():
@@ -109,22 +128,23 @@ def test_same_integrity_record_cannot_release_transition_twice():
     request = base_request()
     record = adapter.assess(request, now_ms=NOW)
 
-    first = adapter.gate(
-        record.record_id,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="use-001",
-    )
+    first = _gate(adapter, record, request)
     assert first.decision is MissionControlDecision.CONTINUE
 
-    replay = adapter.gate(
-        record.record_id,
-        request,
-        now_ms=NOW + 2,
-        execution_nonce="use-001",
-    )
+    replay = _gate(adapter, record, request, now_ms=NOW + 2)
     assert replay.decision is MissionControlDecision.HALT
     assert replay.reason_codes == ("INTEGRITY_RECORD_ALREADY_USED",)
+
+
+def test_repeating_assess_after_continue_cannot_reset_single_use_state():
+    adapter, _ = adapter_and_resolver()
+    request = base_request()
+    record = adapter.assess(request, now_ms=NOW)
+    assert _gate(adapter, record, request).decision is MissionControlDecision.CONTINUE
+
+    repeated = adapter.assess(request, now_ms=NOW + 2)
+    assert repeated.assessment is MissionAssessment.REJECTED
+    assert repeated.reason_codes == ("OCCURRENCE_ALREADY_RELEASED",)
 
 
 def test_mission_version_drift_halts_instead_of_silent_reinterpretation():
@@ -133,12 +153,7 @@ def test_mission_version_drift_halts_instead_of_silent_reinterpretation():
     record = adapter.assess(request, now_ms=NOW)
 
     resolver.context = replace(resolver.context, current_mission_version="v2")
-    control = adapter.gate(
-        record.record_id,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="use-001",
-    )
+    control = _gate(adapter, record, request)
     assert control.decision is MissionControlDecision.HALT
     assert control.reason_codes == ("MISSION_VERSION_CHANGED",)
 
@@ -157,12 +172,7 @@ def test_unresolved_hold_requires_review_and_carries_no_latent_authority():
     record = adapter.assess(request, now_ms=NOW)
     assert record.assessment is MissionAssessment.REVIEW_REQUIRED
 
-    control = adapter.gate(
-        record.record_id,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="use-001",
-    )
+    control = _gate(adapter, record, request)
     assert control.decision is MissionControlDecision.REQUIRE_REVIEW
     assert control.transition_may_proceed is False
 
@@ -182,12 +192,7 @@ def test_hold_requires_fresh_authorization_before_continue():
     assert record.assessment is MissionAssessment.REVIEW_REQUIRED
 
     resolver.context = replace(resolver.context, evidence=base_evidence())
-    control = adapter.gate(
-        record.record_id,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="use-001",
-    )
+    control = _gate(adapter, record, request)
     assert control.decision is MissionControlDecision.CONTINUE
 
 
@@ -197,14 +202,16 @@ def test_mutated_transition_request_cannot_use_old_integrity_record():
     record = adapter.assess(request, now_ms=NOW)
 
     mutated = replace(request, expected_post_state="different-target")
-    control = adapter.gate(
-        record.record_id,
-        mutated,
-        now_ms=NOW + 1,
-        execution_nonce="use-001",
-    )
+    control = _gate(adapter, record, mutated)
     assert control.decision is MissionControlDecision.HALT
     assert control.reason_codes == ("REQUEST_BINDING_MISMATCH",)
+
+
+def test_missing_occurrence_identity_rejects_at_assessment():
+    adapter, _ = adapter_and_resolver()
+    record = adapter.assess(replace(base_request(), occurrence_id=""), now_ms=NOW)
+    assert record.assessment is MissionAssessment.REJECTED
+    assert record.reason_codes == ("OCCURRENCE_ID_MISSING",)
 
 
 def test_verifier_executor_separation_is_mechanical():
@@ -248,6 +255,12 @@ def test_v04_vectors_map_to_autogen_continue_or_halt_with_same_reasons():
     authorized_evidence = EvidenceBundle(**authorized_data)
 
     for case in fixture["cases"]:
+        # Proposal drift is exercised by the portable core oracle. The AutoGen
+        # adapter binds proposal identity through the immutable request digest.
+        # Empty nonce is rejected earlier as missing framework occurrence id.
+        if "proposal" in case or not case["execution_nonce"]:
+            continue
+
         current_data = dict(case["current_evidence"])
         current_data["evidence_refs"] = tuple(current_data["evidence_refs"])
         current_evidence = EvidenceBundle(**current_data)
@@ -272,7 +285,7 @@ def test_v04_vectors_map_to_autogen_continue_or_halt_with_same_reasons():
             pre_state=base["proposal"]["pre_state"],
             expected_post_state=base["proposal"]["expected_post_state"],
             invariants=tuple(base["proposal"]["invariants"]),
-            occurrence_id=f"occurrence-{case['id']}",
+            occurrence_id=case["execution_nonce"],
         )
 
         record = adapter.assess(request, now_ms=base["authorized_at_ms"])
@@ -287,7 +300,7 @@ def test_v04_vectors_map_to_autogen_continue_or_halt_with_same_reasons():
             record.record_id,
             request,
             now_ms=case["checked_at_ms"],
-            execution_nonce=case["execution_nonce"],
+            execution_nonce=request.occurrence_id,
         )
 
         expected = case["expected"]
