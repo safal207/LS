@@ -242,15 +242,14 @@ def verify_attested_dispatch(
     algorithm_allowed = algorithm in allowed_algorithms and algorithm == ED25519
     _add(trust_reasons, "ALGORITHM_NOT_ALLOWED", not algorithm_allowed)
 
-    key = next(
-        (
-            candidate
-            for candidate in trust_root["keys"]
-            if candidate["signer_key_id"] == attestation["signer_key_id"]
-        ),
-        None,
-    )
-    _add(trust_reasons, "SIGNER_NOT_TRUSTED", key is None)
+    matching_keys = [
+        candidate
+        for candidate in trust_root["keys"]
+        if candidate["signer_key_id"] == attestation["signer_key_id"]
+    ]
+    key = matching_keys[0] if len(matching_keys) == 1 else None
+    _add(trust_reasons, "SIGNER_NOT_TRUSTED", len(matching_keys) == 0)
+    _add(trust_reasons, "SIGNER_KEY_AMBIGUOUS", len(matching_keys) > 1)
 
     signature_valid = False
     if key is not None:
