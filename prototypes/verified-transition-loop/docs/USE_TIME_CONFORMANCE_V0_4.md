@@ -46,7 +46,7 @@ An implementation may map the same semantic decision into its own identifier, st
 
 ## Reference vectors
 
-`fixtures/use-time-conformance-v0.4.json` includes nine cases:
+`fixtures/use-time-conformance-v0.4.json` includes ten cases:
 
 1. unchanged context -> `EXECUTE`;
 2. source reference drift -> `BLOCK`;
@@ -56,7 +56,8 @@ An implementation may map the same semantic decision into its own identifier, st
 6. approval revoked before use -> `BLOCK`;
 7. approval expired before use -> `BLOCK`;
 8. executor substitution -> `BLOCK`;
-9. missing execution occurrence nonce -> `BLOCK`.
+9. missing execution occurrence nonce -> `BLOCK`;
+10. proposal / transition identity drift -> `BLOCK` with `AUTHORIZATION_TRANSITION_MISMATCH`.
 
 The successful vector also proves the single-use property:
 
@@ -64,6 +65,8 @@ The successful vector also proves the single-use property:
 first consume -> true
 second consume -> false
 ```
+
+The proposal-drift vector deliberately keeps current evidence stable while changing the transition identity. This prevents an implementation from claiming conformance while ignoring the frozen proposal binding.
 
 ## Reason-code contract
 
@@ -83,11 +86,14 @@ policy changed
 approval revoked
 -> EVIDENCE_CONTEXT_CHANGED
 -> APPROVAL_NOT_CURRENT_AT_USE
+
+proposal identity changed
+-> AUTHORIZATION_TRANSITION_MISMATCH
 ```
 
 A consumer should preserve all applicable reasons rather than collapsing the result into one opaque denial string.
 
-## JSON Schema
+## JSON Schema and strict reference validation
 
 The machine-readable profile is described by:
 
@@ -97,7 +103,17 @@ schemas/use-time-conformance-v0.4.schema.json
 
 It uses JSON Schema Draft 2020-12.
 
-The reference Python runtime intentionally has no runtime JSON Schema dependency. The built-in runner performs a small strict shape check, while external implementations may validate against the full schema with their native tooling.
+The reference Python runtime intentionally has no runtime JSON Schema dependency, but its built-in validator enforces the contract it consumes **strictly** before execution:
+
+- exact object keys / rejection of unknown properties;
+- nested required fields;
+- primitive types without `str()` / `int()` coercion;
+- non-negative integer bounds;
+- enum values;
+- non-empty and unique proposal invariants;
+- optional case-level proposal override using the same proposal shape.
+
+External implementations may additionally validate against the published JSON Schema with their native tooling.
 
 ## Running the reference implementation
 
@@ -108,7 +124,7 @@ python -m pip install -e .
 vtl-conformance fixtures/use-time-conformance-v0.4.json
 ```
 
-A conforming run reports all cases passed and exits with status `0`.
+A conforming run reports all ten cases passed and exits with status `0`.
 
 ## Adapter contract
 
@@ -125,9 +141,9 @@ current evidence       -> evidence observed immediately before use
 execution_nonce        -> one concrete execution occurrence
 ```
 
-Then compare the runtime's decision to each vector's `expected` object.
+Then compare the runtime's decision to each applicable vector's `expected` object.
 
-A CrewAI, AutoGen, Codex-style, workflow-engine, or custom implementation can therefore use different internals while proving the same boundary behavior.
+A framework adapter may enforce an invariant earlier than the portable core. For example, a runtime whose required occurrence identifier is itself the execution nonce can reject a missing occurrence before reaching the generic `EXECUTION_NONCE_INVALID` path. Likewise, a framework-generated proposal can prove proposal binding through immutable request binding instead of accepting a synthetic case-level proposal override. Such adapter-specific early rejection does not weaken the portable core oracle; the portable profile remains the normative semantic reference.
 
 ## Non-goals
 
@@ -140,4 +156,4 @@ v0.4 does not claim:
 - external attestation verification;
 - authority to perform any side effect.
 
-The next interoperability step can add adapters that translate native runtime evidence into this profile without weakening the core semantic vectors.
+Adapters translate native runtime evidence into this profile without weakening its core semantic vectors.
