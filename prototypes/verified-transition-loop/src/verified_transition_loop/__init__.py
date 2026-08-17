@@ -1,3 +1,10 @@
+from .conformance import (
+    PROFILE_ID,
+    SCHEMA_VERSION,
+    load_fixture,
+    run_fixture,
+    validate_fixture_shape,
+)
 from .core import (
     AuthorizationReceipt,
     EvidenceBundle,
@@ -29,6 +36,8 @@ __all__ = [
     "ObservedOutcome",
     "OutcomeReceipt",
     "OutcomeVerdict",
+    "PROFILE_ID",
+    "SCHEMA_VERSION",
     "TransitionIntent",
     "TransitionProposal",
     "TransitionVerdict",
@@ -36,7 +45,10 @@ __all__ = [
     "UseTimeVerdict",
     "UseTokenRegistry",
     "evaluate_transition",
+    "load_fixture",
     "revalidate_authorization_for_use",
+    "run_fixture",
+    "validate_fixture_shape",
     "verify_authorization_receipt",
     "verify_authorized_outcome",
     "verify_executed_outcome",
