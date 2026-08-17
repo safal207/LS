@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.5
+# Verified Transition Loop (VTL) v0.6
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution.
 
@@ -18,16 +18,32 @@ Intent
 ## Core invariants
 
 - verifier and executor are distinct;
-- `AUTHORIZE` is not execution authority;
-- current source/policy/approval/evidence/executor state is revalidated immediately before execution;
-- a valid `EXECUTE` receipt is single-use;
-- recovery is a new verified transition rather than implicit mutation authority.
+- historical authorization/alignment is not execution authority;
+- current source/policy/approval/evidence/executor state is revalidated immediately before use;
+- a valid `EXECUTE` receipt is occurrence-bound and single-use;
+- mission-version drift fails closed rather than silently reinterpreting the goal;
+- recovery is a new verified transition rather than implicit mutation authority;
+- observed outcome remains separate from the pre-action verdict.
 
-VTL itself does not deploy software, merge code, change IAM, send messages, make payments, use credentials, or grant external authority.
+VTL itself does not deploy software, execute framework tools, merge code, change IAM, send messages, make payments, use credentials, or grant external authority.
 
-## v0.5: CrewAI-shaped deferred authorization adapter
+## Why v0.6 matters
 
-v0.5 adds the first framework-shaped compatibility layer:
+v0.6 proves that the same use-time contract can be mapped onto two different agent-framework shapes without standardizing either framework's internal classes or storage model:
+
+```text
+VTL semantic oracle
+        |
+        +-> CrewAI-shaped deferred tool authorization
+        |
+        +-> AutoGen-shaped Mission Keeper transition gate
+```
+
+Both adapters are dependency-free reference layers. They do **not** claim native framework integration or upstream adoption.
+
+## CrewAI-shaped adapter (v0.5)
+
+Artifacts:
 
 ```text
 src/verified_transition_loop/crewai_adapter.py
@@ -35,11 +51,7 @@ docs/CREWAI_ADAPTER_V0_5.md
 tests/test_crewai_adapter.py
 ```
 
-It is aligned with the `GuardrailProvider` / `BeforeToolCallHook` discussion in `crewAIInc/crewAI#4877`, including the later `suspend/defer -> resolve` and use-time execution-binding discussion.
-
-The adapter intentionally has **no CrewAI dependency** and does not claim native integration.
-
-### CrewAI-shaped lifecycle
+Lifecycle:
 
 ```text
 GuardrailRequest
@@ -51,81 +63,98 @@ GuardrailRequest
 -> ALLOW | DENY
 ```
 
-A VTL `AUTHORIZE` maps to `DEFER`, not directly to `ALLOW`:
+A VTL `AUTHORIZE` maps to `DEFER`, never directly to `ALLOW`.
+
+Only `resume(...)` may return `ALLOW`, and only after use-time revalidation produces a valid, single-use `EXECUTE` receipt.
+
+Continuation safety:
 
 ```text
-AUTHORIZE != EXECUTE
+mutated request             -> REQUEST_BINDING_MISMATCH
+wrong continuation token    -> CONTINUATION_TOKEN_INVALID
+successful continuation x2  -> CONTINUATION_ALREADY_USED
 ```
 
-Only `resume(...)` may return `ALLOW`, and only when use-time revalidation produces a valid, single-use `EXECUTE` receipt.
-
-### Request surface
-
-`CrewGuardrailRequest` models:
+The adapter reports:
 
 ```text
-tool_name
-tool_input
-agent_role
-task_description
-crew_id
-timestamp
-tool_call_id
+execution_binding = external
 ```
 
-`tool_call_id` is preferred as the execution occurrence identity. `timestamp` is accepted as a fallback. If neither exists, the adapter denies with `OCCURRENCE_ID_MISSING`.
+because it cannot claim atomicity with a real CrewAI tool side effect.
 
-### Decision surface
+## AutoGen-shaped Mission Keeper adapter (v0.6)
 
-The adapter emits:
+Artifacts:
 
 ```text
-ALLOW | DEFER | DENY
-reason_codes
-decision_ref
-continuation_token
-execution_allowed
-authorization_decision_id
-use_id
-execution_binding
+src/verified_transition_loop/autogen_adapter.py
+docs/AUTOGEN_ADAPTER_V0_6.md
+tests/test_autogen_adapter.py
 ```
 
-`execution_binding` remains `external`: the reference adapter cannot claim atomicity with a real CrewAI tool side effect.
-
-### Continuation safety
-
-A continuation is bound to the exact CrewAI-shaped request. Mutating the request before resume yields:
+Historical assessment and use-time control are separate records:
 
 ```text
-REQUEST_BINDING_MISMATCH
+MissionTransitionRequest
+        ↓
+MissionIntegrityRecord
+        ↓
+use-time revalidation
+        ↓
+CONTINUE | HALT | REQUIRE_REVIEW
 ```
 
-A continuation that already released the tool once cannot be reused:
+`MissionIntegrityRecord.assessment = ALIGNED` is historical evidence only. It is not an execution permit.
+
+The adapter intentionally exposes no executor, repair, rewrite, or task-mutation API.
+
+Verifier/executor separation is mechanical:
 
 ```text
-CONTINUATION_ALREADY_USED
+same verifier + executor -> VERIFIER_EXECUTOR_NOT_SEPARATED
 ```
 
-If the first authorization was `HOLD`, resumed execution performs a **fresh authorization decision** before use-time revalidation. A prior `HOLD` never becomes latent authority.
+Mission reinterpretation is version-bound:
 
-## v0.4: vendor-neutral use-time conformance
+```text
+mission version changes after assessment
+-> MISSION_VERSION_CHANGED
+-> HALT
+```
 
-The v0.4 interoperability profile remains the portable semantic oracle:
+A historical `HOLD` carries no latent authority. When new approval/evidence arrives, the adapter performs a fresh authorization before the use-time gate.
+
+Outcome separation remains explicit:
+
+```text
+MissionIntegrityRecord
+        ↓
+MissionOutcomeLink
+        ↓
+MissionObservedOutcome
+```
+
+The observed result cannot rewrite the historical pre-action verdict.
+
+## Vendor-neutral use-time conformance (v0.4)
+
+The portable semantic oracle remains:
 
 ```text
 schemas/use-time-conformance-v0.4.schema.json
 fixtures/use-time-conformance-v0.4.json
 docs/USE_TIME_CONFORMANCE_V0_4.md
+src/verified_transition_loop/conformance.py
 ```
 
 Normative across implementations:
 
 - `AUTHORIZE != EXECUTE`;
 - exact source/policy/approval/evidence/executor comparison at use time;
-- `EXECUTE | HOLD | BLOCK` verdicts;
 - ordered reason codes;
 - non-empty execution occurrence nonce;
-- single-use `EXECUTE` consumption.
+- single-use execution-permit consumption.
 
 Implementation-local:
 
@@ -135,6 +164,7 @@ storage keys
 signing envelopes
 trace IDs
 database rows
+framework-native object identities
 ```
 
 Reference vectors:
@@ -151,14 +181,21 @@ executor substituted        -> BLOCK
 execution nonce missing     -> BLOCK
 ```
 
-The v0.5 CrewAI-shaped adapter runs these same nine vectors and maps them as:
+Cross-runtime mapping:
 
 ```text
-VTL EXECUTE -> CrewAI-shaped ALLOW
-VTL BLOCK   -> CrewAI-shaped DENY
+stable context              -> EXECUTE / CrewAI ALLOW / AutoGen CONTINUE
+source changed              -> BLOCK   / DENY         / HALT
+policy changed              -> BLOCK   / DENY         / HALT
+approval identity changed   -> BLOCK   / DENY         / HALT
+evidence context changed    -> BLOCK   / DENY         / HALT
+approval revoked            -> BLOCK   / DENY         / HALT
+approval expired            -> BLOCK   / DENY         / HALT
+executor substituted        -> BLOCK   / DENY         / HALT
+execution nonce missing     -> BLOCK   / DENY         / HALT
 ```
 
-Denied cases preserve the same ordered VTL reason codes.
+Denied framework-shaped cases preserve the same ordered VTL reason codes.
 
 Run the vendor-neutral profile:
 
@@ -195,7 +232,7 @@ EXECUTOR_BINDING_MISMATCH
 EXECUTION_NONCE_INVALID
 ```
 
-The reference `UseTokenRegistry` demonstrates first-use success and replay rejection. It remains an in-memory conformance reference, not a production distributed replay store.
+The reference `UseTokenRegistry` demonstrates first-use success and replay rejection. It is an in-memory conformance reference, not a production distributed replay store.
 
 ## Post-action verification
 
@@ -215,7 +252,7 @@ A tampered or blocked use-time receipt cannot produce `COMMIT`.
 
 ## Deployment transition demo
 
-The deterministic side-effect-free demo still covers:
+The deterministic demo is side-effect-free and covers:
 
 ```text
 healthy:
@@ -238,6 +275,30 @@ Run:
 vtl-deployment-demo
 ```
 
+## Exact-head CI
+
+Dedicated workflow:
+
+```text
+.github/workflows/verified-transition-loop-v0.6.yml
+```
+
+It is path-scoped and read-only:
+
+```text
+permissions: contents: read
+checkout.persist-credentials: false
+```
+
+The workflow:
+
+- validates machine-readable contracts;
+- installs the isolated package;
+- verifies package version `0.6.0`;
+- runs the complete focused suite;
+- runs all nine vendor-neutral vectors;
+- verifies the side-effect-free deployment / rollback / TOCTOU demo.
+
 ## Development
 
 ```bash
@@ -247,13 +308,14 @@ pytest
 
 ## Current boundary
 
-v0.5 is a reference protocol, simulation oracle, vendor-neutral conformance fixture, and CrewAI-shaped compatibility adapter.
+v0.6 is a reference protocol, simulation oracle, vendor-neutral conformance fixture, and two framework-shaped compatibility adapters.
 
 It has:
 
+- no native CrewAI dependency;
+- no native AutoGen dependency;
+- no claim of framework adoption;
 - no production deployment adapter;
-- no native CrewAI runtime dependency;
-- no claim of CrewAI adoption;
 - no GitHub write capability inside VTL;
 - no cloud API or IAM capability;
 - no credential access;
@@ -261,4 +323,4 @@ It has:
 - no automatic merge path;
 - no durable distributed use-token or continuation registry.
 
-A production framework integration must own the actual tool-execution boundary, persist continuation/consumption state durably, and consume the execution permit atomically enough that an already-used or stale permit cannot produce a second side effect.
+A production framework integration must own the real execution boundary, persist continuation/consumption state durably, and consume the execution permit atomically enough that stale or already-used authority cannot produce a second side effect.
