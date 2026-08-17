@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://safal207.github.io/LS/schemas/canonical-trust-root-snapshot-v0.12.schema.json",
+  "title": "VTL v0.12 Canonical Trust-Root Snapshot Conformance Fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profile_id",
+    "schema_version",
+    "canonical_profile",
+    "base_now_ms",
+    "bootstrap_authority",
+    "base_snapshot",
+    "snapshot_variants",
+    "checkpoints",
+    "expected_fresh_signed_payload_base64",
+    "expected_fresh_signature_base64",
+    "expected_fresh_snapshot_digest",
+    "cases"
+  ],
+  "properties": {
+    "profile_id": {"const": "vtl-canonical-trust-root-snapshot-v0.12"},
+    "schema_version": {"const": "vtl.canonical-trust-root-snapshot-fixture/v0.12"},
+    "canonical_profile": {"const": "rfc8785-safe-integer/v0.10"},
+    "base_now_ms": {"type": "integer"},
+    "bootstrap_authority": {"$ref": "#/$defs/bootstrapAuthority"},
+    "base_snapshot": {"$ref": "#/$defs/snapshot"},
+    "snapshot_variants": {
+      "type": "object",
+      "additionalProperties": {"type": "object"}
+    },
+    "checkpoints": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/$defs/checkpoint"}
+    },
+    "expected_fresh_signed_payload_base64": {"type": "string", "minLength": 1},
+    "expected_fresh_signature_base64": {"type": "string", "minLength": 1},
+    "expected_fresh_snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/case"}
+    }
+  },
+  "$defs": {
+    "bootstrapKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bootstrap_key_id",
+        "issuer_id",
+        "algorithm",
+        "public_key_base64",
+        "not_before_ms",
+        "not_after_ms",
+        "revoked"
+      ],
+      "properties": {
+        "bootstrap_key_id": {"type": "string", "minLength": 1},
+        "issuer_id": {"type": "string", "minLength": 1},
+        "algorithm": {"type": "string", "minLength": 1},
+        "public_key_base64": {"type": "string", "minLength": 1},
+        "not_before_ms": {"type": "integer"},
+        "not_after_ms": {"type": "integer"},
+        "revoked": {"type": "boolean"}
+      }
+    },
+    "bootstrapAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "bootstrap_authority_id", "allowed_algorithms", "keys"],
+      "properties": {
+        "profile_id": {"const": "vtl-canonical-bootstrap-authority/v0.12"},
+        "bootstrap_authority_id": {"type": "string", "minLength": 1},
+        "allowed_algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/bootstrapKey"}
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "required": [
+        "snapshot_id",
+        "profile_id",
+        "schema_version",
+        "canonical_profile",
+        "trust_root_id",
+        "policy_version",
+        "generation",
+        "previous_snapshot_digest",
+        "trust_root_digest",
+        "issued_at_ms",
+        "not_before_ms",
+        "not_after_ms",
+        "issuer_id",
+        "bootstrap_authority_id",
+        "bootstrap_key_id",
+        "signature_algorithm",
+        "signature",
+        "trust_root"
+      ],
+      "properties": {
+        "snapshot_id": {"type": "string", "minLength": 1},
+        "profile_id": {"const": "vtl-canonical-trust-root-snapshot-v0.12"},
+        "schema_version": {"const": "vtl.canonical-trust-root-snapshot/v0.12"},
+        "canonical_profile": {"type": "string", "minLength": 1},
+        "trust_root_id": {"type": "string", "minLength": 1},
+        "policy_version": {"type": "string", "minLength": 1},
+        "generation": {"type": "integer", "minimum": 1},
+        "previous_snapshot_digest": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        },
+        "trust_root_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "issued_at_ms": {"type": "integer"},
+        "not_before_ms": {"type": "integer"},
+        "not_after_ms": {"type": "integer"},
+        "issuer_id": {"type": "string", "minLength": 1},
+        "bootstrap_authority_id": {"type": "string", "minLength": 1},
+        "bootstrap_key_id": {"type": "string", "minLength": 1},
+        "signature_algorithm": {"type": "string", "minLength": 1},
+        "signature": {"type": "string", "minLength": 1},
+        "trust_root": {"type": "object"}
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "trust_root_id",
+        "minimum_generation",
+        "known_generation",
+        "known_snapshot_digest",
+        "checkpointed_at_ms"
+      ],
+      "properties": {
+        "profile_id": {"const": "vtl-canonical-trust-checkpoint/v0.12"},
+        "trust_root_id": {"type": "string", "minLength": 1},
+        "minimum_generation": {"type": "integer", "minimum": 1},
+        "known_generation": {
+          "oneOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]
+        },
+        "known_snapshot_digest": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        },
+        "checkpointed_at_ms": {"type": "integer"}
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "value"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "value": true
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "valid",
+        "snapshot_integrity_valid",
+        "canonical_profile_valid",
+        "bootstrap_signature_valid",
+        "bootstrap_authority_valid",
+        "freshness_valid",
+        "continuity_valid",
+        "reason_codes"
+      ],
+      "properties": {
+        "valid": {"type": "boolean"},
+        "snapshot_integrity_valid": {"type": "boolean"},
+        "canonical_profile_valid": {"type": "boolean"},
+        "bootstrap_signature_valid": {"type": "boolean"},
+        "bootstrap_authority_valid": {"type": "boolean"},
+        "freshness_valid": {"type": "boolean"},
+        "continuity_valid": {"type": "boolean"},
+        "reason_codes": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "checkpoint_ref", "expected"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "variant_ref": {"type": "string", "minLength": 1},
+        "checkpoint_ref": {"type": "string", "minLength": 1},
+        "snapshot_mutations": {"type": "array", "items": {"$ref": "#/$defs/mutation"}},
+        "bootstrap_mutations": {"type": "array", "items": {"$ref": "#/$defs/mutation"}},
+        "checkpoint_mutations": {"type": "array", "items": {"$ref": "#/$defs/mutation"}},
+        "expected": {"$ref": "#/$defs/expected"}
+      }
+    }
+  }
+}
