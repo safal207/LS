@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 import hashlib
@@ -651,26 +652,27 @@ class EvidenceLedger:
 
     @property
     def records(self) -> tuple[LedgerRecord, ...]:
-        return tuple(self._records)
+        return tuple(deepcopy(self._records))
 
     def append(self, record_type: str, payload: dict[str, Any]) -> LedgerRecord:
         previous_hash = self._records[-1].record_hash if self._records else GENESIS_HASH
         index = len(self._records)
+        stored_payload = deepcopy(payload)
         preimage = {
             "index": index,
             "record_type": record_type,
-            "payload": payload,
+            "payload": stored_payload,
             "previous_hash": previous_hash,
         }
         record = LedgerRecord(
             index=index,
             record_type=record_type,
-            payload=payload,
+            payload=stored_payload,
             previous_hash=previous_hash,
             record_hash=_digest(preimage),
         )
         self._records.append(record)
-        return record
+        return deepcopy(record)
 
     @staticmethod
     def verify(records: Iterable[LedgerRecord]) -> bool:
