@@ -61,6 +61,18 @@ def provider_and_resolver():
     return CrewVTLGuardrailProvider(resolver), resolver
 
 
+def _resume(provider, first, request, *, now_ms=NOW + 1, execution_nonce="occurrence-001"):
+    assert first.decision_ref
+    assert first.continuation_token
+    return provider.resume(
+        first.decision_ref,
+        first.continuation_token,
+        request,
+        now_ms=now_ms,
+        execution_nonce=execution_nonce,
+    )
+
+
 def test_authorized_tool_call_defers_until_use_time_then_allows():
     provider, _ = provider_and_resolver()
     request = base_request()
@@ -72,37 +84,38 @@ def test_authorized_tool_call_defers_until_use_time_then_allows():
     assert first.decision_ref
     assert first.continuation_token
 
-    resumed = provider.resume(
+    resumed = _resume(provider, first, request)
+    assert resumed.disposition is CrewGuardrailDisposition.ALLOW
+    assert resumed.execution_allowed is True
+    assert resumed.use_id
+
+
+def test_wrong_continuation_token_is_rejected():
+    provider, _ = provider_and_resolver()
+    request = base_request()
+    first = provider.evaluate(request, now_ms=NOW)
+    assert first.decision_ref
+
+    denied = provider.resume(
         first.decision_ref,
+        "cont_wrong",
         request,
         now_ms=NOW + 1,
         execution_nonce="occurrence-001",
     )
-    assert resumed.disposition is CrewGuardrailDisposition.ALLOW
-    assert resumed.execution_allowed is True
-    assert resumed.use_id
+    assert denied.disposition is CrewGuardrailDisposition.DENY
+    assert denied.reason_codes == ("CONTINUATION_TOKEN_INVALID",)
 
 
 def test_same_continuation_cannot_release_tool_twice():
     provider, _ = provider_and_resolver()
     request = base_request()
     first = provider.evaluate(request, now_ms=NOW)
-    assert first.decision_ref
 
-    allowed = provider.resume(
-        first.decision_ref,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="occurrence-001",
-    )
+    allowed = _resume(provider, first, request)
     assert allowed.disposition is CrewGuardrailDisposition.ALLOW
 
-    replay = provider.resume(
-        first.decision_ref,
-        request,
-        now_ms=NOW + 2,
-        execution_nonce="occurrence-001",
-    )
+    replay = _resume(provider, first, request, now_ms=NOW + 2)
     assert replay.disposition is CrewGuardrailDisposition.DENY
     assert replay.reason_codes == ("CONTINUATION_ALREADY_USED",)
 
@@ -111,7 +124,6 @@ def test_policy_drift_denies_before_tool_release():
     provider, resolver = provider_and_resolver()
     request = base_request()
     first = provider.evaluate(request, now_ms=NOW)
-    assert first.decision_ref
 
     resolver.context = replace(
         resolver.context,
@@ -120,12 +132,7 @@ def test_policy_drift_denies_before_tool_release():
             policy_ref="policy:deploy-v2",
         ),
     )
-    resumed = provider.resume(
-        first.decision_ref,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="occurrence-001",
-    )
+    resumed = _resume(provider, first, request)
     assert resumed.disposition is CrewGuardrailDisposition.DENY
     assert resumed.reason_codes == (
         "POLICY_REF_CHANGED",
@@ -138,18 +145,12 @@ def test_mutated_request_cannot_resume_old_decision():
     provider, _ = provider_and_resolver()
     request = base_request()
     first = provider.evaluate(request, now_ms=NOW)
-    assert first.decision_ref
 
     mutated = replace(
         request,
         tool_input={"commit": "c" * 40, "environment": "production"},
     )
-    resumed = provider.resume(
-        first.decision_ref,
-        mutated,
-        now_ms=NOW + 1,
-        execution_nonce="occurrence-001",
-    )
+    resumed = _resume(provider, first, mutated)
     assert resumed.disposition is CrewGuardrailDisposition.DENY
     assert resumed.reason_codes == ("REQUEST_BINDING_MISMATCH",)
 
@@ -180,12 +181,7 @@ def test_async_hold_can_be_resolved_then_use_time_allowed():
         resolver.context,
         evidence=base_evidence(),
     )
-    resumed = provider.resume(
-        first.decision_ref,
-        request,
-        now_ms=NOW + 1,
-        execution_nonce="occurrence-001",
-    )
+    resumed = _resume(provider, first, request)
     assert resumed.disposition is CrewGuardrailDisposition.ALLOW
     assert resumed.execution_allowed is True
 
@@ -225,6 +221,7 @@ def test_v04_vectors_map_to_crewai_allow_or_deny_with_same_reasons():
         )
         first = provider.evaluate(request, now_ms=base["authorized_at_ms"])
         assert first.decision_ref
+        assert first.continuation_token
         assert first.disposition is CrewGuardrailDisposition.DEFER
 
         resolver.context = replace(
@@ -234,6 +231,7 @@ def test_v04_vectors_map_to_crewai_allow_or_deny_with_same_reasons():
         )
         resumed = provider.resume(
             first.decision_ref,
+            first.continuation_token,
             request,
             now_ms=case["checked_at_ms"],
             execution_nonce=case["execution_nonce"],
