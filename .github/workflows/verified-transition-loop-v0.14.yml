@@ -1,0 +1,199 @@
+name: Verified Transition Loop v0.14
+
+on:
+  pull_request:
+    branches:
+      - main
+      - "agent/verified-transition-loop-v0.13"
+    paths:
+      - "prototypes/verified-transition-loop/**"
+      - ".github/workflows/verified-transition-loop-v0.14.yml"
+  push:
+    branches:
+      - main
+      - "agent/verified-transition-loop-v0.14"
+    paths:
+      - "prototypes/verified-transition-loop/**"
+      - ".github/workflows/verified-transition-loop-v0.14.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate machine-readable contracts
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python -m json.tool schemas/use-time-conformance-v0.4.schema.json > /dev/null
+          python -m json.tool fixtures/use-time-conformance-v0.4.json > /dev/null
+          python -m json.tool schemas/tool-dispatch-receipt-v0.7.schema.json > /dev/null
+          python -m json.tool fixtures/tool-dispatch-receipt-v0.7.json > /dev/null
+          python -m json.tool schemas/attested-dispatch-v0.8.schema.json > /dev/null
+          python -m json.tool fixtures/attested-dispatch-v0.8.json > /dev/null
+          python -m json.tool schemas/trust-root-snapshot-v0.9.schema.json > /dev/null
+          python -m json.tool fixtures/trust-root-snapshot-v0.9.json > /dev/null
+          python -m json.tool schemas/canonical-proof-v0.10.schema.json > /dev/null
+          python -m json.tool fixtures/canonical-proof-v0.10.json > /dev/null
+          python -m json.tool schemas/canonical-signed-envelope-v0.11.schema.json > /dev/null
+          python -m json.tool fixtures/canonical-signed-envelope-v0.11.json > /dev/null
+          python -m json.tool schemas/canonical-trust-root-snapshot-v0.12.schema.json > /dev/null
+          python -m json.tool fixtures/canonical-trust-root-snapshot-v0.12.json > /dev/null
+          python -m json.tool schemas/witnessed-freshness-v0.13.schema.json > /dev/null
+          python -m json.tool fixtures/witnessed-freshness-v0.13.json > /dev/null
+          python -m json.tool schemas/transparency-log-v0.14.schema.json > /dev/null
+          python -m json.tool fixtures/transparency-log-v0.14.json > /dev/null
+
+      - name: Install isolated VTL prototype
+        working-directory: prototypes/verified-transition-loop
+        run: python -m pip install -e '.[dev]'
+
+      - name: Verify installed prototype version
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          from importlib.metadata import version
+          assert version('verified-transition-loop') == '0.14.0'
+          PY
+
+      - name: Run focused VTL suite
+        working-directory: prototypes/verified-transition-loop
+        run: python -m pytest -q
+
+      - name: Run Python transparency log v0.14
+        working-directory: prototypes/verified-transition-loop
+        run: vtl-transparency-log-verify fixtures/transparency-log-v0.14.json > /tmp/vtl-log-python.json
+
+      - name: Run Node transparency log v0.14
+        working-directory: prototypes/verified-transition-loop
+        run: node reference/transparency-log-conformance-v0.14.mjs fixtures/transparency-log-v0.14.json > /tmp/vtl-log-node.json
+
+      - name: Prove transparency-log semantics match in Python and Node
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-log-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-log-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 25, 'passed': 25, 'failed': 0, 'all_passed': True}
+          parity = py['parity']
+          assert parity['entry_canonical_matches_expected'] is True
+          assert parity['leaf_hash_matches_expected'] is True
+          assert parity['checkpoint_signed_payload_matches_expected'] is True
+          assert parity['checkpoint_signature_matches_expected'] is True
+          assert parity['checkpoint_digest_matches_expected'] is True
+          assert parity['root_hash_matches_expected'] is True
+          by_id = {case['id']: case for case in py['cases']}
+          split = by_id['peer-split-view-detected']['actual']
+          assert split['inclusion_valid'] is True
+          assert split['consistency_valid'] is True
+          assert split['log_equivocation_detected'] is True
+          assert split['valid'] is False
+          rollback = by_id['checkpoint-rollback']['actual']
+          assert rollback['consistency_valid'] is False
+          assert rollback['valid'] is False
+          revoked = by_id['revoked-log-key']['actual']
+          assert revoked['log_checkpoint_signature_valid'] is True
+          assert revoked['log_checkpoint_authority_valid'] is False
+          lower = by_id['inherited-v013-failure-not-rescued']['actual']
+          assert lower['inclusion_valid'] is True
+          assert lower['consistency_valid'] is True
+          assert lower['local_witnessed_freshness_valid'] is False
+          assert lower['valid'] is False
+          PY
+
+      - name: Preserve v0.13 witnessed freshness parity
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          vtl-witness-verify fixtures/witnessed-freshness-v0.13.json > /tmp/vtl-witness-python.json
+          node reference/witnessed-freshness-v0.13.mjs fixtures/witnessed-freshness-v0.13.json > /tmp/vtl-witness-node.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-witness-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-witness-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 20, 'passed': 20, 'failed': 0, 'all_passed': True}
+          PY
+
+      - name: Preserve v0.12 canonical fresh trust parity
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          vtl-canonical-trust-root-verify fixtures/canonical-trust-root-snapshot-v0.12.json > /tmp/vtl-trust-python.json
+          node reference/canonical-trust-root-snapshot-v0.12.mjs fixtures/canonical-trust-root-snapshot-v0.12.json > /tmp/vtl-trust-node.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-trust-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-trust-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 20, 'passed': 20, 'failed': 0, 'all_passed': True}
+          PY
+
+      - name: Preserve v0.10 canonical parity
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          vtl-canonical-verify fixtures/canonical-proof-v0.10.json > /tmp/vtl-canonical-python.json
+          node reference/canonical-v0.10.mjs fixtures/canonical-proof-v0.10.json > /tmp/vtl-canonical-node.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-canonical-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-canonical-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 18, 'passed': 18, 'failed': 0, 'all_passed': True}
+          PY
+
+      - name: Preserve v0.11 canonical signature parity
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          vtl-canonical-envelope-verify fixtures/canonical-signed-envelope-v0.11.json > /tmp/vtl-envelope-python.json
+          node reference/canonical-signed-envelope-v0.11.mjs fixtures/canonical-signed-envelope-v0.11.json > /tmp/vtl-envelope-node.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-envelope-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-envelope-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 12, 'passed': 12, 'failed': 0, 'all_passed': True}
+          PY
+
+      - name: Run inherited conformance layers
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          vtl-conformance fixtures/use-time-conformance-v0.4.json > /dev/null
+          vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json > /dev/null
+          vtl-attestation-verify fixtures/attested-dispatch-v0.8.json > /dev/null
+          vtl-trust-root-verify fixtures/trust-root-snapshot-v0.9.json > /dev/null
+
+      - name: Verify side-effect-free deployment demo
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python -m verified_transition_loop.deployment_demo > /tmp/vtl-demo.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('/tmp/vtl-demo.json').read_text())
+          assert data['external_side_effects_performed'] is False
+          assert data['healthy']['deploy'] == 'COMMIT'
+          assert data['health_failure']['deploy'] == 'ROLLBACK'
+          assert data['health_failure']['rollback'] == 'COMMIT'
+          assert data['pre_execute_drift']['use_time'] == 'BLOCK'
+          assert data['pre_execute_drift']['execution_performed'] is False
+          PY
