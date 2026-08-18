@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/vtl/witnessed-freshness-v0.13.schema.json",
+  "title": "VTL v0.13 witnessed freshness conformance fixture",
+  "type": "object",
+  "required": ["profile_id","schema_version","canonical_profile","base_now_ms","snapshot_view","local_snapshot_valid","witness_authority","statements","cases"],
+  "properties": {
+    "profile_id": {"const":"vtl-witnessed-freshness-fixture/v0.13"},
+    "schema_version": {"const":"vtl.witnessed-freshness-fixture/v0.13"},
+    "canonical_profile": {"const":"rfc8785-safe-integer/v0.10"},
+    "base_now_ms": {"type":"integer"},
+    "local_snapshot_valid": {"type":"boolean"},
+    "snapshot_view": {"$ref":"#/$defs/view"},
+    "witness_authority": {"$ref":"#/$defs/authority"},
+    "statements": {"type":"object","additionalProperties":{"$ref":"#/$defs/statement"},"minProperties":1},
+    "cases": {"type":"array","items":{"$ref":"#/$defs/case"},"minItems":1}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "hex64": {"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "view": {
+      "type":"object",
+      "required":["trust_root_id","generation","snapshot_digest"],
+      "properties":{"trust_root_id":{"type":"string","minLength":1},"generation":{"type":"integer","minimum":1},"snapshot_digest":{"$ref":"#/$defs/hex64"}},
+      "additionalProperties":false
+    },
+    "key": {
+      "type":"object",
+      "required":["witness_id","witness_key_id","algorithm","public_key_base64","not_before_ms","not_after_ms","revoked"],
+      "properties":{
+        "witness_id":{"type":"string","minLength":1},"witness_key_id":{"type":"string","minLength":1},"algorithm":{"type":"string","minLength":1},
+        "public_key_base64":{"type":"string","minLength":1},"not_before_ms":{"type":"integer"},"not_after_ms":{"type":"integer"},"revoked":{"type":"boolean"}
+      },
+      "additionalProperties":false
+    },
+    "authority": {
+      "type":"object",
+      "required":["profile_id","quorum","max_statement_age_ms","allowed_algorithms","keys"],
+      "properties":{
+        "profile_id":{"const":"vtl-witness-authority/v0.13"},"quorum":{"type":"integer","minimum":1},"max_statement_age_ms":{"type":"integer","minimum":1},
+        "allowed_algorithms":{"type":"array","items":{"type":"string","minLength":1},"minItems":1},"keys":{"type":"array","items":{"$ref":"#/$defs/key"},"minItems":1}
+      },
+      "additionalProperties":false
+    },
+    "statement": {
+      "type":"object",
+      "required":["statement_id","profile_id","schema_version","canonical_profile","trust_root_id","generation","snapshot_digest","observed_at_ms","witness_id","witness_key_id","signature_algorithm","signature"],
+      "properties":{
+        "statement_id":{"type":"string","minLength":1},"profile_id":{"const":"vtl-witness-statement/v0.13"},"schema_version":{"const":"vtl.witness-statement/v0.13"},
+        "canonical_profile":{"const":"rfc8785-safe-integer/v0.10"},"trust_root_id":{"type":"string","minLength":1},"generation":{"type":"integer","minimum":1},
+        "snapshot_digest":{"$ref":"#/$defs/hex64"},"observed_at_ms":{"type":"integer"},"witness_id":{"type":"string","minLength":1},"witness_key_id":{"type":"string","minLength":1},
+        "signature_algorithm":{"type":"string","minLength":1},"signature":{"type":"string","minLength":1}
+      },
+      "additionalProperties":false
+    },
+    "mutation": {
+      "type":"object","required":["path","value"],"properties":{"path":{"type":"string","minLength":1},"value":{}},"additionalProperties":false
+    },
+    "statementMutation": {
+      "type":"object","required":["index","path","value"],"properties":{"index":{"type":"integer","minimum":0},"path":{"type":"string","minLength":1},"value":{}},"additionalProperties":false
+    },
+    "case": {
+      "type":"object",
+      "required":["id","statement_refs","expected"],
+      "properties":{
+        "id":{"type":"string","minLength":1},"statement_refs":{"type":"array","items":{"type":"string","minLength":1},"minItems":1},"local_snapshot_valid":{"type":"boolean"},
+        "authority_mutations":{"type":"array","items":{"$ref":"#/$defs/mutation"}},"statement_mutations":{"type":"array","items":{"$ref":"#/$defs/statementMutation"}},
+        "expected":{"type":"object","required":["valid","reason_codes"],"properties":{"valid":{"type":"boolean"},"reason_codes":{"type":"array","items":{"type":"string"}}},"additionalProperties":false}
+      },
+      "additionalProperties":false
+    }
+  }
+}
