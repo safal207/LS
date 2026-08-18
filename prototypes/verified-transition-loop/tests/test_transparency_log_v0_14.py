@@ -21,8 +21,13 @@ def _fixture() -> dict:
 
 def test_v014_fixture_all_25_vectors_pass() -> None:
     result = run_fixture(_fixture())
-    failed = [case for case in result["cases"] if not case["passed"]]
-    diagnostics = {"failed_cases": failed, "parity": result["parity"]}
+    failed = [case["id"] for case in result["cases"] if not case["passed"]]
+    false_parity = [
+        key
+        for key, value in result["parity"].items()
+        if key.endswith("_matches_expected") and value is not True
+    ]
+    diagnostics = {"failed_cases": failed, "false_parity": false_parity}
     assert result["summary"] == {
         "total": 25,
         "passed": 25,
