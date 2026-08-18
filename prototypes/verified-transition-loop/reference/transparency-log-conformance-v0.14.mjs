@@ -9,7 +9,14 @@ function equal(a, b) {
 }
 
 function matchesExpected(actual, expected) {
-  return Object.entries(expected).every(([key, value]) => equal(actual[key], value));
+  return Object.entries(expected).every(([key, value]) => {
+    if (key === 'reason_codes') {
+      return Array.isArray(actual[key])
+        && Array.isArray(value)
+        && equal([...actual[key]].sort(), [...value].sort());
+    }
+    return equal(actual[key], value);
+  });
 }
 
 const fixturePath = process.argv[2];
