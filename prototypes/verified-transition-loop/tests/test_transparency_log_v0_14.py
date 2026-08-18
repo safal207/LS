@@ -8,9 +8,9 @@ from verified_transition_loop.transparency_log import (
     merkle_leaf_hash,
     verify_consistency_proof,
     verify_inclusion_proof,
-    verify_transparency_log,
 )
 from verified_transition_loop.transparency_log_conformance import run_fixture
+from verified_transition_loop.transparency_log_strict import verify_transparency_log
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "transparency-log-v0.14.json"
 
@@ -117,4 +117,14 @@ def test_valid_log_proof_cannot_rescue_invalid_v013_witness_layer() -> None:
     assert result.inclusion_valid is True
     assert result.consistency_valid is True
     assert result.local_witnessed_freshness_valid is False
+    assert result.valid is False
+
+
+def test_checkpoint_structure_is_a_load_bearing_validity_gate() -> None:
+    fixture = _fixture()
+    bundle = copy.deepcopy(fixture["base_bundle"])
+    bundle["checkpoint"]["profile_id"] = "vtl-transparency-log-checkpoint/v999"
+    result = verify_transparency_log(bundle, now_ms=fixture["base_now_ms"])
+    assert result.log_checkpoint_integrity_valid is False
+    assert "CHECKPOINT_PROFILE_INVALID" in result.reason_codes
     assert result.valid is False
