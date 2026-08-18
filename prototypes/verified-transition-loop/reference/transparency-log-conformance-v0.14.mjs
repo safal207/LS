@@ -25,7 +25,7 @@ if (!fixturePath) {
   process.exit(2);
 }
 
-const verifierPath = fileURLToPath(new URL('./transparency-log-v0.14.mjs', import.meta.url));
+const verifierPath = fileURLToPath(new URL('./transparency-log-strict-v0.14.mjs', import.meta.url));
 const child = spawnSync(process.execPath, [verifierPath, fixturePath], {
   encoding: 'utf8',
   maxBuffer: 16 * 1024 * 1024,
