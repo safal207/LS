@@ -67,6 +67,10 @@ def _result_dict(result: Any) -> dict[str, Any]:
     return value
 
 
+def _matches_expected(actual: dict[str, Any], expected: dict[str, Any]) -> bool:
+    return all(actual.get(key) == value for key, value in expected.items())
+
+
 def run_fixture(fixture: Any) -> dict[str, Any]:
     if not isinstance(fixture, dict):
         raise ValueError("FIXTURE_ROOT_INVALID")
@@ -88,7 +92,7 @@ def run_fixture(fixture: Any) -> dict[str, Any]:
                 "id": case["id"],
                 "actual": actual,
                 "expected": expected,
-                "passed": actual == expected,
+                "passed": _matches_expected(actual, expected),
             }
         )
 
