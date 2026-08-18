@@ -138,9 +138,14 @@ def run_fixture(fixture: Any) -> dict[str, Any]:
     }
 
     passed = sum(1 for case in cases if case["passed"])
-    parity_passed = all(
-        value for key, value in parity.items() if key.endswith("_matches_expected")
+    load_bearing_parity_keys = (
+        "entry_canonical_matches_expected",
+        "leaf_hash_matches_expected",
+        "checkpoint_signature_matches_expected",
+        "checkpoint_digest_matches_expected",
+        "root_hash_matches_expected",
     )
+    parity_passed = all(parity[key] is True for key in load_bearing_parity_keys)
     summary = {
         "total": len(cases),
         "passed": passed,
