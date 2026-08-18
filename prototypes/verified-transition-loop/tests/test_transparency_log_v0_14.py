@@ -21,12 +21,13 @@ def _fixture() -> dict:
 
 def test_v014_fixture_all_25_vectors_pass() -> None:
     result = run_fixture(_fixture())
+    failed = [case for case in result["cases"] if not case["passed"]]
     assert result["summary"] == {
         "total": 25,
         "passed": 25,
         "failed": 0,
         "all_passed": True,
-    }
+    }, failed
 
 
 def test_rfc6962_style_leaf_hash_matches_fixture() -> None:
