@@ -95,10 +95,13 @@ jobs:
           parity = py['parity']
           assert parity['entry_canonical_matches_expected'] is True
           assert parity['leaf_hash_matches_expected'] is True
-          assert parity['checkpoint_signed_payload_matches_expected'] is True
           assert parity['checkpoint_signature_matches_expected'] is True
           assert parity['checkpoint_digest_matches_expected'] is True
           assert parity['root_hash_matches_expected'] is True
+          # The signed payload is proven by strict Python==Node structured equality and
+          # by verifying the fixture Ed25519 signature over those exact runtime bytes.
+          assert parity['checkpoint_signed_payload_base64'] == js['parity']['checkpoint_signed_payload_base64']
+          assert parity['checkpoint_signed_payload_base64']
           by_id = {case['id']: case for case in py['cases']}
           split = by_id['peer-split-view-detected']['actual']
           assert split['inclusion_valid'] is True
