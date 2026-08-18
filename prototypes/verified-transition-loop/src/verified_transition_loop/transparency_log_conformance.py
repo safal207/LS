@@ -68,7 +68,14 @@ def _result_dict(result: Any) -> dict[str, Any]:
 
 
 def _matches_expected(actual: dict[str, Any], expected: dict[str, Any]) -> bool:
-    return all(actual.get(key) == value for key, value in expected.items())
+    for key, value in expected.items():
+        if key == "reason_codes":
+            actual_reasons = actual.get(key)
+            if not isinstance(actual_reasons, list) or sorted(actual_reasons) != sorted(value):
+                return False
+        elif actual.get(key) != value:
+            return False
+    return True
 
 
 def run_fixture(fixture: Any) -> dict[str, Any]:
