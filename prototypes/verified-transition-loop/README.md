@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.13
+# Verified Transition Loop (VTL) v0.14
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution and proof.
 
@@ -23,6 +23,9 @@ Intent
 -> cross-language fresh trust verification
 -> independent witness quorum
 -> split-view / equivocation detection
+-> transparency-log inclusion
+-> append-only consistency proof
+-> signed-log split-view detection
 ```
 
 ## Proof layers stay separate
@@ -40,6 +43,8 @@ use-time authority
 -> canonical-signature interoperability
 -> canonical fresh-trust interoperability
 -> witnessed non-equivocation evidence
+-> transparency-log inclusion
+-> append-only log consistency
 ```
 
 A valid higher-layer proof never repairs an invalid lower-layer proof.
@@ -395,6 +400,72 @@ reference/witnessed-freshness-v0.13.mjs
 
 v0.13 does not provide global witness discovery or Byzantine consensus; it proves only what follows from the explicitly verifier-controlled witness authority and the witness evidence supplied for verification.
 
+## v0.14 — append-only transparency-log proof
+
+v0.14 adds a Merkle transparency-log layer above v0.13.
+
+```text
+v0.13 witnessed freshness
+-> canonical transparency-log entry
+-> RFC6962-style Merkle inclusion proof
+-> Ed25519-signed log checkpoint
+-> verifier-controlled prior log checkpoint
+-> append-only Merkle consistency proof
+-> trusted peer-checkpoint split-view check
+-> Python strict verifier
+-> Node strict verifier
+-> identical structured verdict
+```
+
+The core separations are:
+
+```text
+witness quorum != log inclusion
+signed checkpoint != append-only extension
+same-size signed checkpoint + different root => LOG_EQUIVOCATION_DETECTED
+```
+
+Merkle hashing is domain separated:
+
+```text
+leaf_hash = SHA256(0x00 || canonical_entry_bytes)
+node_hash = SHA256(0x01 || left_hash || right_hash)
+```
+
+The public strict verifier keeps checkpoint structure load-bearing independently from its signature, authority, freshness, inclusion, and consistency:
+
+```text
+log_checkpoint_integrity_valid
+log_checkpoint_signature_valid
+log_checkpoint_authority_valid
+log_checkpoint_freshness_valid
+inclusion_valid
+consistency_valid
+view_consistency_valid
+log_equivocation_detected
+valid
+```
+
+A signed tree smaller than the verifier's retained tree is `LOG_CHECKPOINT_ROLLBACK`. A same-size tree with a different root is `LOG_EQUIVOCATION_DETECTED`. A larger tree must carry a consistency proof that reconstructs both the retained old root and the candidate new root.
+
+A trusted peer checkpoint at the same tree size but a different root also blocks the result, even when the target leaf has valid inclusion and the candidate checkpoint is a valid append-only extension of the verifier's prior state.
+
+The shared v0.14 profile contains **25 deterministic vectors**. Python and Node are required to agree on the complete strict result. CI also proves exact runtime parity for canonical entry bytes and checkpoint signed bytes, the leaf hash, checkpoint signature/digest, and Merkle root. The duplicated historical signed-payload base64 fixture field is retained only as a diagnostic reference; authority is carried by runtime-to-runtime byte equality plus Ed25519 verification over those exact bytes.
+
+```text
+schemas/transparency-log-v0.14.schema.json
+fixtures/transparency-log-v0.14.json
+docs/TRANSPARENCY_LOG_V0_14.md
+src/verified_transition_loop/transparency_log.py
+src/verified_transition_loop/transparency_log_strict.py
+src/verified_transition_loop/transparency_log_conformance.py
+reference/transparency-log-v0.14.mjs
+reference/transparency-log-strict-v0.14.mjs
+reference/transparency-log-conformance-v0.14.mjs
+```
+
+v0.14 does not provide a globally discoverable log, gossip transport, durable storage, global latest-checkpoint consensus, or Byzantine consensus. Absence of supplied conflicting checkpoint evidence is not proof that no undiscovered split view exists globally.
+
 ## Run the full portable stack
 
 ```bash
@@ -408,6 +479,8 @@ vtl-canonical-trust-root-verify fixtures/canonical-trust-root-snapshot-v0.12.jso
 node reference/canonical-trust-root-snapshot-v0.12.mjs fixtures/canonical-trust-root-snapshot-v0.12.json
 vtl-witness-verify fixtures/witnessed-freshness-v0.13.json
 node reference/witnessed-freshness-v0.13.mjs fixtures/witnessed-freshness-v0.13.json
+vtl-transparency-log-verify fixtures/transparency-log-v0.14.json
+node reference/transparency-log-conformance-v0.14.mjs fixtures/transparency-log-v0.14.json
 vtl-conformance fixtures/use-time-conformance-v0.4.json
 vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
@@ -427,8 +500,8 @@ vtl-trust-root-verify snapshot.json \
 
 VTL remains a reference verification protocol. It does not execute framework tools, deploy software, merge code, call cloud IAM/KMS/HSM, send messages, make payments, or grant production authority.
 
-v0.13 proves witnessed non-equivocation only relative to the explicitly supplied verifier-controlled witness authority and evidence, using the declared v0.10 safe-integer canonical JSON subset. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, global witness discovery, a globally latest checkpoint oracle, Byzantine consensus, append-only transparency-log inclusion/consistency proofs, gossip transport, or hardware-backed witness/checkpoint storage.
+v0.14 proves transparency-log inclusion and append-only extension only relative to the explicitly supplied log authority, verifier-retained prior checkpoint, Merkle proofs, and peer checkpoints. It does not claim global log discovery, durable append-only operation of a real service, complete gossip coverage, hardware-backed log keys, or distributed consensus over the globally latest checkpoint.
 
 The central rule is now:
 
-> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; a digest is portable only when runtimes agree on its exact bytes; a signature is portable only when the canonicalization profile is bound into what was signed; freshness is portable only when independent runtimes reach the same checkpoint-relative continuity verdict; and locally fresh signed history is not globally non-equivocated without independent witness evidence.**
+> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; a digest is portable only when runtimes agree on its exact bytes; a signature is portable only when the canonicalization profile is bound into what was signed; freshness is portable only when independent runtimes reach the same checkpoint-relative continuity verdict; locally fresh signed history is not globally non-equivocated without independent witness evidence; and witnessed state is not append-only history without verifiable log inclusion and consistency.**
