@@ -15,8 +15,8 @@ from .transparency_log import (
     checkpoint_digest,
     merkle_leaf_hash,
     signed_checkpoint_payload,
-    verify_transparency_log,
 )
+from .transparency_log_strict import verify_transparency_log
 
 
 def _set_path(root: Any, path: str, value: Any) -> None:
