@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/vtl/transparency-log-v0.14.schema.json",
+  "title": "VTL v0.14 transparency-log conformance fixture",
+  "type": "object",
+  "required": [
+    "profile_id",
+    "schema_version",
+    "canonical_profile",
+    "base_now_ms",
+    "base_bundle",
+    "checkpoint_variants",
+    "verifier_checkpoint_variants",
+    "inclusion_path_variants",
+    "consistency_path_variants",
+    "cases"
+  ],
+  "properties": {
+    "profile_id": {"const": "vtl-transparency-log-v0.14"},
+    "schema_version": {"const": "vtl.transparency-log-fixture/v0.14"},
+    "canonical_profile": {"const": "rfc8785-safe-integer/v0.10"},
+    "base_now_ms": {"type": "integer"},
+    "base_bundle": {"$ref": "#/$defs/bundle"},
+    "checkpoint_variants": {"type": "object", "additionalProperties": {"$ref": "#/$defs/checkpoint"}},
+    "verifier_checkpoint_variants": {"type": "object", "additionalProperties": {"$ref": "#/$defs/verifierCheckpoint"}},
+    "inclusion_path_variants": {"type": "object", "additionalProperties": {"$ref": "#/$defs/hashPath"}},
+    "consistency_path_variants": {"type": "object", "additionalProperties": {"$ref": "#/$defs/hashPath"}},
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "expected"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "expected": {"type": "object"},
+          "checkpoint_ref": {"type": "string"},
+          "verifier_checkpoint_ref": {"type": "string"},
+          "inclusion_path_ref": {"type": "string"},
+          "consistency_path_ref": {"type": "string"},
+          "peer_checkpoint_refs": {"type": "array", "items": {"type": "string"}},
+          "mutations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["path", "value"],
+              "properties": {"path": {"type": "string", "minLength": 1}},
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "hashPath": {"type": "array", "items": {"$ref": "#/$defs/hash"}},
+    "checkpoint": {
+      "type": "object",
+      "required": [
+        "checkpoint_id", "profile_id", "schema_version", "canonical_profile",
+        "log_id", "tree_size", "root_hash", "issued_at_ms", "not_before_ms",
+        "not_after_ms", "issuer_id", "log_authority_id", "log_key_id",
+        "signature_algorithm", "signature"
+      ],
+      "properties": {
+        "profile_id": {"const": "vtl-transparency-log-checkpoint/v0.14"},
+        "schema_version": {"const": "vtl.transparency-log/v0.14"},
+        "tree_size": {"type": "integer", "minimum": 1},
+        "root_hash": {"$ref": "#/$defs/hash"}
+      },
+      "additionalProperties": true
+    },
+    "verifierCheckpoint": {
+      "type": "object",
+      "required": ["profile_id", "log_id", "known_tree_size", "known_root_hash", "minimum_tree_size", "checkpointed_at_ms"],
+      "properties": {
+        "profile_id": {"const": "vtl-transparency-log-verifier-checkpoint/v0.14"},
+        "known_tree_size": {"type": "integer", "minimum": 1},
+        "known_root_hash": {"$ref": "#/$defs/hash"},
+        "minimum_tree_size": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    },
+    "bundle": {
+      "type": "object",
+      "required": [
+        "local_witnessed_freshness_valid", "target", "entry", "leaf_index",
+        "inclusion_path", "checkpoint", "log_authority", "verifier_checkpoint",
+        "consistency_path", "peer_checkpoints"
+      ],
+      "properties": {
+        "local_witnessed_freshness_valid": {"type": "boolean"},
+        "leaf_index": {"type": "integer", "minimum": 0},
+        "inclusion_path": {"$ref": "#/$defs/hashPath"},
+        "consistency_path": {"$ref": "#/$defs/hashPath"},
+        "checkpoint": {"$ref": "#/$defs/checkpoint"},
+        "verifier_checkpoint": {"$ref": "#/$defs/verifierCheckpoint"},
+        "peer_checkpoints": {"type": "array", "items": {"$ref": "#/$defs/checkpoint"}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
