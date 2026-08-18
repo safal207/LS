@@ -129,14 +129,28 @@ jobs:
         run: |
           vtl-canonical-verify fixtures/canonical-proof-v0.10.json > /tmp/vtl-canonical-python.json
           node reference/canonical-v0.10.mjs fixtures/canonical-proof-v0.10.json > /tmp/vtl-canonical-node.json
-          diff -u /tmp/vtl-canonical-python.json /tmp/vtl-canonical-node.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-canonical-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-canonical-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 18, 'passed': 18, 'failed': 0, 'all_passed': True}
+          PY
 
       - name: Run canonical signed envelope v0.11
         working-directory: prototypes/verified-transition-loop
         run: |
           vtl-canonical-envelope-verify fixtures/canonical-signed-envelope-v0.11.json > /tmp/vtl-envelope-python.json
           node reference/canonical-signed-envelope-v0.11.mjs fixtures/canonical-signed-envelope-v0.11.json > /tmp/vtl-envelope-node.json
-          diff -u /tmp/vtl-envelope-python.json /tmp/vtl-envelope-node.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-envelope-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-envelope-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 12, 'passed': 12, 'failed': 0, 'all_passed': True}
+          PY
 
       - name: Run inherited conformance layers
         working-directory: prototypes/verified-transition-loop
