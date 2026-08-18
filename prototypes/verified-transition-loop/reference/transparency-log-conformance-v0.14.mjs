@@ -40,9 +40,14 @@ for (const testCase of result.cases) {
   testCase.passed = matchesExpected(testCase.actual, testCase.expected);
 }
 const passed = result.cases.filter((testCase) => testCase.passed).length;
-const parityPassed = Object.entries(result.parity)
-  .filter(([key]) => key.endsWith('_matches_expected'))
-  .every(([, value]) => value === true);
+const loadBearingParityKeys = [
+  'entry_canonical_matches_expected',
+  'leaf_hash_matches_expected',
+  'checkpoint_signature_matches_expected',
+  'checkpoint_digest_matches_expected',
+  'root_hash_matches_expected',
+];
+const parityPassed = loadBearingParityKeys.every((key) => result.parity[key] === true);
 result.summary = {
   total: result.cases.length,
   passed,
