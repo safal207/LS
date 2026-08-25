@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
 class TrustViolation(ValueError):
@@ -70,7 +70,11 @@ class TrustRuntime:
         }
     )
 
-    def __init__(self, protected_effects: Iterable[str] | None = None) -> None:
+    def __init__(
+        self,
+        protected_effects: Iterable[str] | None = None,
+        authority_resolver: Callable[[DispatchReceipt], Sequence[str]] | None = None,
+    ) -> None:
         configured_effects = (
             self.DEFAULT_PROTECTED_EFFECTS
             if protected_effects is None
@@ -80,6 +84,7 @@ class TrustRuntime:
             self._clean_identifier(effect, "protected_effect")
             for effect in configured_effects
         )
+        self._authority_resolver = authority_resolver
         self._dispatches: dict[str, DispatchReceipt] = {}
         self._results: dict[str, ResultReceipt] = {}
         self._result_by_dispatch: dict[str, str] = {}
@@ -322,8 +327,19 @@ class TrustRuntime:
             allowed, reason = False, "result is not completed"
         elif normalized_effect not in dispatch.authority_scope:
             allowed, reason = False, "effect is outside the delegated authority scope"
-        elif (
-            normalized_effect in self.protected_effects
+        elif self._authority_resolver is not None:
+            current_scope = self._normalize_identifiers(
+                self._authority_resolver(dispatch),
+                "current_authority_scope",
+            )
+            if normalized_effect not in current_scope:
+                allowed, reason = (
+                    False,
+                    "effect is no longer authorized by current parent/policy state",
+                )
+        if (
+            allowed
+            and normalized_effect in self.protected_effects
             and (
                 dispatch_id,
                 result_receipt_id,
