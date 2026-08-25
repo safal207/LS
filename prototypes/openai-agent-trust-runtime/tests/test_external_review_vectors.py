@@ -27,17 +27,13 @@ def _completed_dispatch(
 
 
 def test_recovery_revalidates_authority_after_parent_revocation() -> None:
-    """A recovered worker must not rely only on a stale copied authority scope.
-
-    External-review vector from cosai-oasis/ws4-secure-design-agentic-systems#158.
-    The current runtime has no policy-freshness input on recovery/effect admission,
-    so this test is intentionally RED until parent/policy authority can be
-    revalidated before a consequential effect is admitted.
-    """
-
-    runtime = TrustRuntime()
+    """A recovered worker must not rely only on a stale copied authority scope."""
 
     authoritative_parent_scope = {"deploy"}
+    runtime = TrustRuntime(
+        authority_resolver=lambda _dispatch: tuple(authoritative_parent_scope)
+    )
+
     original = runtime.issue_dispatch(
         parent_agent="Coordinator",
         child_agent="Deployment Agent instance-1",
@@ -75,6 +71,7 @@ def test_recovery_revalidates_authority_after_parent_revocation() -> None:
 
     assert "deploy" not in authoritative_parent_scope
     assert decision.allowed is False
+    assert decision.reason == "effect is no longer authorized by current parent/policy state"
 
 
 def test_approval_is_bound_to_exact_effect_request() -> None:
