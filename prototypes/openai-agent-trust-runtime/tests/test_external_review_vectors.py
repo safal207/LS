@@ -42,7 +42,6 @@ def test_recovery_revalidates_authority_after_parent_revocation() -> None:
         authority_scope=tuple(authoritative_parent_scope),
     )
 
-    # Policy-relevant authority changes after D1 was issued.
     authoritative_parent_scope.remove("deploy")
 
     replacement = runtime.recover_dispatch(
@@ -75,13 +74,7 @@ def test_recovery_revalidates_authority_after_parent_revocation() -> None:
 
 
 def test_approval_is_bound_to_exact_effect_request() -> None:
-    """Approval for one payment request must not authorize a mutated payment.
-
-    External-review vector from cosai-oasis/ws4-secure-design-agentic-systems#158.
-    The trust layer currently binds approval to dispatch + result + normalized
-    effect class, but not policy-relevant target/parameters, so this test is
-    intentionally RED until exact-request identity participates in approval.
-    """
+    """Approval for one payment request must not authorize a mutated payment."""
 
     runtime = TrustRuntime()
     dispatch, result = _completed_dispatch(
@@ -95,12 +88,14 @@ def test_approval_is_bound_to_exact_effect_request() -> None:
         "amount": 10,
         "recipient": "Alice",
     }
-    runtime.grant_human_approval(
+    approval = runtime.grant_human_approval(
         dispatch_id=dispatch.receipt_id,
         effect=admitted_request["effect"],
         approver="reviewer",
         reason="Approved exactly $10 to Alice.",
+        request=admitted_request,
     )
+    assert approval.request_digest is not None
 
     mutated_request = {
         "effect": "payment",
@@ -113,6 +108,18 @@ def test_approval_is_bound_to_exact_effect_request() -> None:
         dispatch_id=dispatch.receipt_id,
         result_receipt_id=result.receipt_id,
         effect=mutated_request["effect"],
+        request=mutated_request,
     )
 
     assert decision.allowed is False
+    assert decision.reason == "protected effect requires human approval"
+    assert decision.request_digest != approval.request_digest
+
+    unchanged = runtime.authorize_effect(
+        dispatch_id=dispatch.receipt_id,
+        result_receipt_id=result.receipt_id,
+        effect=admitted_request["effect"],
+        request=admitted_request,
+    )
+    assert unchanged.allowed is True
+    assert unchanged.request_digest == approval.request_digest
