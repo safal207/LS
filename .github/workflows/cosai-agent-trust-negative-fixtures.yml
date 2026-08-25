@@ -1,0 +1,23 @@
+name: CoSAI agent trust negative fixtures
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "prototypes/openai-agent-trust-runtime/**"
+      - ".github/workflows/cosai-agent-trust-negative-fixtures.yml"
+
+jobs:
+  negative-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install prototype and test dependencies
+        working-directory: prototypes/openai-agent-trust-runtime
+        run: python -m pip install -e ".[dev]"
+      - name: Run CoSAI external-review fixtures
+        working-directory: prototypes/openai-agent-trust-runtime
+        run: python -m pytest -q tests/test_cosai_external_review.py
