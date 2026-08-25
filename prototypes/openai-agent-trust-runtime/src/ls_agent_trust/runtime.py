@@ -38,6 +38,7 @@ class ApprovalReceipt:
     dispatch_id: str
     result_receipt_id: str
     effect: str
+    effect_request_digest: str
     approver: str
     reason: str
 
@@ -48,6 +49,7 @@ class EffectDecision:
     reason: str
     dispatch_id: str
     effect: str
+    effect_request_digest: str
 
 
 class TrustRuntime:
@@ -83,8 +85,11 @@ class TrustRuntime:
         self._dispatches: dict[str, DispatchReceipt] = {}
         self._results: dict[str, ResultReceipt] = {}
         self._result_by_dispatch: dict[str, str] = {}
-        self._approvals: dict[tuple[str, str, str], ApprovalReceipt] = {}
+        self._approvals: dict[tuple[str, str, str, str], ApprovalReceipt] = {}
         self._superseded_by: dict[str, str] = {}
+        self._authority_root_by_dispatch: dict[str, str] = {}
+        self._current_authority_by_root: dict[str, set[str]] = {}
+        self._authority_epoch_by_root: dict[str, int] = {}
         self._ledger: list[dict[str, Any]] = []
 
     @staticmethod
@@ -129,6 +134,27 @@ class TrustRuntime:
                 normalized.add(cls._clean_identifier(value, field))
         return tuple(sorted(normalized))
 
+    @classmethod
+    def _effect_request_digest(
+        cls,
+        effect: str,
+        effect_request: Mapping[str, Any] | None,
+    ) -> str:
+        normalized_effect = cls._clean_identifier(effect, "effect")
+        request_payload = dict(effect_request or {})
+        supplied_effect = request_payload.pop("effect", normalized_effect)
+        if cls._clean_identifier(supplied_effect, "effect_request.effect") != normalized_effect:
+            raise TrustViolation("effect request does not match the requested effect")
+        try:
+            return cls._digest(
+                {
+                    "effect": normalized_effect,
+                    "request": request_payload,
+                }
+            )
+        except (TypeError, ValueError) as exc:
+            raise TrustViolation("effect_request must be canonical JSON data") from exc
+
     def _append(self, event_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         previous_hash = self._ledger[-1]["record_hash"] if self._ledger else "GENESIS"
         unsigned = {
@@ -162,6 +188,7 @@ class TrustRuntime:
             "authority_scope",
         )
 
+        previous: DispatchReceipt | None = None
         if supersedes is not None:
             previous = self._dispatches.get(supersedes)
             if previous is None:
@@ -189,8 +216,16 @@ class TrustRuntime:
         receipt_id = self._digest(payload)
         receipt = DispatchReceipt(receipt_id=receipt_id, **payload)
         self._dispatches[receipt_id] = receipt
-        if supersedes is not None:
+
+        if previous is None:
+            authority_root = receipt_id
+            self._current_authority_by_root[authority_root] = set(normalized_scope)
+            self._authority_epoch_by_root[authority_root] = 1
+        else:
+            authority_root = self._authority_root_by_dispatch[previous.receipt_id]
             self._superseded_by[supersedes] = receipt_id
+        self._authority_root_by_dispatch[receipt_id] = authority_root
+
         self._append("DISPATCH_ISSUED", asdict(receipt))
         return receipt
 
@@ -211,6 +246,28 @@ class TrustRuntime:
             constraints=original.constraints,
             authority_scope=original.authority_scope,
             supersedes=dispatch_id,
+        )
+
+    def revoke_authority(self, dispatch_id: str, *, effect: str) -> None:
+        """Revoke one effect from the current authority state for a dispatch lineage."""
+
+        dispatch = self._dispatches.get(dispatch_id)
+        if dispatch is None:
+            raise TrustViolation("dispatch does not exist")
+        normalized_effect = self._clean_identifier(effect, "effect")
+        authority_root = self._authority_root_by_dispatch[dispatch_id]
+        current = self._current_authority_by_root[authority_root]
+        current.discard(normalized_effect)
+        self._authority_epoch_by_root[authority_root] += 1
+        self._append(
+            "AUTHORITY_REVOKED",
+            {
+                "authority_root": authority_root,
+                "dispatch_id": dispatch_id,
+                "effect": normalized_effect,
+                "authority_epoch": self._authority_epoch_by_root[authority_root],
+                "current_authority_scope": tuple(sorted(current)),
+            },
         )
 
     def submit_result(
@@ -268,6 +325,7 @@ class TrustRuntime:
         effect: str,
         approver: str,
         reason: str,
+        effect_request: Mapping[str, Any] | None = None,
     ) -> ApprovalReceipt:
         dispatch = self._dispatches.get(dispatch_id)
         if dispatch is None:
@@ -284,17 +342,19 @@ class TrustRuntime:
         if normalized_effect not in dispatch.authority_scope:
             raise TrustViolation("approval effect is outside the delegated authority scope")
 
+        request_digest = self._effect_request_digest(normalized_effect, effect_request)
         payload = {
             "dispatch_id": dispatch_id,
             "result_receipt_id": result.receipt_id,
             "effect": normalized_effect,
+            "effect_request_digest": request_digest,
             "approver": self._clean_text(approver, "approver"),
             "reason": self._clean_text(reason, "reason"),
         }
         receipt_id = self._digest(payload)
         receipt = ApprovalReceipt(receipt_id=receipt_id, **payload)
         self._approvals[
-            (dispatch_id, result.receipt_id, normalized_effect)
+            (dispatch_id, result.receipt_id, normalized_effect, request_digest)
         ] = receipt
         self._append("HUMAN_APPROVAL_RECORDED", asdict(receipt))
         return receipt
@@ -305,8 +365,10 @@ class TrustRuntime:
         dispatch_id: str,
         result_receipt_id: str,
         effect: str,
+        effect_request: Mapping[str, Any] | None = None,
     ) -> EffectDecision:
         normalized_effect = self._clean_identifier(effect, "effect")
+        request_digest = self._effect_request_digest(normalized_effect, effect_request)
         dispatch = self._dispatches.get(dispatch_id)
         result = self._results.get(result_receipt_id)
 
@@ -322,22 +384,28 @@ class TrustRuntime:
             allowed, reason = False, "result is not completed"
         elif normalized_effect not in dispatch.authority_scope:
             allowed, reason = False, "effect is outside the delegated authority scope"
+        elif normalized_effect not in self._current_authority_by_root[
+            self._authority_root_by_dispatch[dispatch_id]
+        ]:
+            allowed, reason = False, "authority was revoked or is no longer current"
         elif (
             normalized_effect in self.protected_effects
             and (
                 dispatch_id,
                 result_receipt_id,
                 normalized_effect,
+                request_digest,
             )
             not in self._approvals
         ):
-            allowed, reason = False, "protected effect requires human approval"
+            allowed, reason = False, "protected effect requires exact matching human approval"
 
         decision = EffectDecision(
             allowed=allowed,
             reason=reason,
             dispatch_id=dispatch_id,
             effect=normalized_effect,
+            effect_request_digest=request_digest,
         )
         self._append(
             "EFFECT_ALLOWED" if allowed else "EFFECT_BLOCKED",
