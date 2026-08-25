@@ -6,28 +6,26 @@ from ls_agent_trust import TrustRuntime
 def test_recovery_revalidates_authority_after_parent_revocation() -> None:
     """CoSAI #158: carried-forward scope must not outlive its parent grant."""
 
-    runtime = TrustRuntime()
-
-    # Model the authoritative parent-side grant that existed when D1 was issued.
-    # v0.1 snapshots that grant into authority_scope but has no freshness or
-    # revocation input at recovery/effect-admission time.
-    authoritative_parent_grants = {"deploy"}
-
+    # Disable the separate human-approval gate so this fixture isolates authority
+    # freshness rather than passing because deploy is protected by default.
+    runtime = TrustRuntime(protected_effects=())
     original = runtime.issue_dispatch(
         parent_agent="Coordinator",
         child_agent="Deploy Agent instance-1",
         task="Deploy the reviewed release",
-        authority_scope=tuple(authoritative_parent_grants),
+        authority_scope=("deploy",),
     )
 
-    # The parent/policy state changes before recovery: deploy is revoked.
-    authoritative_parent_grants.remove("deploy")
-    assert "deploy" not in authoritative_parent_grants
+    # Parent/policy authority changes after D1 was issued. The recorded maximum
+    # scope remains unchanged, but current authority no longer admits deploy.
+    runtime.revoke_authority(original.receipt_id, effect="deploy")
 
     replacement = runtime.recover_dispatch(
         original.receipt_id,
         replacement_agent="Deploy Agent instance-2",
     )
+    assert replacement.authority_scope == original.authority_scope
+
     result = runtime.submit_result(
         dispatch_id=replacement.receipt_id,
         agent="Deploy Agent instance-2",
@@ -35,23 +33,14 @@ def test_recovery_revalidates_authority_after_parent_revocation() -> None:
         summary="Recovery worker completed the delegated task.",
         evidence=("cosai:authority-revalidation-vector",),
     )
-    runtime.grant_human_approval(
-        dispatch_id=replacement.receipt_id,
-        effect="deploy",
-        approver="reviewer",
-        reason="Approve only if the recovered authority is still valid.",
-    )
-
     decision = runtime.authorize_effect(
         dispatch_id=replacement.receipt_id,
         result_receipt_id=result.receipt_id,
         effect="deploy",
     )
 
-    assert decision.allowed is False, (
-        "recovery reused the predecessor's stale authority_scope after the "
-        "authoritative parent grant revoked deploy"
-    )
+    assert decision.allowed is False
+    assert decision.reason == "authority was revoked or is no longer current"
 
 
 def test_approval_is_bound_to_exact_effect_request() -> None:
@@ -84,23 +73,21 @@ def test_approval_is_bound_to_exact_effect_request() -> None:
         evidence=("cosai:exact-effect-request-vector",),
     )
 
-    # Approval is currently keyed only by dispatch + result + normalized
-    # effect class, so the security-relevant request parameters are not bound.
-    runtime.grant_human_approval(
+    approval = runtime.grant_human_approval(
         dispatch_id=dispatch.receipt_id,
         effect=original_request["effect"],
+        effect_request=original_request,
         approver="reviewer",
         reason="Approve payment of 10 to Alice only.",
     )
+    assert approval.effect_request_digest
 
     decision = runtime.authorize_effect(
         dispatch_id=dispatch.receipt_id,
         result_receipt_id=result.receipt_id,
         effect=mutated_request["effect"],
+        effect_request=mutated_request,
     )
 
-    assert decision.allowed is False, (
-        "approval for payment(amount=10, recipient=Alice) was reused for "
-        "payment(amount=1000, recipient=Bob) because only the effect class "
-        "is represented at authorization time"
-    )
+    assert decision.allowed is False
+    assert decision.effect_request_digest != approval.effect_request_digest
