@@ -398,7 +398,7 @@ class TrustRuntime:
             )
             not in self._approvals
         ):
-            allowed, reason = False, "protected effect requires exact matching human approval"
+            allowed, reason = False, "protected effect requires human approval"
 
         decision = EffectDecision(
             allowed=allowed,
