@@ -48,7 +48,17 @@ def source_checkout() -> Iterator[tuple[Path, str]]:
             "route-v2\n",
             encoding="utf-8",
         )
-        git(repo, "add", "fixture.txt")
+        replay_script = repo / "scripts" / "verify_route_contract.py"
+        replay_script.parent.mkdir(parents=True)
+        replay_script.write_text(
+            (
+                "from pathlib import Path\n"
+                "assert Path('fixture.txt').read_text(encoding='utf-8') "
+                "== 'route-v2\\n'\n"
+            ),
+            encoding="utf-8",
+        )
+        git(repo, "add", "fixture.txt", "scripts/verify_route_contract.py")
         env = os.environ.copy()
         env.update(
             {

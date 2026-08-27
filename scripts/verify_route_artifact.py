@@ -75,6 +75,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--execute-replay",
+        action="store_true",
+        help=(
+            "Execute a T0 replay without a shell. Use only inside an "
+            "operator-controlled sandbox."
+        ),
+    )
+    parser.add_argument(
         "--promotion-thresholds",
         type=Path,
         default=DEFAULT_PROMOTION_THRESHOLDS_PATH,
@@ -112,6 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 canonical_store=not args.allow_t2_audit,
                 repository_root=args.repo_root,
                 configured_thresholds=configured_thresholds,
+                execute_declared_replay=args.execute_replay,
             )
         else:
             artifacts = [read_json(path) for path in args.registry]
@@ -121,6 +130,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 artifacts,
                 repository_root=args.repo_root,
                 configured_thresholds=configured_thresholds,
+                execute_declared_replay=args.execute_replay,
             )
     except RouteArtifactError as exc:
         sys.stderr.write(f"{exc}\n")

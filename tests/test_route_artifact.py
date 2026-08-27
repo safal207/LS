@@ -20,6 +20,7 @@ from route_artifact import (  # noqa: E402
     RouteArtifactError,
     build_registry_projection,
     compute_content_digest,
+    compute_replay_evidence_digest,
     verify_immutable_update,
     verify_route_artifact,
 )
@@ -123,6 +124,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
             verify_route_artifact(
                 t0,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
         for name, canonical in (
             ("route_t1_valid.json", True),
@@ -178,11 +180,56 @@ class RouteArtifactV2Tests(unittest.TestCase):
                     compute_digest=compute_content_digest,
                 ),
                 repository_root=repo,
+                execute_declared_replay=True,
             )
         self.assertTrue(result["canonical_store_eligible"])
         self.assertTrue(result["training_eligible"])
         self.assertTrue(result["source_bound"])
         self.assertEqual(1, result["honeypot_evaluations"])
+        self.assertEqual(
+            {
+                "t0_runs": 1,
+                "repository_count": 1,
+                "task_variant_count": 1,
+                "sealed_honeypot_runs": 1,
+            },
+            result["verified_promotion_counts"],
+        )
+
+    def test_t0_requires_explicit_operator_replay_execution(self):
+        with source_checkout() as (repo, head):
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+            self.assert_code(
+                "ROUTE-V2-REPLAY",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+            )
+
+    def test_t0_rejects_a_declared_command_that_did_not_execute(self):
+        with source_checkout() as (repo, head):
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+            replay = artifact["verification"]["replay"]
+            replay["command"] = "missing-route-replay-command"
+            replay["evidence_digest"] = compute_replay_evidence_digest(
+                replay
+            )
+            digest(artifact)
+            self.assert_code(
+                "ROUTE-V2-REPLAY",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
 
     def test_t0_requires_repository_checkout(self):
         self.assert_code(
@@ -207,6 +254,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_t0_rejects_wrong_origin_repository(self):
@@ -225,6 +273,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_t0_rejects_source_commit_mismatch(self):
@@ -243,6 +292,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_t0_requires_successful_replay(self):
@@ -334,6 +384,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_t1_is_stored_but_not_confirmed(self):
@@ -599,6 +650,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_candidate_cannot_self_lower_configured_promotion_thresholds(self):
@@ -620,6 +672,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_external_policy_changes_threshold_without_code_change(self):
@@ -640,17 +693,20 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 artifact,
                 repository_root=repo,
                 configured_thresholds=configured,
+                execute_declared_replay=True,
             )
 
             artifact["metrics"]["sample_size"] = 21
             artifact["metrics"]["t0_runs"] = 21
             digest(artifact)
-            result = verify_route_artifact(
+            self.assert_code(
+                "ROUTE-V2-PROMOTION",
+                verify_route_artifact,
                 artifact,
                 repository_root=repo,
                 configured_thresholds=configured,
+                execute_declared_replay=True,
             )
-            self.assertEqual("candidate", result["status"])
 
     def test_candidate_blocked_without_honeypot_evidence(self):
         with source_checkout() as (repo, head):
@@ -665,6 +721,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_candidate_blocked_on_critical_false_negative(self):
@@ -679,6 +736,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
     def test_candidate_blocked_without_confidence_interval(self):
@@ -694,9 +752,10 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
-    def test_validated_requires_maintainer_approval(self):
+    def test_validated_rejects_producer_authored_maintainer_approval(self):
         with source_checkout() as (repo, head):
             artifact = make_promotable(
                 repo,
@@ -706,20 +765,64 @@ class RouteArtifactV2Tests(unittest.TestCase):
             artifact["metrics"]["maintainer_approved"] = False
             digest(artifact)
             self.assert_code(
+                "ROUTE-V2-GOVERNANCE",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
+
+    def test_producer_aggregate_counts_cannot_satisfy_promotion(self):
+        with source_checkout() as (repo, head):
+            artifact = make_promotable(repo, head)
+            self.assert_code(
                 "ROUTE-V2-PROMOTION",
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
-    def test_candidate_can_pass_all_promotion_gates(self):
-        with source_checkout() as (repo, head):
-            artifact = make_promotable(repo, head)
-            result = verify_route_artifact(
-                artifact,
-                repository_root=repo,
-            )
-        self.assertEqual("candidate", result["status"])
+    def test_rate_metrics_are_bounded_to_zero_one(self):
+        cases = (
+            ("confirmed_effectiveness", "point", 999),
+            ("false_positive_rate", "point", -1),
+            ("confirmed_effectiveness", "lower", -0.01),
+            ("false_positive_rate", "upper", 1.01),
+        )
+        for metric_name, field, invalid in cases:
+            with self.subTest(metric=metric_name, field=field):
+                with source_checkout() as (repo, head):
+                    artifact = materialize_t0(
+                        repo,
+                        head,
+                        compute_digest=compute_content_digest,
+                    )
+                    metric_value = artifact["metrics"][metric_name]
+                    metric_value["point"] = 0.5
+                    metric_value["ci95"] = {
+                        "lower": 0.25,
+                        "upper": 0.75,
+                    }
+                    if field == "point":
+                        metric_value["point"] = invalid
+                        metric_value["ci95"] = {
+                            "lower": min(0.0, invalid),
+                            "upper": max(1.0, invalid),
+                        }
+                    else:
+                        metric_value["ci95"][field] = invalid
+                    digest(artifact)
+                    self.assertTrue(
+                        list(self.validator().iter_errors(artifact))
+                    )
+                    self.assert_code(
+                        "ROUTE-V2-METRIC",
+                        verify_route_artifact,
+                        artifact,
+                        repository_root=repo,
+                        execute_declared_replay=True,
+                    )
 
     def test_registry_derives_reverse_edge(self):
         v1 = load("route_t1_valid.json")
@@ -829,6 +932,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 existing,
                 mutated,
                 repository_root=repo,
+                execute_declared_replay=True,
             )
 
 

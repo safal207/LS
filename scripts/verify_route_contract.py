@@ -50,6 +50,7 @@ def main() -> int:
             t0,
             repository_root=repo,
             configured_thresholds=configured_thresholds,
+            execute_declared_replay=True,
         )
 
     t1 = load_fixture("route_t1_valid.json")
@@ -91,7 +92,7 @@ def main() -> int:
         "t1": "artifact-attested",
         "t2": "rejected-canonical-audited",
         "honeypot": "sealed-ground-truth-matched",
-        "promotion_thresholds": "externally-configured-and-artifact-bound",
+        "promotion_thresholds": "externally-configured-and-verified-count-bound",
         "tests_run": result.testsRun,
         "failures": len(result.failures),
         "errors": len(result.errors),

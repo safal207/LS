@@ -203,6 +203,15 @@
         "ci95": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["lower", "upper"], "properties": {"lower": {"type": "number"}, "upper": {"type": "number"}}}]}
       }
     },
+    "rate_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["point", "ci95"],
+      "properties": {
+        "point": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "ci95": {"oneOf": [{"type": "null"}, {"type": "object", "additionalProperties": false, "required": ["lower", "upper"], "properties": {"lower": {"type": "number", "minimum": 0, "maximum": 1}, "upper": {"type": "number", "minimum": 0, "maximum": 1}}}]}
+      }
+    },
     "metrics": {
       "type": "object",
       "additionalProperties": false,
@@ -214,10 +223,10 @@
         "task_variant_count": {"type": "integer", "minimum": 0},
         "sealed_honeypot_runs": {"type": "integer", "minimum": 0},
         "unresolved_critical_false_negatives": {"type": "integer", "minimum": 0},
-        "confirmed_effectiveness": {"$ref": "#/$defs/metric"},
-        "false_positive_rate": {"$ref": "#/$defs/metric"},
+        "confirmed_effectiveness": {"$ref": "#/$defs/rate_metric"},
+        "false_positive_rate": {"$ref": "#/$defs/rate_metric"},
         "reviewer_minutes_saved": {"$ref": "#/$defs/metric"},
-        "maintainer_approved": {"type": "boolean"}
+        "maintainer_approved": {"const": false}
       }
     },
     "promotion_policy": {

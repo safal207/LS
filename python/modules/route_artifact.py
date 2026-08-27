@@ -8,6 +8,7 @@ import heapq
 import json
 import math
 import re
+import shlex
 import subprocess
 import unicodedata
 from collections.abc import Mapping, Sequence
@@ -201,7 +202,13 @@ def load_promotion_thresholds(
     return promotion_thresholds(value)
 
 
-def metric(value: Any, path: str) -> None:
+def metric(
+    value: Any,
+    path: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> None:
     value = obj(value, path)
     exact(value, path, {"point", "ci95"})
     point = value["point"]
@@ -212,6 +219,10 @@ def metric(value: Any, path: str) -> None:
             fail("ROUTE-V2-METRIC", f"{path}.point must be numeric or null")
         if not math.isfinite(point):
             fail("ROUTE-V2-METRIC", f"{path}.point must be finite")
+        if minimum is not None and point < minimum:
+            fail("ROUTE-V2-METRIC", f"{path}.point must be >= {minimum}")
+        if maximum is not None and point > maximum:
+            fail("ROUTE-V2-METRIC", f"{path}.point must be <= {maximum}")
 
     if ci is None:
         if point is not None:
@@ -227,6 +238,16 @@ def metric(value: Any, path: str) -> None:
             fail("ROUTE-V2-METRIC", f"{path}.ci95.{name} must be numeric")
         if not math.isfinite(bound):
             fail("ROUTE-V2-METRIC", f"{path}.ci95.{name} must be finite")
+        if minimum is not None and bound < minimum:
+            fail(
+                "ROUTE-V2-METRIC",
+                f"{path}.ci95.{name} must be >= {minimum}",
+            )
+        if maximum is not None and bound > maximum:
+            fail(
+                "ROUTE-V2-METRIC",
+                f"{path}.ci95.{name} must be <= {maximum}",
+            )
     if lower > upper or (point is not None and not lower <= point <= upper):
         fail("ROUTE-V2-METRIC", f"{path} has inconsistent point/ci95")
 
@@ -245,7 +266,7 @@ def empty_metric(value: Mapping[str, Any]) -> bool:
     return value.get("point") is None and value.get("ci95") is None
 
 
-def verify_replay(value: Any) -> None:
+def verify_replay(value: Any) -> Mapping[str, Any]:
     replay = obj(value, "verification.replay")
     exact(
         replay,
@@ -300,6 +321,45 @@ def verify_replay(value: Any) -> None:
         fail(
             "ROUTE-V2-DIGEST",
             f"replay evidence digest mismatch: expected {expected_digest}",
+        )
+    return replay
+
+
+def execute_replay(
+    replay: Mapping[str, Any],
+    repository_root: Path | str,
+) -> None:
+    """Execute a declared replay without a shell in an operator sandbox."""
+    command = text(replay["command"], "verification.replay.command")
+    try:
+        arguments = shlex.split(command)
+    except ValueError as exc:
+        fail("ROUTE-V2-REPLAY", f"invalid replay command: {exc}")
+    if not arguments:
+        fail("ROUTE-V2-REPLAY", "replay command must not be empty")
+
+    try:
+        completed = subprocess.run(
+            arguments,
+            cwd=Path(repository_root).resolve(),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        fail("ROUTE-V2-REPLAY", f"unable to execute replay command: {exc}")
+
+    expected = replay["expected_exit_code"]
+    observed = replay["observed_exit_code"]
+    if completed.returncode != expected or completed.returncode != observed:
+        fail(
+            "ROUTE-V2-REPLAY",
+            (
+                "executed replay exit code "
+                f"{completed.returncode} does not match declared "
+                f"expected={expected} and observed={observed}"
+            ),
         )
 
 
@@ -445,10 +505,19 @@ def verify_source_checkout(
 def verify_promotion(
     route: Mapping[str, Any],
     configured_thresholds: Mapping[str, int],
+    verified_counts: Mapping[str, int],
 ) -> None:
     status = route["status"]
     if status not in {"candidate", "validated"}:
         return
+    if status == "validated":
+        fail(
+            "ROUTE-V2-GOVERNANCE",
+            (
+                "validated state requires an independently authenticated "
+                "governance decision, which is outside this artifact contract"
+            ),
+        )
     if route["verification"]["tier"] != "T0_deterministic_replay":
         fail(
             "ROUTE-V2-PROMOTION",
@@ -461,15 +530,25 @@ def verify_promotion(
     failures: list[str] = []
 
     metric_floors = {
-        "t0_runs": configured_thresholds["minimum_t0_runs"],
-        "repository_count": configured_thresholds["minimum_repositories"],
-        "task_variant_count": configured_thresholds["minimum_task_variants"],
-        "sealed_honeypot_runs": configured_thresholds[
-            "minimum_sealed_honeypot_runs"
-        ],
+        "t0_runs": (
+            verified_counts["t0_runs"],
+            configured_thresholds["minimum_t0_runs"],
+        ),
+        "repository_count": (
+            verified_counts["repository_count"],
+            configured_thresholds["minimum_repositories"],
+        ),
+        "task_variant_count": (
+            verified_counts["task_variant_count"],
+            configured_thresholds["minimum_task_variants"],
+        ),
+        "sealed_honeypot_runs": (
+            verified_counts["sealed_honeypot_runs"],
+            configured_thresholds["minimum_sealed_honeypot_runs"],
+        ),
     }
-    for metric_key, floor in metric_floors.items():
-        if metrics[metric_key] < floor:
+    for metric_key, (verified_count, floor) in metric_floors.items():
+        if verified_count < floor:
             failures.append(metric_key)
 
     if len(honeypots) < configured_thresholds["minimum_sealed_honeypot_runs"]:
@@ -489,15 +568,6 @@ def verify_promotion(
             "ROUTE-V2-PROMOTION",
             f"promotion gates failed: {', '.join(failures)}",
         )
-    if (
-        status == "validated"
-        and policy["requires_maintainer_approval"]
-        and not metrics["maintainer_approved"]
-    ):
-        fail(
-            "ROUTE-V2-PROMOTION",
-            "validated route requires maintainer approval",
-        )
 
 
 def verify_route_artifact(
@@ -506,6 +576,7 @@ def verify_route_artifact(
     canonical_store: bool = True,
     repository_root: Path | str | None = None,
     configured_thresholds: Mapping[str, Any] | None = None,
+    execute_declared_replay: bool = False,
 ) -> dict[str, Any]:
     selected_thresholds = promotion_thresholds(
         load_promotion_thresholds()
@@ -697,6 +768,12 @@ def verify_route_artifact(
         verification["honeypot_evaluations"]
     )
 
+    verified_counts = {
+        "t0_runs": 0,
+        "repository_count": 0,
+        "task_variant_count": 0,
+        "sealed_honeypot_runs": 0,
+    }
     if tier == "T0_deterministic_replay":
         if head is None or not sandbox or verification["source"] is None:
             fail(
@@ -705,11 +782,28 @@ def verify_route_artifact(
             )
         if narrative is not None:
             fail("ROUTE-V2-T0", "T0 narrative must be null")
-        verify_replay(verification["replay"])
+        replay = verify_replay(verification["replay"])
         verify_source_checkout(
             verification["source"],
             head,
             repository_root,
+        )
+        if not execute_declared_replay:
+            fail(
+                "ROUTE-V2-REPLAY",
+                (
+                    "T0 assignment requires explicit replay execution in an "
+                    "operator-controlled sandbox"
+                ),
+            )
+        execute_replay(replay, repository_root)
+        verified_counts.update(
+            {
+                "t0_runs": 1,
+                "repository_count": 1,
+                "task_variant_count": 1,
+                "sealed_honeypot_runs": len(honeypots),
+            }
         )
     elif tier == "T1_artifact_attested":
         if (
@@ -786,16 +880,27 @@ def verify_route_artifact(
                 "verified honeypot evaluations"
             ),
         )
-    for key in (
-        "confirmed_effectiveness",
-        "false_positive_rate",
-        "reviewer_minutes_saved",
-    ):
-        metric(metrics[key], f"route.metrics.{key}")
-    boolean(
+    for key in ("confirmed_effectiveness", "false_positive_rate"):
+        metric(
+            metrics[key],
+            f"route.metrics.{key}",
+            minimum=0.0,
+            maximum=1.0,
+        )
+    metric(
+        metrics["reviewer_minutes_saved"],
+        "route.metrics.reviewer_minutes_saved",
+        minimum=0.0,
+    )
+    maintainer_approved = boolean(
         metrics["maintainer_approved"],
         "route.metrics.maintainer_approved",
     )
+    if maintainer_approved:
+        fail(
+            "ROUTE-V2-GOVERNANCE",
+            "producer-authored maintainer_approved must remain false",
+        )
 
     policy = obj(route["promotion_policy"], "route.promotion_policy")
     exact(
@@ -922,7 +1027,7 @@ def verify_route_artifact(
             "training eligibility requires explicit permission",
         )
 
-    verify_promotion(route, selected_thresholds)
+    verify_promotion(route, selected_thresholds, verified_counts)
     return {
         "route_ref": ref,
         "content_digest": digest,
@@ -932,6 +1037,7 @@ def verify_route_artifact(
         "training_eligible": eligible,
         "source_bound": tier == "T0_deterministic_replay",
         "honeypot_evaluations": len(honeypots),
+        "verified_promotion_counts": verified_counts,
     }
 
 
@@ -941,11 +1047,13 @@ def verify_immutable_update(
     *,
     repository_root: Path | str | None = None,
     configured_thresholds: Mapping[str, Any] | None = None,
+    execute_declared_replay: bool = False,
 ) -> None:
     summary = verify_route_artifact(
         artifact,
         repository_root=repository_root,
         configured_thresholds=configured_thresholds,
+        execute_declared_replay=execute_declared_replay,
     )
     previous = existing_digests.get(summary["route_ref"])
     if previous is not None and previous != summary["content_digest"]:
@@ -960,6 +1068,7 @@ def build_registry_projection(
     *,
     repository_root: Path | str | None = None,
     configured_thresholds: Mapping[str, Any] | None = None,
+    execute_declared_replay: bool = False,
 ) -> dict[str, Any]:
     selected_thresholds = promotion_thresholds(
         load_promotion_thresholds()
@@ -972,6 +1081,7 @@ def build_registry_projection(
             artifact,
             repository_root=repository_root,
             configured_thresholds=selected_thresholds,
+            execute_declared_replay=execute_declared_replay,
         )
         ref = summary["route_ref"]
         if ref in records:

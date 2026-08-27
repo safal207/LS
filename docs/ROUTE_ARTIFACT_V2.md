@@ -21,7 +21,8 @@ T0 requires:
 - a declared Git host, repository, ref, and exact commit;
 - a local checkout whose `origin`, `HEAD`, declared ref, and commit all match;
 - sandbox execution;
-- an executable replay command;
+- explicit operator opt-in to execute the replay without a shell inside an
+  already controlled sandbox;
 - matching expected and observed exit codes;
 - passing deterministic assertions;
 - an evidence digest recomputed from the replay payload.
@@ -31,6 +32,11 @@ object with only the `evidence_digest` field omitted. Changing the command,
 exit codes, assertions, or replay result without updating that digest fails
 verification. The top-level Route Artifact digest independently protects the
 complete artifact.
+
+The digest is integrity evidence, not execution evidence. T0 is assigned only
+after the verifier actually runs the declared command and observes the declared
+exit code. A missing command, a digest-only claim, or verification without the
+explicit execution capability fails closed.
 
 A 40-character hexadecimal string alone is not T0 evidence.
 
@@ -124,6 +130,13 @@ not escape through Python recursion depth.
 
 A non-T0 artifact cannot become `candidate` or `validated`.
 
+The current narrow verifier independently establishes one replay, one source
+repository, and one task variant per T0 artifact. Promotion uses those verified
+counts, not the artifact's aggregate counters. Consequently the default 20/2/2
+floor cannot be met by inflating `t0_runs`, `repository_count`, or
+`task_variant_count`; a later independently authenticated multi-run evidence
+contract is required before candidate promotion can pass.
+
 The repository default in
 `config/route_artifact_v2_promotion_thresholds.json` is:
 
@@ -141,9 +154,15 @@ the exact numeric values selected by the verifier, so it cannot lower its own
 thresholds. JSON Schema validates the policy shape; runtime verification binds
 the artifact to the externally selected values and enforces them.
 
+Effectiveness and false-positive point estimates and confidence bounds are
+restricted to `[0, 1]`.
+
 Zero unresolved critical false negatives, confidence intervals, and explicit
 maintainer approval for `validated` remain mandatory v2 invariants and are not
-weakened by the numeric threshold configuration.
+weakened by the numeric threshold configuration. The producer-authored
+`metrics.maintainer_approved` field must remain `false`; this narrow contract
+rejects `validated` until a separately authenticated governance decision is
+bound to the exact candidate and evidence set.
 
 These are operational gates, not a claim of statistical proof.
 
@@ -166,10 +185,11 @@ Until that decision is independently reviewed, this PR does not add:
 - route or model rankings;
 - CausalFragment execution tooling.
 
-The current `status`, `metrics.maintainer_approved`, promotion-policy, lineage,
-and registry-projection fields remain part of this Draft verifier contract.
-They are not proof that an artifact may approve itself, finalize independent
-truth, or gain action authority.
+The current `status`, promotion-policy, lineage, and registry-projection fields
+remain part of this Draft verifier contract. `metrics.maintainer_approved` is a
+closed false placeholder, not an approval channel. These fields are not proof
+that an artifact may approve itself, finalize independent truth, or gain action
+authority.
 
 ## One deterministic command
 
@@ -189,11 +209,14 @@ For a single artifact:
 ```bash
 python3 scripts/verify_route_artifact.py \
   --artifact path/to/route.json \
-  --repo-root path/to/its/checked-out-repository
+  --repo-root path/to/its/checked-out-repository \
+  --execute-replay
 ```
 
-`--repo-root` is mandatory for T0 ingestion. `--allow-t2-audit` is valid only
-with `--artifact`.
+`--repo-root` and explicit `--execute-replay` are mandatory for T0 ingestion.
+The latter is an execution capability and must be used only inside an
+operator-controlled sandbox. `--allow-t2-audit` is valid only with
+`--artifact`.
 
 ## Non-goals
 
