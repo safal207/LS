@@ -1,5 +1,6 @@
 import { canonicalBytes } from "./canonicalize.js";
 import { sha256Ref } from "./hash.js";
+import { recoverSubjectFromVerifiedEvents } from "./recover.js";
 import { ContinuityStore } from "./store.js";
 import type {
   ContinuityEnvelope,
@@ -166,6 +167,7 @@ export interface SnapshotChainAssessment {
     | "OBSERVATION_ROLLBACK"
     | "SIDE_EFFECT_ROLLBACK"
     | "EXECUTION_ROLLBACK"
+    | "EXECUTION_ERROR_WITHOUT_FRESH_OBSERVATION"
     | "AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"
     | "RETRY_ELIGIBILITY_WITHOUT_FRESH_EVIDENCE"
     | "CAUSAL_EVIDENCE_REUSED"
@@ -513,7 +515,7 @@ function loadTransitionSnapshots(
   return snapshots;
 }
 
-export function evaluateTransitionResume(
+function evaluateTransitionResumeFromVerifiedStore(
   store: ContinuityStore,
   snapshotRef: string,
   request: TransitionResumeRequest
@@ -554,6 +556,7 @@ export function evaluateTransitionResume(
     );
   }
 
+  recoverSubjectFromVerifiedEvents(store, payload.subject_id);
   const snapshots = loadTransitionSnapshots(
     store,
     payload.subject_id,
@@ -727,6 +730,16 @@ export function evaluateTransitionResume(
   return decision(snapshot, false, "BLOCKED", "UNKNOWN_STATE");
 }
 
+export function evaluateTransitionResume(
+  store: ContinuityStore,
+  snapshotRef: string,
+  request: TransitionResumeRequest
+): TransitionResumeDecision {
+  return store.withReadSnapshot(() =>
+    evaluateTransitionResumeFromVerifiedStore(store, snapshotRef, request)
+  );
+}
+
 const TERMINAL_AUTHORITY = new Set<AuthorityDimension>([
   "DENIED",
   "EXPIRED",
@@ -802,6 +815,13 @@ export function assessSnapshotChain(
     !explicitAuthorizationEpoch
   ) {
     reasons.push("RETRY_ELIGIBILITY_WITHOUT_FRESH_EVIDENCE");
+  }
+  if (
+    current.payload.dimensions.execution === "OBSERVED_ERRORED" &&
+    previous.payload.dimensions.execution !== "OBSERVED_ERRORED" &&
+    !freshObservation
+  ) {
+    reasons.push("EXECUTION_ERROR_WITHOUT_FRESH_OBSERVATION");
   }
   if (
     previous.payload.dimensions.execution === "OBSERVED_BLOCKED" &&
@@ -969,7 +989,7 @@ export function assessSnapshotSequence(
     const causalRef = snapshot.payload.record_refs.causal_audit_ref;
     const causalRefSeen =
       causalRef !== null && seenCausalRefs.has(causalRef);
-    if (snapshot.payload.dimensions.causal_validity === "INVALID") {
+    if (snapshot.payload.dimensions.causal_validity !== "VALID") {
       causalRecoveryRequired = true;
     } else if (
       causalRecoveryRequired &&

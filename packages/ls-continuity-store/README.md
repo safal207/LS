@@ -105,8 +105,10 @@ a new snapshot.
 Historical snapshots remain reportable even after expiry or evidence drift, but
 they cannot silently regain live permission.
 
-Live resume evaluation loads the selected snapshot from the local store and
-requires it to be the latest entry in a valid, forward-only transition chain.
+Live resume evaluation runs under one SQLite read snapshot, verifies event-hash
+and immutable-object-index coverage, checks replay against the projection, and
+requires the selected snapshot to be the latest entry in a valid, forward-only
+transition chain.
 
 ### Snapshot chain rules
 
@@ -119,6 +121,9 @@ requires it to be the latest entry in a valid, forward-only transition chain.
 - executed-to-unobserved rollback;
 - retry eligibility made permissive without fresh observation evidence or a new
   authorization epoch;
+- a newly claimed execution error without fresh observation evidence;
+- causal validity restored after `UNKNOWN` or `NOT_EVALUATED` without a fresh
+  causal record;
 - terminal authority reopened without a new explicit authorization epoch;
 - terminal authority hidden behind intermediate snapshots;
 - capture-time rollback.

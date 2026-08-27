@@ -101,7 +101,9 @@ Allowed only after `OBSERVED_ERRORED` when the snapshot explicitly records
 `retryable_after_error=true` and the request supplies the exact stored
 idempotency key. A later snapshot cannot make retry eligibility permissive, or
 replace its accepted key, unless that snapshot also adds fresh observation
-evidence or starts an explicit authorization epoch.
+evidence or starts an explicit authorization epoch. Entering
+`OBSERVED_ERRORED` itself always requires a fresh observation reference; a new
+authorization epoch cannot manufacture execution evidence.
 
 ### `report_only`
 
@@ -117,8 +119,9 @@ original side effect.
 
 ## Monotonic snapshot chain
 
-Live resume evaluation reconstructs the transition's snapshot sequence from the
-local event log. `assessSnapshotChain(previous, current)` and
+Live resume evaluation reconstructs the transition's snapshot sequence under
+one SQLite read snapshot after verifying the event-hash chain, immutable object
+index coverage, and replayed projection. `assessSnapshotChain(previous, current)` and
 `assessSnapshotSequence(snapshots)` reject:
 
 - incorrect `previous_ref`;
@@ -129,6 +132,9 @@ local event log. `assessSnapshotChain(previous, current)` and
 - `OBSERVED_EXECUTED -> NOT_OBSERVED`;
 - retry eligibility made permissive without fresh observation evidence or a new
   authorization epoch;
+- a new `OBSERVED_ERRORED` state without fresh observation evidence;
+- `UNKNOWN` or `NOT_EVALUATED` causal state promoted to `VALID` without a fresh
+  non-null causal record;
 - capture-time rollback;
 - terminal authority reopened under the same authorization reference.
 

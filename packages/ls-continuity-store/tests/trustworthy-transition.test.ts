@@ -343,8 +343,8 @@ describe("trustworthy-transition continuity adapter", () => {
     db.close();
   });
 
-  it("blocks live evaluation of a non-latest snapshot but keeps it reportable", () => {
-    const { store } = storageFixture();
+  it("blocks non-latest or truncated live replay but keeps history reportable", () => {
+    const { db, store } = storageFixture();
     const { snapshotInput } = materializeCase(fixture.cases[0]);
     const initial = persistTransitionSnapshot(
       store,
@@ -378,6 +378,20 @@ describe("trustworthy-transition continuity adapter", () => {
     });
     assert.equal(report.allowed, true);
     assert.equal(report.reason, "HISTORICAL_REPORT_ONLY");
+
+    db.prepare("DELETE FROM event_log WHERE object_ref = ?").run(
+      latest.object_id
+    );
+    assert.throws(
+      () => evaluateTransitionResume(store, initial.object_id, request),
+      /EVENT_OBJECT_INDEX_MISMATCH/
+    );
+    const damagedReport = evaluateTransitionResume(store, initial.object_id, {
+      ...request,
+      operation: "report_only"
+    });
+    assert.equal(damagedReport.allowed, true);
+    assert.equal(damagedReport.reason, "HISTORICAL_REPORT_ONLY");
   });
 
   it("keeps terminal authority sticky across intermediate snapshots", () => {
@@ -533,6 +547,44 @@ describe("trustworthy-transition continuity adapter", () => {
     });
   });
 
+  it("binds a newly observed execution error to fresh observation evidence", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.retry = {
+      retryable_after_error: true,
+      idempotency_key: "predeclared-retry-key"
+    };
+    const unobserved = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const erroredInput = structuredClone(snapshotInput);
+    erroredInput.dimensions.execution = "OBSERVED_ERRORED";
+    const errored = persistTransitionSnapshot(
+      store,
+      erroredInput,
+      "2030-01-01T00:01:00.000Z",
+      unobserved.object_id
+    );
+
+    assert.deepEqual(assessSnapshotSequence([unobserved, errored]), {
+      valid: false,
+      reason_codes: ["EXECUTION_ERROR_WITHOUT_FRESH_OBSERVATION"]
+    });
+    const result = evaluateTransitionResume(
+      store,
+      errored.object_id,
+      buildRequest(errored, {
+        operation: "retry_side_effect",
+        idempotency_key: "predeclared-retry-key",
+        now: "2030-01-01T00:10:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
   it("keeps blocked execution sticky until a new authorization epoch", () => {
     const { store } = storageFixture();
     const { snapshotInput } = materializeCase(fixture.cases[0]);
@@ -585,6 +637,9 @@ describe("trustworthy-transition continuity adapter", () => {
     reauthorizedInput.record_refs.authorization_ref = newAuthorization;
     reauthorizedInput.reauthorization_ref = newAuthorization;
     reauthorizedInput.dimensions.execution = "OBSERVED_ERRORED";
+    reauthorizedInput.record_refs.observation_refs.push(
+      ref("reauthorized-transition-error-observation")
+    );
     reauthorizedInput.retry = {
       retryable_after_error: true,
       idempotency_key: "reauthorized-transition-retry"
@@ -642,6 +697,9 @@ describe("trustworthy-transition continuity adapter", () => {
 
     const erroredInput = structuredClone(reauthorizedInput);
     erroredInput.dimensions.execution = "OBSERVED_ERRORED";
+    erroredInput.record_refs.observation_refs.push(
+      ref("staged-blocked-error-observation")
+    );
     const errored = persistTransitionSnapshot(
       store,
       erroredInput,
@@ -703,6 +761,9 @@ describe("trustworthy-transition continuity adapter", () => {
     );
     const erroredInput = structuredClone(blockedAgainInput);
     erroredInput.dimensions.execution = "OBSERVED_ERRORED";
+    erroredInput.record_refs.observation_refs.push(
+      ref("later-error-observation")
+    );
     const errored = persistTransitionSnapshot(
       store,
       erroredInput,
@@ -919,6 +980,64 @@ describe("trustworthy-transition continuity adapter", () => {
       assert.equal(result.allowed, false, dimension);
       assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID", dimension);
     }
+  });
+
+  it("requires fresh causal evidence after unevaluated causal states", () => {
+    for (const state of ["UNKNOWN", "NOT_EVALUATED"] as const) {
+      const { store } = storageFixture();
+      const { snapshotInput } = materializeCase(fixture.cases[0]);
+      snapshotInput.dimensions.causal_validity = state;
+      const unevaluated = persistTransitionSnapshot(
+        store,
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+      const reusedInput = structuredClone(snapshotInput);
+      reusedInput.dimensions.causal_validity = "VALID";
+      const reused = persistTransitionSnapshot(
+        store,
+        reusedInput,
+        "2030-01-01T00:01:00.000Z",
+        unevaluated.object_id
+      );
+
+      assert.deepEqual(assessSnapshotSequence([unevaluated, reused]), {
+        valid: false,
+        reason_codes: ["CAUSAL_EVIDENCE_REUSED"]
+      });
+      const result = evaluateTransitionResume(
+        store,
+        reused.object_id,
+        buildRequest(reused, {
+          operation: "resume_side_effect",
+          now: "2030-01-01T00:10:00.000Z"
+        })
+      );
+      assert.equal(result.allowed, false, state);
+      assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID", state);
+    }
+
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.dimensions.causal_validity = "UNKNOWN";
+    const unknown = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const freshInput = structuredClone(snapshotInput);
+    freshInput.dimensions.causal_validity = "VALID";
+    freshInput.record_refs.causal_audit_ref = ref("fresh-causal-evaluation");
+    const fresh = persistTransitionSnapshot(
+      store,
+      freshInput,
+      "2030-01-01T00:01:00.000Z",
+      unknown.object_id
+    );
+    assert.deepEqual(assessSnapshotSequence([unknown, fresh]), {
+      valid: true,
+      reason_codes: ["OK"]
+    });
   });
 
   it("keeps failed response recovery active until verification", () => {
