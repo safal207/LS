@@ -27,6 +27,14 @@ from route_test_support import (  # noqa: E402
 )
 
 SCHEMA = ROOT / "schemas" / "route_artifact_v2.schema.json"
+TRUSTED_HONEYPOT_GROUND_TRUTH = {
+    "high-risk-code-review@2.0.0": {
+        "terminal_authority_multihop": (
+            "87a1cff9555e6cca337bf0e13fc64e60"
+            "a493cb26b3a1c4e36c2deec00cc2c5c1"
+        )
+    }
+}
 
 
 def read_json(path: Path) -> dict:
@@ -51,6 +59,7 @@ def main() -> int:
             repository_root=repo,
             configured_thresholds=configured_thresholds,
             execute_declared_replay=True,
+            trusted_honeypot_ground_truth=TRUSTED_HONEYPOT_GROUND_TRUTH,
         )
 
     t1 = load_fixture("route_t1_valid.json")
@@ -88,10 +97,10 @@ def main() -> int:
 
     summary = {
         "schema": "valid",
-        "t0": "source-bound-replay-evidence-verified",
+        "t0": "clean-source-bound-machine-report-verified",
         "t1": "artifact-attested",
         "t2": "rejected-canonical-audited",
-        "honeypot": "sealed-ground-truth-matched",
+        "honeypot": "operator-ground-truth-and-executed-result-bound",
         "promotion_thresholds": "externally-configured-and-verified-count-bound",
         "tests_run": result.testsRun,
         "failures": len(result.failures),

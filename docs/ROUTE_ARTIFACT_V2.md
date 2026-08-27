@@ -19,12 +19,14 @@ execution, memory writes, or any other protected side effect.
 T0 requires:
 
 - a declared Git host, repository, ref, and exact commit;
-- a local checkout whose `origin`, `HEAD`, declared ref, and commit all match;
+- a clean local checkout whose `origin`, `HEAD`, declared ref, and commit all
+  match, with no tracked or untracked changes;
 - sandbox execution;
 - explicit operator opt-in to execute the replay without a shell inside an
   already controlled sandbox;
 - matching expected and observed exit codes;
-- passing deterministic assertions;
+- a single JSON execution report on stdout whose passing assertions exactly
+  match the declared assertions;
 - an evidence digest recomputed from the replay payload.
 
 `verification.replay.evidence_digest` is SHA-256 over the canonical replay
@@ -34,9 +36,12 @@ verification. The top-level Route Artifact digest independently protects the
 complete artifact.
 
 The digest is integrity evidence, not execution evidence. T0 is assigned only
-after the verifier actually runs the declared command and observes the declared
-exit code. A missing command, a digest-only claim, or verification without the
-explicit execution capability fails closed.
+after the verifier actually runs the declared command, observes the declared
+exit code, and matches its machine-readable assertion report. A missing or
+no-op command, a digest-only claim, a dirty checkout, or verification without
+the explicit execution capability fails closed. This proves source-bound replay
+behavior; it does not turn the producer's assertion names into independent
+claims about the world.
 
 A 40-character hexadecimal string alone is not T0 evidence.
 
@@ -85,9 +90,23 @@ A promotion-eligible honeypot is an explicit evidence object:
 }
 ```
 
-Promotion checks both the protocol minimum count and the actual list of sealed,
-matched ground-truth evaluations. The numeric counter must equal the number of
-verified evaluation objects, so it cannot be inflated independently.
+The artifact fields are declarations, not their own attestation. For T0, an
+operator must separately provide a route-bound mapping of sealed ground-truth
+digests, and the executed replay must emit each observed-result digest. An
+evaluation is counted only when the declaration, operator ground truth, and
+executed output agree. The numeric counter must equal that independently bound
+count, so producer-authored booleans and digests cannot inflate it.
+
+The operator input is a separate JSON document and is never loaded from a path
+declared by the artifact:
+
+```json
+{
+  "high-risk-code-review@2.0.0": {
+    "terminal_authority_multihop": "<sha256>"
+  }
+}
+```
 
 ## Canonical content identity
 
@@ -210,13 +229,15 @@ For a single artifact:
 python3 scripts/verify_route_artifact.py \
   --artifact path/to/route.json \
   --repo-root path/to/its/checked-out-repository \
-  --execute-replay
+  --execute-replay \
+  --honeypot-ground-truth path/to/operator-ground-truth.json
 ```
 
-`--repo-root` and explicit `--execute-replay` are mandatory for T0 ingestion.
-The latter is an execution capability and must be used only inside an
-operator-controlled sandbox. `--allow-t2-audit` is valid only with
-`--artifact`.
+`--repo-root`, explicit `--execute-replay`, and operator-controlled
+`--honeypot-ground-truth` are mandatory for this T0 fixture. Replay execution is
+a capability and must be used only inside an operator-controlled sandbox. The
+ground-truth file is an independent verifier input, not producer artifact
+evidence. `--allow-t2-audit` is valid only with `--artifact`.
 
 ## Non-goals
 

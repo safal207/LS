@@ -33,6 +33,24 @@ from route_test_support import (  # noqa: E402
 )
 
 SCHEMA = ROOT / "schemas" / "route_artifact_v2.schema.json"
+TRUSTED_HONEYPOT_GROUND_TRUTH = {
+    "high-risk-code-review@2.0.0": {
+        "terminal_authority_multihop": (
+            "87a1cff9555e6cca337bf0e13fc64e60"
+            "a493cb26b3a1c4e36c2deec00cc2c5c1"
+        )
+    }
+}
+_verify_route_artifact = verify_route_artifact
+
+
+def verify_route_artifact(*args, **kwargs):
+    if kwargs.get("execute_declared_replay"):
+        kwargs.setdefault(
+            "trusted_honeypot_ground_truth",
+            TRUSTED_HONEYPOT_GROUND_TRUTH,
+        )
+    return _verify_route_artifact(*args, **kwargs)
 
 
 def load(name: str) -> dict:
@@ -225,6 +243,80 @@ class RouteArtifactV2Tests(unittest.TestCase):
             digest(artifact)
             self.assert_code(
                 "ROUTE-V2-REPLAY",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
+
+    def test_t0_rejects_noop_with_self_declared_passing_assertions(self):
+        with source_checkout() as (repo, head):
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+            replay = artifact["verification"]["replay"]
+            replay["command"] = "python3 -c pass"
+            replay["evidence_digest"] = compute_replay_evidence_digest(replay)
+            digest(artifact)
+            self.assert_code(
+                "ROUTE-V2-REPLAY",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
+
+    def test_t0_rejects_dirty_tracked_or_untracked_checkout(self):
+        for dirty_path in ("fixture.txt", "untracked.py"):
+            with self.subTest(path=dirty_path):
+                with source_checkout() as (repo, head):
+                    artifact = materialize_t0(
+                        repo,
+                        head,
+                        compute_digest=compute_content_digest,
+                    )
+                    (repo / dirty_path).write_text(
+                        "mutable replay input\n",
+                        encoding="utf-8",
+                    )
+                    self.assert_code(
+                        "ROUTE-V2-HEAD",
+                        verify_route_artifact,
+                        artifact,
+                        repository_root=repo,
+                        execute_declared_replay=True,
+                    )
+
+    def test_t0_rejects_self_declared_honeypot_without_operator_truth(self):
+        with source_checkout() as (repo, head):
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+            self.assert_code(
+                "ROUTE-V2-HONEYPOT",
+                _verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
+
+    def test_t0_binds_honeypot_result_to_executed_output(self):
+        with source_checkout() as (repo, head):
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+            artifact["verification"]["honeypot_evaluations"][0][
+                "observed_result_digest"
+            ] = "0" * 64
+            digest(artifact)
+            self.assert_code(
+                "ROUTE-V2-HONEYPOT",
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,
@@ -933,6 +1025,9 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 mutated,
                 repository_root=repo,
                 execute_declared_replay=True,
+                trusted_honeypot_ground_truth=(
+                    TRUSTED_HONEYPOT_GROUND_TRUTH
+                ),
             )
 
 

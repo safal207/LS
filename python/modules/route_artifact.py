@@ -328,8 +328,8 @@ def verify_replay(value: Any) -> Mapping[str, Any]:
 def execute_replay(
     replay: Mapping[str, Any],
     repository_root: Path | str,
-) -> None:
-    """Execute a declared replay without a shell in an operator sandbox."""
+) -> Mapping[str, str]:
+    """Execute a replay and return its machine-verifiable honeypot results."""
     command = text(replay["command"], "verification.replay.command")
     try:
         arguments = shlex.split(command)
@@ -361,6 +361,49 @@ def execute_replay(
                 f"expected={expected} and observed={observed}"
             ),
         )
+
+    try:
+        report = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        fail(
+            "ROUTE-V2-REPLAY",
+            f"replay stdout must be one JSON execution report: {exc}",
+        )
+    report = obj(report, "replay_execution_report")
+    exact(
+        report,
+        "replay_execution_report",
+        {"assertions", "honeypot_results"},
+    )
+    reported_assertions = arr(
+        report["assertions"],
+        "replay_execution_report.assertions",
+    )
+    if canonical_json(reported_assertions) != canonical_json(replay["assertions"]):
+        fail(
+            "ROUTE-V2-REPLAY",
+            "executed assertion report does not match declared assertions",
+        )
+
+    raw_results = obj(
+        report["honeypot_results"],
+        "replay_execution_report.honeypot_results",
+    )
+    results: dict[str, str] = {}
+    for evaluation_id, raw_digest in raw_results.items():
+        if not isinstance(evaluation_id, str) or not NAME_RE.fullmatch(evaluation_id):
+            fail("ROUTE-V2-HONEYPOT", "execution report has an invalid honeypot id")
+        digest = text(
+            raw_digest,
+            f"replay_execution_report.honeypot_results.{evaluation_id}",
+        )
+        if not SHA256_RE.fullmatch(digest):
+            fail(
+                "ROUTE-V2-HONEYPOT",
+                f"executed honeypot result {evaluation_id} is not lowercase SHA-256",
+            )
+        results[evaluation_id] = digest
+    return results
 
 
 def verify_honeypot_evaluations(value: Any) -> list[Mapping[str, Any]]:
@@ -404,6 +447,85 @@ def verify_honeypot_evaluations(value: Any) -> list[Mapping[str, Any]]:
                 )
 
     return list(evaluations)
+
+
+def bind_trusted_honeypot_ground_truth(
+    route_ref: str,
+    evaluations: Sequence[Mapping[str, Any]],
+    trusted_ground_truth: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    """Bind producer declarations to operator-supplied sealed ground truth."""
+    if not evaluations:
+        return {}
+    if trusted_ground_truth is None:
+        fail(
+            "ROUTE-V2-HONEYPOT",
+            "T0 honeypots require operator-supplied sealed ground truth",
+        )
+    trusted_routes = obj(trusted_ground_truth, "trusted_honeypot_ground_truth")
+    if route_ref not in trusted_routes:
+        fail(
+            "ROUTE-V2-HONEYPOT",
+            f"operator ground truth is missing route {route_ref}",
+        )
+    route_truth = obj(
+        trusted_routes[route_ref],
+        f"trusted_honeypot_ground_truth.{route_ref}",
+    )
+    expected_ids = {evaluation["id"] for evaluation in evaluations}
+    if set(route_truth) != expected_ids:
+        fail(
+            "ROUTE-V2-HONEYPOT",
+            "operator ground-truth ids do not match the declared honeypot set",
+        )
+
+    trusted: dict[str, str] = {}
+    for evaluation in evaluations:
+        evaluation_id = evaluation["id"]
+        digest = text(
+            route_truth[evaluation_id],
+            f"trusted_honeypot_ground_truth.{route_ref}.{evaluation_id}",
+        )
+        if not SHA256_RE.fullmatch(digest):
+            fail(
+                "ROUTE-V2-HONEYPOT",
+                f"trusted ground truth for {evaluation_id} is not lowercase SHA-256",
+            )
+        if evaluation["ground_truth_digest"] != digest:
+            fail(
+                "ROUTE-V2-HONEYPOT",
+                f"declared ground truth for {evaluation_id} is not operator-bound",
+            )
+        trusted[evaluation_id] = digest
+    return trusted
+
+
+def verify_executed_honeypots(
+    evaluations: Sequence[Mapping[str, Any]],
+    executed_results: Mapping[str, str],
+    trusted_ground_truth: Mapping[str, str],
+) -> int:
+    """Count only results bound to both execution and trusted ground truth."""
+    expected_ids = {evaluation["id"] for evaluation in evaluations}
+    if not expected_ids.issubset(executed_results):
+        fail(
+            "ROUTE-V2-HONEYPOT",
+            "executed report is missing a declared honeypot result",
+        )
+    for evaluation in evaluations:
+        evaluation_id = evaluation["id"]
+        observed = executed_results[evaluation_id]
+        if evaluation["observed_result_digest"] != observed:
+            fail(
+                "ROUTE-V2-HONEYPOT",
+                f"declared result for {evaluation_id} does not match replay output",
+            )
+        if observed != trusted_ground_truth[evaluation_id]:
+            fail(
+                "ROUTE-V2-HONEYPOT",
+                f"executed result for {evaluation_id} did not match sealed ground truth",
+            )
+    return len(evaluations)
 
 
 def _run_git(repository_root: Path, *args: str) -> str:
@@ -470,6 +592,17 @@ def verify_source_checkout(
         fail(
             "ROUTE-V2-HEAD",
             f"checkout HEAD {current_head} does not match exact_head {exact_head}",
+        )
+    if _run_git(
+        root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+    ):
+        fail(
+            "ROUTE-V2-HEAD",
+            "source checkout contains tracked or untracked changes",
         )
     declared_ref = _run_git(
         root,
@@ -577,6 +710,7 @@ def verify_route_artifact(
     repository_root: Path | str | None = None,
     configured_thresholds: Mapping[str, Any] | None = None,
     execute_declared_replay: bool = False,
+    trusted_honeypot_ground_truth: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected_thresholds = promotion_thresholds(
         load_promotion_thresholds()
@@ -796,13 +930,23 @@ def verify_route_artifact(
                     "operator-controlled sandbox"
                 ),
             )
-        execute_replay(replay, repository_root)
+        trusted_ground_truth = bind_trusted_honeypot_ground_truth(
+            ref,
+            honeypots,
+            trusted_honeypot_ground_truth,
+        )
+        executed_honeypots = execute_replay(replay, repository_root)
+        verified_honeypot_count = verify_executed_honeypots(
+            honeypots,
+            executed_honeypots,
+            trusted_ground_truth,
+        )
         verified_counts.update(
             {
                 "t0_runs": 1,
                 "repository_count": 1,
                 "task_variant_count": 1,
-                "sealed_honeypot_runs": len(honeypots),
+                "sealed_honeypot_runs": verified_honeypot_count,
             }
         )
     elif tier == "T1_artifact_attested":
@@ -1048,12 +1192,14 @@ def verify_immutable_update(
     repository_root: Path | str | None = None,
     configured_thresholds: Mapping[str, Any] | None = None,
     execute_declared_replay: bool = False,
+    trusted_honeypot_ground_truth: Mapping[str, Any] | None = None,
 ) -> None:
     summary = verify_route_artifact(
         artifact,
         repository_root=repository_root,
         configured_thresholds=configured_thresholds,
         execute_declared_replay=execute_declared_replay,
+        trusted_honeypot_ground_truth=trusted_honeypot_ground_truth,
     )
     previous = existing_digests.get(summary["route_ref"])
     if previous is not None and previous != summary["content_digest"]:
@@ -1069,6 +1215,7 @@ def build_registry_projection(
     repository_root: Path | str | None = None,
     configured_thresholds: Mapping[str, Any] | None = None,
     execute_declared_replay: bool = False,
+    trusted_honeypot_ground_truth: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected_thresholds = promotion_thresholds(
         load_promotion_thresholds()
@@ -1082,6 +1229,7 @@ def build_registry_projection(
             repository_root=repository_root,
             configured_thresholds=selected_thresholds,
             execute_declared_replay=execute_declared_replay,
+            trusted_honeypot_ground_truth=trusted_honeypot_ground_truth,
         )
         ref = summary["route_ref"]
         if ref in records:
