@@ -20,8 +20,16 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      EXACT_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      LS_TOOL_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_SOURCE_SHA }}
+          persist-credentials: false
+      - name: Verify checked-out source identity
+        run: test "$(git rev-parse HEAD)" = "$EXACT_SOURCE_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -38,7 +46,6 @@ jobs:
       - name: Live exact-head and CML Git Internet smoke on this PR
         if: github.event_name == 'pull_request'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -51,6 +58,7 @@ jobs:
           test "$elapsed" -le 900
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
 
           root = Path('/tmp/ls-audit-live')
@@ -69,6 +77,11 @@ jobs:
           assert memory['sources'][0]['commit'] == 'e84ba18b52ae697789071ceae816e467ab5f36de'
           assert not any(memory['authority'].values())
           assert 'evidence/cml-memory.json' in manifest['evidence_digests']
+          assert manifest['tool']['source_sha'] == os.environ['EXPECTED_HEAD']
+          assert manifest['tool']['source_repository'] == os.environ['GITHUB_REPOSITORY']
+          assert manifest['tool']['workflow_run_id'] == int(os.environ['GITHUB_RUN_ID'])
+          assert manifest['tool']['workflow_run_attempt'] == int(os.environ['GITHUB_RUN_ATTEMPT'])
+          assert card['tool'] == manifest['tool']
           assert '## Causal Memory' in (root / 'SCORECARD.md').read_text()
           print(card['verdict'])
           PY
