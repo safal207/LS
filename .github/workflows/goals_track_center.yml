@@ -21,7 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install jsonschema pytest ruff
+      - run: python -m pip install jsonschema pytest ruff==0.15.5
       - run: ruff check python/modules/trusted_runtime/goals_commitments_track_center.py python/tests/test_trusted_runtime_goals_commitments_track_center.py scripts/run_goals_commitments_track_demo.py
       - run: PYTHONPATH=.:python:python/modules python -m pytest python/tests/test_trusted_runtime_continuity_coordinator.py python/tests/test_trusted_runtime_goals_commitments_track_center.py
       - run: PYTHONPATH=.:python:python/modules python scripts/run_goals_commitments_track_demo.py --output build/goals-commitments-track-center
