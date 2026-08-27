@@ -164,6 +164,11 @@ def _json_compatible(value: Any) -> bool:
     return False
 
 
+def _public_boolean_claim(value: bool) -> bool:
+    """Project a verifier claim to a plain boolean for public CLI output."""
+    return True if value else False
+
+
 def _hex64(value: Any) -> bool:
     return (
         isinstance(value, str)
@@ -527,7 +532,9 @@ def run_fixture(fixture: Mapping[str, Any]) -> dict[str, Any]:
                     "valid": result.valid,
                     "integrity_valid": result.integrity_valid,
                     "signature_valid": result.signature_valid,
-                    "trusted_current_authority": result.trusted_current_authority,
+                    "trusted_current_authority": _public_boolean_claim(
+                        result.trusted_current_authority
+                    ),
                     "reason_codes": list(result.reason_codes),
                 },
                 "expected": {
@@ -579,7 +586,9 @@ def main(argv: list[str] | None = None) -> int:
                 "transcript_digest_matches": result.transcript_digest_matches,
                 "attestation_id_valid": result.attestation_id_valid,
                 "signature_valid": result.signature_valid,
-                "trusted_current_authority": result.trusted_current_authority,
+                "trusted_current_authority": _public_boolean_claim(
+                    result.trusted_current_authority
+                ),
                 "reason_codes": list(result.reason_codes),
             },
             indent=2,

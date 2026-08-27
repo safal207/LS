@@ -1,8 +1,10 @@
 import copy
+import json
 from pathlib import Path
 
 from verified_transition_loop.attestation import (
     load_fixture,
+    main,
     run_fixture,
     verify_attested_dispatch,
 )
@@ -44,6 +46,46 @@ def test_v08_fixture_vectors_all_pass():
         "failed": 0,
         "all_passed": True,
     }
+
+
+def test_fixture_cli_reports_claims_without_key_or_signature_material(capsys):
+    fixture = fixture_data()
+
+    assert main([str(FIXTURE)]) == 0
+
+    output = capsys.readouterr().out
+    report = json.loads(output)
+    assert report["summary"]["all_passed"] is True
+    assert all(
+        isinstance(case["actual"]["trusted_current_authority"], bool)
+        for case in report["cases"]
+    )
+    assert fixture["trust_root"]["keys"][0]["public_key_base64"] not in output
+    assert fixture["base_envelope"]["attestation"]["signature"] not in output
+
+
+def test_single_cli_reports_claims_without_key_or_signature_material(tmp_path, capsys):
+    envelope, trust_root, now_ms = case_material("valid-trusted-attestation")
+    envelope_path = tmp_path / "envelope.json"
+    trust_root_path = tmp_path / "trust-root.json"
+    envelope_path.write_text(json.dumps(envelope), encoding="utf-8")
+    trust_root_path.write_text(json.dumps(trust_root), encoding="utf-8")
+
+    assert main(
+        [
+            str(envelope_path),
+            "--trust-root",
+            str(trust_root_path),
+            "--now-ms",
+            str(now_ms),
+        ]
+    ) == 0
+
+    output = capsys.readouterr().out
+    report = json.loads(output)
+    assert report["trusted_current_authority"] is True
+    assert trust_root["keys"][0]["public_key_base64"] not in output
+    assert envelope["attestation"]["signature"] not in output
 
 
 def test_valid_attestation_separates_all_three_claims():
