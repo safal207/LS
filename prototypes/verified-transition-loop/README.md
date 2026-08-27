@@ -47,7 +47,11 @@ The portable use-time oracle enforces:
 AUTHORIZE != EXECUTE
 ```
 
-Current proposal/source/policy/approval/evidence/executor state is revalidated at the point of use. The profile contains 10 executable vectors, including proposal/transition drift and single-use permit semantics.
+Current proposal/source/policy/approval/evidence/executor state is revalidated
+at the point of use. The profile contains 10 executable vectors, including
+proposal/transition drift and single-use permit semantics. The fixture loader
+rejects duplicate or escaped-collision JSON members, and approval expiry is
+exclusive: equality with `approval_valid_until_ms` is already expired.
 
 ```text
 schemas/use-time-conformance-v0.4.schema.json
@@ -81,7 +85,14 @@ AuthorizationReceipt
 
 The 11-vector dispatch profile covers wrong decision/use IDs, action-envelope drift, executor/occurrence substitution, context/policy mismatch, replay, sibling-capability substitution, cross-transition outcome binding, and outcome tamper.
 
-The verifier performs schema/structure validation before digest comparisons, so a self-consistent malformed transcript cannot pass through matching missing values.
+The detached verifier performs schema/structure validation before digest comparisons so matching missing values cannot accidentally validate a malformed transcript.
+
+The later dispatch receipt must consume the same binding. Envelope drift,
+executor/occurrence substitution, replay, sibling capability substitution,
+ambiguous JSON, missing authority bindings, verifier/executor collision, an
+invalid execution nonce, or an expired approval fails detached verification.
+
+Artifacts:
 
 ```text
 schemas/tool-dispatch-receipt-v0.7.schema.json
@@ -110,6 +121,21 @@ integrity_valid
 signature_valid
 trusted_current_authority
 ```
+
+The reference v0.8 profile checks:
+
+- exact transcript digest binding;
+- deterministic attestation id;
+- trusted signer lookup from external trust-root input;
+- issuer/key identity binding;
+- allowed signature algorithm;
+- key and attestation validity intervals;
+- signer revocation;
+- trust-policy version binding;
+- Ed25519 signature validity;
+- v0.7 integrity as a prerequisite;
+- strict JSON decoding and exact published envelope/trust-root fields;
+- non-negative verification and validity times.
 
 A self-consistent replacement transcript fails exact attested-digest binding; a valid signature over an invalid v0.7 transcript still fails; revoked or expired signer authority remains separate from mathematical signature validity. Ambiguous signer IDs and malformed trust-root key material fail closed.
 
@@ -158,7 +184,7 @@ next generation / wrong predecessor -> PREVIOUS_SNAPSHOT_DIGEST_MISMATCH
 skipped unseen generations           -> SNAPSHOT_CONTINUITY_GAP
 ```
 
-The 14-vector v0.9 profile additionally covers bad snapshot signatures, unknown bootstrap keys, root-payload tamper, expiry/not-yet-valid state, generation floors, root/policy mismatch, and algorithm substitution. Direct regressions cover ambiguous bootstrap key IDs, malformed/wrong-length bootstrap key material, invalid key validity intervals, future checkpoints, and incomplete checkpoint state.
+The 14-vector v0.9 profile additionally covers bad snapshot signatures, unknown bootstrap keys, root-payload tamper, expiry/not-yet-valid state, generation floors, root/policy mismatch, and algorithm substitution. Direct regressions cover ambiguous bootstrap key IDs, malformed/wrong-length bootstrap key material, invalid key validity intervals, future checkpoints, and incomplete checkpoint state. Strict input regressions also reject duplicate or escaped-collision JSON member names, non-finite values, unpublished fields at every v0.9 authority boundary, negative epoch times, and invalid verifier time before cryptographic or continuity decisions.
 
 A fresh valid snapshot still cannot rescue an invalid v0.8 attestation.
 
@@ -205,9 +231,14 @@ Key properties:
 - floats/exponent forms are outside this v0.10 profile;
 - integers outside the interoperable IEEE-754 safe range fail closed;
 - the conformance fixture itself is strict-parsed in both runtimes;
+- the fixture contract rejects missing/extra fields, empty vector groups,
+  duplicate IDs, malformed expected encodings, and no-op mutation claims;
 - Python-only values such as tuples are not accepted as JSON profile values.
 
-The machine-readable proof contains **18 vectors**: 11 positive canonical-byte cases, 6 fail-closed parser/domain cases, and one semantic-mutation digest case. Python and Node independently compute the same base64-encoded UTF-8 bytes and SHA-256 digest and CI then compares their complete structured results.
+The machine-readable proof contains **21 vectors**: 11 positive canonical-byte
+cases, 9 fail-closed parser/domain cases, and one semantic-mutation digest
+case. Python and Node independently compute the same base64-encoded UTF-8 bytes
+and SHA-256 digest and CI then compares their complete structured results.
 
 ```text
 schemas/canonical-proof-v0.10.schema.json
@@ -264,6 +295,14 @@ A payload mutation can leave the old signature mathematically valid while the en
 
 The shared v0.11 fixture contains **12 deterministic vectors** and uses exactly one public key, one signed byte sequence, and one Ed25519 signature in both runtimes. CI requires complete Python/Node result equality.
 
+Both runtimes snapshot the caller inputs once, reject unpublished fields at the
+envelope/attestation/trust-root/key boundaries, require non-negative safe epoch
+times and boolean revocation state, and pin canonical base64 Ed25519 material to
+32-byte public keys and 64-byte signatures. The fixture contract itself rejects
+duplicate IDs, empty cases, unsafe/missing mutation paths, prototype-polluting
+path segments, and canonical no-op mutations; an invalid base envelope cannot
+produce `all_passed=true`.
+
 ```text
 schemas/canonical-signed-envelope-v0.11.schema.json
 fixtures/canonical-signed-envelope-v0.11.json
@@ -272,7 +311,10 @@ src/verified_transition_loop/canonical_signed_envelope.py
 reference/canonical-signed-envelope-v0.11.mjs
 ```
 
-v0.11 is opt-in and does not change historical v0.8/v0.9 signature identities.
+v0.11 is opt-in and does not change historical v0.8/v0.9 signature identities,
+v0.7 replay/single-use behavior, verifier-controlled freshness, or the
+no-external-effect boundary. The v0.11 workflow supersedes the v0.10 workflow
+while retaining its 21-vector cross-runtime and malformed-fixture gates.
 
 ## Run the full portable stack
 

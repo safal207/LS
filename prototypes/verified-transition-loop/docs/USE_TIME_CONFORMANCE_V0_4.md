@@ -27,6 +27,9 @@ The comparison covers:
 
 A valid `EXECUTE` receipt is single-use.
 
+`approval_valid_until_ms` is an exclusive upper bound: an approval is expired
+when the use-time clock is equal to or later than that value.
+
 ## Portable versus implementation-local
 
 The fixture standardizes:

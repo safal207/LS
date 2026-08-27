@@ -7,6 +7,7 @@ import copy
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -22,6 +23,29 @@ BOOTSTRAP_PROFILE_ID = "vtl-bootstrap-authority/v0.9"
 CHECKPOINT_PROFILE_ID = "vtl-trust-checkpoint/v0.9"
 ED25519 = "ED25519"
 ED25519_PUBLIC_KEY_BYTES = 32
+
+
+def _reject_duplicate_json_members(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON member name: {key}")
+        value[key] = item
+    return value
+
+
+def _reject_nonfinite_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant: {value}")
+
+
+def _load_json(path: str | Path) -> Any:
+    return json.loads(
+        Path(path).read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_json_members,
+        parse_constant=_reject_nonfinite_json_constant,
+    )
 
 
 @dataclass(frozen=True)
@@ -45,7 +69,11 @@ class LayeredTrustResult:
 
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -80,6 +108,33 @@ _STATEMENT_FIELDS = (
     "bootstrap_authority_id",
     "bootstrap_key_id",
     "signature_algorithm",
+)
+_SNAPSHOT_FIELDS = frozenset(
+    ("snapshot_id", *_STATEMENT_FIELDS, "signature", "trust_root")
+)
+_BOOTSTRAP_AUTHORITY_FIELDS = frozenset(
+    ("profile_id", "bootstrap_authority_id", "allowed_algorithms", "keys")
+)
+_BOOTSTRAP_KEY_FIELDS = frozenset(
+    (
+        "bootstrap_key_id",
+        "issuer_id",
+        "algorithm",
+        "public_key_base64",
+        "not_before_ms",
+        "not_after_ms",
+        "revoked",
+    )
+)
+_CHECKPOINT_FIELDS = frozenset(
+    (
+        "profile_id",
+        "trust_root_id",
+        "minimum_generation",
+        "known_generation",
+        "known_snapshot_digest",
+        "checkpointed_at_ms",
+    )
 )
 
 
@@ -117,6 +172,25 @@ def _positive_integer(value: Any) -> bool:
     return _integer(value) and value >= 1
 
 
+def _non_negative_integer(value: Any) -> bool:
+    return _integer(value) and value >= 0
+
+
+def _json_compatible(value: Any) -> bool:
+    if value is None or isinstance(value, (bool, int, str)):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, (list, tuple)):
+        return all(_json_compatible(item) for item in value)
+    if isinstance(value, Mapping):
+        return all(
+            isinstance(key, str) and _json_compatible(item)
+            for key, item in value.items()
+        )
+    return False
+
+
 def _hex64(value: Any) -> bool:
     return (
         isinstance(value, str)
@@ -139,7 +213,14 @@ def _decode_base64(value: str) -> bytes | None:
 def validate_snapshot_shape(snapshot: Any) -> tuple[str, ...]:
     if not isinstance(snapshot, Mapping):
         return ("SNAPSHOT_ROOT_INVALID",)
+    if not _json_compatible(snapshot):
+        return ("SNAPSHOT_CANONICALIZATION_INVALID",)
     reasons: list[str] = []
+    _add(
+        reasons,
+        "SNAPSHOT_SCHEMA_INVALID:additionalProperties",
+        bool(set(snapshot) - _SNAPSHOT_FIELDS),
+    )
     required = {
         "snapshot_id": _non_empty_string,
         "profile_id": lambda value: value == PROFILE_ID,
@@ -149,9 +230,9 @@ def validate_snapshot_shape(snapshot: Any) -> tuple[str, ...]:
         "generation": _positive_integer,
         "previous_snapshot_digest": _nullable_hex64,
         "trust_root_digest": _hex64,
-        "issued_at_ms": _integer,
-        "not_before_ms": _integer,
-        "not_after_ms": _integer,
+        "issued_at_ms": _non_negative_integer,
+        "not_before_ms": _non_negative_integer,
+        "not_after_ms": _non_negative_integer,
         "issuer_id": _non_empty_string,
         "bootstrap_authority_id": _non_empty_string,
         "bootstrap_key_id": _non_empty_string,
@@ -172,7 +253,14 @@ def validate_snapshot_shape(snapshot: Any) -> tuple[str, ...]:
 def validate_bootstrap_authority_shape(authority: Any) -> tuple[str, ...]:
     if not isinstance(authority, Mapping):
         return ("BOOTSTRAP_AUTHORITY_INVALID",)
+    if not _json_compatible(authority):
+        return ("BOOTSTRAP_AUTHORITY_CANONICALIZATION_INVALID",)
     reasons: list[str] = []
+    _add(
+        reasons,
+        "BOOTSTRAP_AUTHORITY_SCHEMA_INVALID:additionalProperties",
+        bool(set(authority) - _BOOTSTRAP_AUTHORITY_FIELDS),
+    )
     _add(
         reasons,
         "BOOTSTRAP_PROFILE_INVALID",
@@ -199,13 +287,18 @@ def validate_bootstrap_authority_shape(authority: Any) -> tuple[str, ...]:
         if not isinstance(key, Mapping):
             _add(reasons, f"BOOTSTRAP_KEY_INVALID:{index}", True)
             continue
+        _add(
+            reasons,
+            f"BOOTSTRAP_KEY_SCHEMA_INVALID:{index}.additionalProperties",
+            bool(set(key) - _BOOTSTRAP_KEY_FIELDS),
+        )
         specs = {
             "bootstrap_key_id": _non_empty_string,
             "issuer_id": _non_empty_string,
             "algorithm": _non_empty_string,
             "public_key_base64": _non_empty_string,
-            "not_before_ms": _integer,
-            "not_after_ms": _integer,
+            "not_before_ms": _non_negative_integer,
+            "not_after_ms": _non_negative_integer,
             "revoked": lambda value: isinstance(value, bool),
         }
         for field, predicate in specs.items():
@@ -217,7 +310,14 @@ def validate_bootstrap_authority_shape(authority: Any) -> tuple[str, ...]:
 def validate_checkpoint_shape(checkpoint: Any) -> tuple[str, ...]:
     if not isinstance(checkpoint, Mapping):
         return ("CHECKPOINT_INVALID",)
+    if not _json_compatible(checkpoint):
+        return ("CHECKPOINT_CANONICALIZATION_INVALID",)
     reasons: list[str] = []
+    _add(
+        reasons,
+        "CHECKPOINT_SCHEMA_INVALID:additionalProperties",
+        bool(set(checkpoint) - _CHECKPOINT_FIELDS),
+    )
     _add(
         reasons,
         "CHECKPOINT_PROFILE_INVALID",
@@ -236,7 +336,7 @@ def validate_checkpoint_shape(checkpoint: Any) -> tuple[str, ...]:
     _add(
         reasons,
         "CHECKPOINT_TIME_INVALID",
-        not _integer(checkpoint.get("checkpointed_at_ms")),
+        not _non_negative_integer(checkpoint.get("checkpointed_at_ms")),
     )
     known_generation = checkpoint.get("known_generation")
     known_digest = checkpoint.get("known_snapshot_digest")
@@ -264,6 +364,11 @@ def verify_trust_root_snapshot(
     now_ms: int,
 ) -> SnapshotVerificationResult:
     reasons = list(validate_snapshot_shape(snapshot))
+    _add(
+        reasons,
+        "VERIFICATION_TIME_INVALID",
+        not _non_negative_integer(now_ms),
+    )
     for reason in validate_bootstrap_authority_shape(bootstrap_authority):
         _add(reasons, reason, True)
     for reason in validate_checkpoint_shape(checkpoint):
@@ -504,8 +609,9 @@ def verify_attested_dispatch_with_snapshot(
     *,
     now_ms: int,
 ) -> LayeredTrustResult:
+    trusted_snapshot = copy.deepcopy(snapshot)
     snapshot_result = verify_trust_root_snapshot(
-        snapshot,
+        trusted_snapshot,
         bootstrap_authority,
         checkpoint,
         now_ms=now_ms,
@@ -518,7 +624,7 @@ def verify_attested_dispatch_with_snapshot(
         )
     attested_result = verify_attested_dispatch(
         attested_envelope,
-        snapshot["trust_root"],
+        trusted_snapshot["trust_root"],
         now_ms=now_ms,
     )
     return LayeredTrustResult(
@@ -572,7 +678,7 @@ def validate_fixture_shape(fixture: Any) -> None:
     for case in cases:
         if not isinstance(case, Mapping) or not _non_empty_string(case.get("id")):
             raise ValueError("fixture case id missing")
-        if not _integer(case.get("now_ms")):
+        if not _non_negative_integer(case.get("now_ms")):
             raise ValueError(f"fixture case {case.get('id')} now_ms invalid")
         for bucket in (
             "snapshot_mutations",
@@ -600,7 +706,7 @@ def validate_fixture_shape(fixture: Any) -> None:
 
 
 def load_fixture(path: str | Path) -> dict[str, Any]:
-    fixture = json.loads(Path(path).read_text(encoding="utf-8"))
+    fixture = _load_json(path)
     validate_fixture_shape(fixture)
     return fixture
 
@@ -677,7 +783,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--now-ms", type=int, help="Verification time in epoch milliseconds")
     args = parser.parse_args(argv)
 
-    data = json.loads(Path(args.path).read_text(encoding="utf-8"))
+    data = _load_json(args.path)
     if isinstance(data, Mapping) and data.get("schema_version") == FIXTURE_SCHEMA_VERSION:
         result = run_fixture(data)
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -687,10 +793,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(
             "--bootstrap-authority, --checkpoint and --now-ms are required for a single snapshot"
         )
-    bootstrap_authority = json.loads(
-        Path(args.bootstrap_authority).read_text(encoding="utf-8")
-    )
-    checkpoint = json.loads(Path(args.checkpoint).read_text(encoding="utf-8"))
+    bootstrap_authority = _load_json(args.bootstrap_authority)
+    checkpoint = _load_json(args.checkpoint)
     result = verify_trust_root_snapshot(
         data,
         bootstrap_authority,

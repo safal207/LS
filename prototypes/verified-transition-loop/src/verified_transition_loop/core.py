@@ -224,7 +224,7 @@ def evaluate_transition(
         if verdict is TransitionVerdict.AUTHORIZE:
             verdict = TransitionVerdict.HOLD
         reasons.append("APPROVAL_EXPIRY_MISSING")
-    elif now_ms > evidence.approval_valid_until_ms:
+    elif now_ms >= evidence.approval_valid_until_ms:
         verdict = TransitionVerdict.BLOCK
         reasons.append("APPROVAL_EXPIRED")
 
@@ -336,8 +336,8 @@ def revalidate_authorization_for_use(
     if (
         authorization.approval_valid_until_ms is None
         or current_evidence.approval_valid_until_ms is None
-        or now_ms > authorization.approval_valid_until_ms
-        or now_ms > current_evidence.approval_valid_until_ms
+        or now_ms >= authorization.approval_valid_until_ms
+        or now_ms >= current_evidence.approval_valid_until_ms
     ):
         verdict = UseTimeVerdict.BLOCK
         reasons.append("APPROVAL_EXPIRED_AT_USE")
