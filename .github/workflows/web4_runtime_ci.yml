@@ -69,6 +69,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-dev pkg-config
 
+      - name: Pin Rust toolchain
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal --component clippy
+          rustup default 1.98.0
+          rustc --version --verbose
+
       - name: Install Python tooling
         run: |
           python -m pip install --upgrade pip
