@@ -742,7 +742,10 @@ def main(argv: list[str] | None = None) -> int:
 
     fixture = strict_loads(args.fixture.read_text(encoding="utf-8"))
     result = run_fixture(fixture)
-    print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
+    # Public conformance evidence only: signed bytes, signature, and public key.
+    print(  # lgtm[py/clear-text-logging-sensitive-data]
+        json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False)
+    )
     return 0 if result["summary"]["all_passed"] else 1
 
 
