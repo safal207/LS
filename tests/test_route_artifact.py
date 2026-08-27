@@ -26,6 +26,7 @@ from route_artifact import (  # noqa: E402
 )
 from route_test_support import (  # noqa: E402
     FIXTURES,
+    git,
     load_fixture,
     materialize_t0,
     rehash,
@@ -84,18 +85,6 @@ def make_promotable(
             "task_variant_count": 2,
             "sealed_honeypot_runs": 1,
             "unresolved_critical_false_negatives": 0,
-            "confirmed_effectiveness": {
-                "point": 0.75,
-                "ci95": {"lower": 0.55, "upper": 0.88},
-            },
-            "false_positive_rate": {
-                "point": 0.08,
-                "ci95": {"lower": 0.01, "upper": 0.2},
-            },
-            "reviewer_minutes_saved": {
-                "point": 25.0,
-                "ci95": {"lower": 10.0, "upper": 40.0},
-            },
             "maintainer_approved": status == "validated",
         }
     )
@@ -289,6 +278,33 @@ class RouteArtifactV2Tests(unittest.TestCase):
                         execute_declared_replay=True,
                     )
 
+    def test_t0_rejects_ignored_checkout_content(self):
+        with source_checkout() as (repo, _head):
+            (repo / ".gitignore").write_text(
+                "ignored-replay-input.json\n",
+                encoding="utf-8",
+            )
+            git(repo, "add", ".gitignore")
+            git(repo, "commit", "-q", "-m", "ignore local replay input")
+            head = git(repo, "rev-parse", "HEAD")
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+            (repo / "ignored-replay-input.json").write_text(
+                '{"mutable":true}\n',
+                encoding="utf-8",
+            )
+
+            self.assert_code(
+                "ROUTE-V2-HEAD",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
+
     def test_t0_rejects_self_declared_honeypot_without_operator_truth(self):
         with source_checkout() as (repo, head):
             artifact = materialize_t0(
@@ -322,6 +338,80 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 repository_root=repo,
                 execute_declared_replay=True,
             )
+
+    def test_t0_hashes_actual_honeypot_result_in_the_verifier(self):
+        with source_checkout() as (repo, _head):
+            replay_script = repo / "scripts" / "verify_route_contract.py"
+            disclosed_commitment = TRUSTED_HONEYPOT_GROUND_TRUTH[
+                "high-risk-code-review@2.0.0"
+            ]["terminal_authority_multihop"]
+            replay_script.write_text(
+                (
+                    "import json\n"
+                    "print(json.dumps({\n"
+                    "    'assertions': [\n"
+                    "        {'name': 'fixture file content is exact', 'passed': True},\n"
+                    "        {'name': 'replay script is source-bound', 'passed': True},\n"
+                    "    ],\n"
+                    "    'honeypot_results': {\n"
+                    "        'terminal_authority_multihop': "
+                    f"{disclosed_commitment!r},\n"
+                    "    },\n"
+                    "}, sort_keys=True, separators=(',', ':')))\n"
+                ),
+                encoding="utf-8",
+            )
+            git(repo, "add", "scripts/verify_route_contract.py")
+            git(repo, "commit", "-q", "-m", "echo disclosed commitment")
+            head = git(repo, "rev-parse", "HEAD")
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+
+            self.assert_code(
+                "ROUTE-V2-HONEYPOT",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
+
+    def test_t0_confirmed_metrics_require_independent_scorer_evidence(self):
+        cases = {
+            "confirmed_effectiveness": {
+                "point": 0.75,
+                "ci95": {"lower": 0.55, "upper": 0.88},
+            },
+            "false_positive_rate": {
+                "point": 0.08,
+                "ci95": {"lower": 0.01, "upper": 0.2},
+            },
+            "reviewer_minutes_saved": {
+                "point": 25.0,
+                "ci95": {"lower": 10.0, "upper": 40.0},
+            },
+        }
+        for metric_name, metric_value in cases.items():
+            with self.subTest(metric=metric_name):
+                with source_checkout() as (repo, head):
+                    artifact = materialize_t0(
+                        repo,
+                        head,
+                        compute_digest=compute_content_digest,
+                    )
+                    artifact["metrics"][metric_name] = metric_value
+                    digest(artifact)
+
+                    self.assertTrue(list(self.validator().iter_errors(artifact)))
+                    self.assert_code(
+                        "ROUTE-V2-METRIC",
+                        verify_route_artifact,
+                        artifact,
+                        repository_root=repo,
+                        execute_declared_replay=True,
+                    )
 
     def test_t0_requires_repository_checkout(self):
         self.assert_code(
@@ -809,7 +899,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
             artifact["metrics"]["sealed_honeypot_runs"] = 0
             digest(artifact)
             self.assert_code(
-                "ROUTE-V2-PROMOTION",
+                "ROUTE-V2-HONEYPOT",
                 verify_route_artifact,
                 artifact,
                 repository_root=repo,

@@ -52,7 +52,6 @@ def source_checkout() -> Iterator[tuple[Path, str]]:
         replay_script.parent.mkdir(parents=True)
         replay_script.write_text(
             (
-                "import hashlib\n"
                 "import json\n"
                 "from pathlib import Path\n"
                 "fixture_matches = "
@@ -64,18 +63,13 @@ def source_checkout() -> Iterator[tuple[Path, str]]:
                 "    'allowed': False,\n"
                 "    'reason': 'AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION',\n"
                 "}\n"
-                "honeypot_digest = hashlib.sha256(\n"
-                "    json.dumps(\n"
-                "        honeypot_result, sort_keys=True, separators=(',', ':')\n"
-                "    ).encode('utf-8')\n"
-                ").hexdigest()\n"
                 "print(json.dumps({\n"
                 "    'assertions': [\n"
                 "        {'name': 'fixture file content is exact', 'passed': fixture_matches},\n"
                 "        {'name': 'replay script is source-bound', 'passed': script_is_source_bound},\n"
                 "    ],\n"
                 "    'honeypot_results': {\n"
-                "        'terminal_authority_multihop': honeypot_digest,\n"
+                "        'terminal_authority_multihop': honeypot_result,\n"
                 "    },\n"
                 "}, sort_keys=True, separators=(',', ':')))\n"
             ),

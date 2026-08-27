@@ -253,7 +253,7 @@
   "allOf": [
     {
       "if": {"properties": {"verification": {"properties": {"tier": {"const": "T0_deterministic_replay"}}}}},
-      "then": {"properties": {"verification": {"properties": {"source": {"$ref": "#/$defs/source"}, "exact_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "sandbox": {"const": true}, "replay": {"$ref": "#/$defs/replay"}, "narrative": {"type": "null"}}}}}
+      "then": {"properties": {"verification": {"properties": {"source": {"$ref": "#/$defs/source"}, "exact_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "sandbox": {"const": true}, "replay": {"$ref": "#/$defs/replay"}, "narrative": {"type": "null"}}}, "metrics": {"properties": {"confirmed_effectiveness": {"$ref": "#/$defs/empty_metric"}, "false_positive_rate": {"$ref": "#/$defs/empty_metric"}, "reviewer_minutes_saved": {"$ref": "#/$defs/empty_metric"}}}}}
     },
     {
       "if": {"properties": {"verification": {"properties": {"tier": {"const": "T1_artifact_attested"}}}}},

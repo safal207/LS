@@ -329,7 +329,7 @@ def execute_replay(
     replay: Mapping[str, Any],
     repository_root: Path | str,
 ) -> Mapping[str, str]:
-    """Execute a replay and return its machine-verifiable honeypot results."""
+    """Execute a replay and hash its canonical honeypot results locally."""
     command = text(replay["command"], "verification.replay.command")
     try:
         arguments = shlex.split(command)
@@ -390,19 +390,12 @@ def execute_replay(
         "replay_execution_report.honeypot_results",
     )
     results: dict[str, str] = {}
-    for evaluation_id, raw_digest in raw_results.items():
+    for evaluation_id, raw_result in raw_results.items():
         if not isinstance(evaluation_id, str) or not NAME_RE.fullmatch(evaluation_id):
             fail("ROUTE-V2-HONEYPOT", "execution report has an invalid honeypot id")
-        digest = text(
-            raw_digest,
-            f"replay_execution_report.honeypot_results.{evaluation_id}",
-        )
-        if not SHA256_RE.fullmatch(digest):
-            fail(
-                "ROUTE-V2-HONEYPOT",
-                f"executed honeypot result {evaluation_id} is not lowercase SHA-256",
-            )
-        results[evaluation_id] = digest
+        results[evaluation_id] = hashlib.sha256(
+            canonical_json(raw_result).encode("utf-8")
+        ).hexdigest()
     return results
 
 
@@ -507,10 +500,10 @@ def verify_executed_honeypots(
 ) -> int:
     """Count only results bound to both execution and trusted ground truth."""
     expected_ids = {evaluation["id"] for evaluation in evaluations}
-    if not expected_ids.issubset(executed_results):
+    if set(executed_results) != expected_ids:
         fail(
             "ROUTE-V2-HONEYPOT",
-            "executed report is missing a declared honeypot result",
+            "executed honeypot result ids do not match the declared set",
         )
     for evaluation in evaluations:
         evaluation_id = evaluation["id"]
@@ -598,11 +591,12 @@ def verify_source_checkout(
         "status",
         "--porcelain=v1",
         "--untracked-files=all",
+        "--ignored=matching",
         "--ignore-submodules=none",
     ):
         fail(
             "ROUTE-V2-HEAD",
-            "source checkout contains tracked or untracked changes",
+            "source checkout contains tracked, untracked, or ignored material",
         )
     declared_ref = _run_git(
         root,
@@ -1045,6 +1039,20 @@ def verify_route_artifact(
             "ROUTE-V2-GOVERNANCE",
             "producer-authored maintainer_approved must remain false",
         )
+    if tier == "T0_deterministic_replay":
+        for key in (
+            "confirmed_effectiveness",
+            "false_positive_rate",
+            "reviewer_minutes_saved",
+        ):
+            if not empty_metric(metrics[key]):
+                fail(
+                    "ROUTE-V2-METRIC",
+                    (
+                        f"producer-authored {key} must remain empty until an "
+                        "independent scorer evidence contract is supplied"
+                    ),
+                )
 
     policy = obj(route["promotion_policy"], "route.promotion_policy")
     exact(

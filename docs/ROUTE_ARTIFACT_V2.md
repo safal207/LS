@@ -20,13 +20,15 @@ T0 requires:
 
 - a declared Git host, repository, ref, and exact commit;
 - a clean local checkout whose `origin`, `HEAD`, declared ref, and commit all
-  match, with no tracked or untracked changes;
+  match, with no tracked, untracked, or ignored material present;
 - sandbox execution;
 - explicit operator opt-in to execute the replay without a shell inside an
   already controlled sandbox;
 - matching expected and observed exit codes;
 - a single JSON execution report on stdout whose passing assertions exactly
   match the declared assertions;
+- actual JSON honeypot results that the verifier canonicalizes and hashes
+  itself before comparing them with operator-held commitments;
 - an evidence digest recomputed from the replay payload.
 
 `verification.replay.evidence_digest` is SHA-256 over the canonical replay
@@ -45,8 +47,10 @@ claims about the world.
 
 A 40-character hexadecimal string alone is not T0 evidence.
 
-Only T0 may contribute to confirmed metrics, route promotion, or a
-training/distillation corpus.
+Only T0 may eventually contribute to confirmed metrics, route promotion, or a
+training/distillation corpus. This narrow verifier has no independent scorer
+input, so its confirmed-effectiveness, false-positive-rate, and reviewer-time
+fields must remain empty rather than accepting producer-authored values.
 
 ### T1 — artifact-attested
 
@@ -92,10 +96,12 @@ A promotion-eligible honeypot is an explicit evidence object:
 
 The artifact fields are declarations, not their own attestation. For T0, an
 operator must separately provide a route-bound mapping of sealed ground-truth
-digests, and the executed replay must emit each observed-result digest. An
-evaluation is counted only when the declaration, operator ground truth, and
-executed output agree. The numeric counter must equal that independently bound
-count, so producer-authored booleans and digests cannot inflate it.
+digests, and the executed replay must emit each actual JSON result. The verifier
+canonicalizes and hashes that result; it does not trust a replay-emitted digest.
+An evaluation is counted only when the declaration, operator ground truth, and
+verifier-computed output digest agree. The numeric counter must equal that
+independently bound count, so producer-authored booleans or echoed commitments
+cannot inflate it.
 
 The operator input is a separate JSON document and is never loaded from a path
 declared by the artifact:
@@ -174,7 +180,8 @@ thresholds. JSON Schema validates the policy shape; runtime verification binds
 the artifact to the externally selected values and enforces them.
 
 Effectiveness and false-positive point estimates and confidence bounds are
-restricted to `[0, 1]`.
+restricted to `[0, 1]`, but remain empty in this contract until a separately
+authenticated independent scorer evidence input is designed and supplied.
 
 Zero unresolved critical false negatives, confidence intervals, and explicit
 maintainer approval for `validated` remain mandatory v2 invariants and are not
