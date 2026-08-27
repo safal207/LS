@@ -1,4 +1,4 @@
-name: Verified Transition Loop v0.12
+name: Verified Transition Loop v0.13
 
 on:
   pull_request:
@@ -6,14 +6,14 @@ on:
       - main
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.12.yml"
+      - ".github/workflows/verified-transition-loop-v0.13.yml"
   push:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.12"
+      - "agent/verified-transition-loop-v0.13"
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.12.yml"
+      - ".github/workflows/verified-transition-loop-v0.13.yml"
 
 permissions:
   contents: read
@@ -52,6 +52,8 @@ jobs:
           python -m json.tool fixtures/canonical-signed-envelope-v0.11.json > /dev/null
           python -m json.tool schemas/canonical-trust-root-snapshot-v0.12.schema.json > /dev/null
           python -m json.tool fixtures/canonical-trust-root-snapshot-v0.12.json > /dev/null
+          python -m json.tool schemas/witnessed-freshness-v0.13.schema.json > /dev/null
+          python -m json.tool fixtures/witnessed-freshness-v0.13.json > /dev/null
 
       - name: Install isolated VTL prototype
         working-directory: prototypes/verified-transition-loop
@@ -62,9 +64,8 @@ jobs:
         run: |
           python - <<'PY'
           from importlib.metadata import version
-          assert version('verified-transition-loop') == '0.12.0'
+          assert version('verified-transition-loop') == '0.13.0'
           PY
-
       - name: Run focused VTL suite
         working-directory: prototypes/verified-transition-loop
         run: python -m pytest -q
@@ -330,6 +331,132 @@ jobs:
             fi
             if node reference/canonical-trust-root-snapshot-v0.12.mjs "$fixture" > /dev/null 2>&1; then
               echo "Node accepted invalid v0.12 fixture: $fixture" >&2
+              exit 1
+            fi
+          done
+
+      - name: Run Python witnessed freshness v0.13
+        working-directory: prototypes/verified-transition-loop
+        run: vtl-witness-verify fixtures/witnessed-freshness-v0.13.json > /tmp/vtl-witness-python.json
+
+      - name: Run Node witnessed freshness v0.13
+        working-directory: prototypes/verified-transition-loop
+        run: node reference/witnessed-freshness-v0.13.mjs fixtures/witnessed-freshness-v0.13.json > /tmp/vtl-witness-node.json
+
+      - name: Prove witness quorum and equivocation semantics match in Python and Node
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-witness-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-witness-node.json').read_text())
+          trust = json.loads(
+              Path('fixtures/canonical-trust-root-snapshot-v0.12.json').read_text()
+          )
+          witness = json.loads(Path('fixtures/witnessed-freshness-v0.13.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 20, 'passed': 20, 'failed': 0, 'all_passed': True}
+          assert witness['snapshot_view']['snapshot_digest'] == trust['expected_fresh_snapshot_digest']
+          by_id = {case['id']: case for case in py['cases']}
+          split = by_id['split-view-blocks-even-with-target-quorum']['actual']
+          assert split['witness_quorum_valid'] is True
+          assert split['equivocation_detected'] is True
+          assert split['view_consistency_valid'] is False
+          assert split['valid'] is False
+          lower = by_id['local-v012-failure-not-rescued']['actual']
+          assert lower['witness_quorum_valid'] is True
+          assert lower['local_snapshot_valid'] is False
+          assert lower['valid'] is False
+          duplicate = by_id['duplicate-witness-does-not-count-twice']['actual']
+          assert duplicate['accepted_witness_ids'] == ['witness-a']
+          assert duplicate['witness_quorum_valid'] is False
+          PY
+
+      - name: Prove v0.13 fixture contract fails closed across runtimes
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from pathlib import Path
+
+          source = json.loads(
+              Path('fixtures/witnessed-freshness-v0.13.json').read_text()
+          )
+          output_dir = Path('/tmp/vtl-witness-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_valid'] = True
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][1]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['authority_mutations'] = [
+              {'path': '__proto__.polluted', 'value': True}
+          ]
+          fixtures['dangerous-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['statement_mutations'] = [
+              {'index': 0, 'path': 'missing', 'value': True}
+          ]
+          fixtures['missing-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['authority_mutations'] = [
+              {'path': 'quorum', 'value': source['witness_authority']['quorum']}
+          ]
+          fixtures['no-op-mutation'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['witness_authority']['keys'][0]['public_key_base64'] = 'AAAA'
+          fixtures['bad-baseline-key-material'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['statements']['a_target']['profile_id'] = 'vtl-witness-statement/v999'
+          fixtures['bad-baseline-statement-profile'] = candidate
+
+          candidate = copy.deepcopy(source)
+          del candidate['cases'][0]['expected']['witness_signature_valid']
+          fixtures['partial-expected-result'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['statement_mutations'] = [
+              {'index': 99, 'path': 'signature', 'value': 'AQ=='}
+          ]
+          fixtures['statement-index-out-of-range'] = candidate
+
+          for name, fixture in fixtures.items():
+              (output_dir / f'{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+          PY
+          fixtures=(/tmp/vtl-witness-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 10 ]]; then
+            echo "Expected ten malformed v0.13 fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
+            if vtl-witness-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid v0.13 fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/witnessed-freshness-v0.13.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid v0.13 fixture: $fixture" >&2
               exit 1
             fi
           done

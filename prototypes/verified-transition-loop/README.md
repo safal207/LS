@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.12
+# Verified Transition Loop (VTL) v0.13
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution and proof.
 
@@ -21,6 +21,8 @@ Intent
 -> cross-language canonical bytes
 -> cross-language canonical signed envelope
 -> cross-language fresh trust verification
+-> independent witness quorum
+-> split-view / equivocation detection
 ```
 
 ## Proof layers stay separate
@@ -37,6 +39,7 @@ use-time authority
 -> canonical-byte interoperability
 -> canonical-signature interoperability
 -> canonical fresh-trust interoperability
+-> witnessed non-equivocation evidence
 ```
 
 A valid higher-layer proof never repairs an invalid lower-layer proof.
@@ -398,6 +401,71 @@ identities, replay/single-use semantics, or current-authority claim boundaries.
 Its workflow supersedes v0.11 while retaining the v0.10/v0.11 parity and
 malformed-fixture gates.
 
+## v0.13 — witnessed freshness and equivocation detection
+
+v0.13 adds an independent witness layer above v0.12 so a locally valid and fresh trust-root history cannot be treated as globally non-equivocated merely because its signatures verify.
+
+```text
+v0.12 canonical fresh trust
+-> canonical witness statements
+-> verifier-controlled WitnessAuthority
+-> unique witness quorum
+-> split-view / equivocation detection
+-> Python witness verifier
+-> Node witness verifier
+-> identical structured verdict
+```
+
+The core invariant is:
+
+```text
+locally fresh + correctly signed != globally non-equivocated
+```
+
+Each witness statement binds the observed `trust_root_id`, `generation`, `snapshot_digest`, observation time, witness identity/key, canonical profile, and signature algorithm. Quorum counts **unique trusted witness identities only**; replaying one witness never increases quorum.
+
+Each verifier deep-snapshots the supplied view, statements, and
+verifier-controlled authority once before deriving claims. Exact published
+field sets, non-negative safe-integer times, canonical 32-byte public keys, and
+canonical 64-byte Ed25519 signatures are enforced across Python and Node.
+
+The result keeps these claims independent:
+
+```text
+local_snapshot_valid
+witness_statement_integrity_valid
+witness_signature_valid
+witness_authority_valid
+witness_freshness_valid
+witness_quorum_valid
+view_consistency_valid
+equivocation_detected
+valid
+```
+
+The critical negative control is a split view where two witnesses still satisfy the target quorum while a third current trusted witness presents a valid signature for the same root and generation but a different snapshot digest. The proof remains invalid and emits `EQUIVOCATION_DETECTED`.
+
+The shared profile contains **20 deterministic vectors** covering quorum, duplicate identities, witness trust/revocation/key freshness, signature failure, stale/future statements, root/generation/digest mismatch, split-view equivocation, malformed/ambiguous keys, canonical-profile substitution, inherited v0.12 failure, and quorum configuration. Python and Node must return the same complete structured result.
+
+The fixture's target digest equals the exact digest published by the current
+v0.12 fixture. Strict conformance replay rejects duplicate JSON keys, unknown or
+missing fields, dangling/unused vectors, unsafe/missing/no-op mutations, and
+partial expected results. Every independent claim is compared, and an
+all-negative suite cannot report success. The v0.13 workflow supersedes the
+v0.12 workflow while retaining all v0.10-v0.12 parity and malformed-fixture
+gates.
+
+```text
+schemas/witnessed-freshness-v0.13.schema.json
+fixtures/witnessed-freshness-v0.13.json
+docs/WITNESSED_FRESHNESS_V0_13.md
+src/verified_transition_loop/witnessed_freshness.py
+src/verified_transition_loop/witnessed_freshness_conformance.py
+reference/witnessed-freshness-v0.13.mjs
+```
+
+v0.13 does not provide global witness discovery or Byzantine consensus; it proves only what follows from the explicitly verifier-controlled witness authority and the witness evidence supplied for verification.
+
 ## Run the full portable stack
 
 ```bash
@@ -409,6 +477,8 @@ vtl-canonical-envelope-verify fixtures/canonical-signed-envelope-v0.11.json
 node reference/canonical-signed-envelope-v0.11.mjs fixtures/canonical-signed-envelope-v0.11.json
 vtl-canonical-trust-root-verify fixtures/canonical-trust-root-snapshot-v0.12.json
 node reference/canonical-trust-root-snapshot-v0.12.mjs fixtures/canonical-trust-root-snapshot-v0.12.json
+vtl-witness-verify fixtures/witnessed-freshness-v0.13.json
+node reference/witnessed-freshness-v0.13.mjs fixtures/witnessed-freshness-v0.13.json
 vtl-conformance fixtures/use-time-conformance-v0.4.json
 vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
@@ -428,8 +498,8 @@ vtl-trust-root-verify snapshot.json \
 
 VTL remains a reference verification protocol. It does not execute framework tools, deploy software, merge code, call cloud IAM/KMS/HSM, send messages, make payments, or grant production authority.
 
-v0.12 proves cross-runtime trust-root snapshot verification only relative to the same verifier-controlled bootstrap authority and checkpoint, using the declared v0.10 safe-integer canonical JSON subset. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, a globally available source of latest trust-root generation, independent witness quorum, transparency-log inclusion, hardware-backed checkpoint storage, or distributed consensus over freshness.
+v0.13 proves witnessed non-equivocation only relative to the explicitly supplied verifier-controlled witness authority and evidence, using the declared v0.10 safe-integer canonical JSON subset. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, global witness discovery, a globally latest checkpoint oracle, Byzantine consensus, append-only transparency-log inclusion/consistency proofs, gossip transport, or hardware-backed witness/checkpoint storage.
 
 The central rule is now:
 
-> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; a digest is portable only when runtimes agree on its exact bytes; a signature is portable only when the canonicalization profile is bound into what was signed; and freshness is portable only when independent runtimes reach the same checkpoint-relative continuity verdict.**
+> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; a digest is portable only when runtimes agree on its exact bytes; a signature is portable only when the canonicalization profile is bound into what was signed; freshness is portable only when independent runtimes reach the same checkpoint-relative continuity verdict; and locally fresh signed history is not globally non-equivocated without independent witness evidence.**
