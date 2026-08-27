@@ -10,6 +10,7 @@ dist/
 !ghostgpt-ls-landing/dist/
 !ghostgpt-ls-landing/dist/**
 build/
+*.egg-info/
 rust_core/target/
 data/patterns.db
 .pytest_cache/
