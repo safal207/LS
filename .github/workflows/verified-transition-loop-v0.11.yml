@@ -1,20 +1,19 @@
-name: Verified Transition Loop v0.10
+name: Verified Transition Loop v0.11
 
 on:
   pull_request:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.10"
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.10.yml"
+      - ".github/workflows/verified-transition-loop-v0.11.yml"
   push:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.10"
+      - "agent/verified-transition-loop-v0.11"
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.10.yml"
+      - ".github/workflows/verified-transition-loop-v0.11.yml"
 
 permissions:
   contents: read
@@ -49,6 +48,8 @@ jobs:
           python -m json.tool fixtures/trust-root-snapshot-v0.9.json > /dev/null
           python -m json.tool schemas/canonical-proof-v0.10.schema.json > /dev/null
           python -m json.tool fixtures/canonical-proof-v0.10.json > /dev/null
+          python -m json.tool schemas/canonical-signed-envelope-v0.11.schema.json > /dev/null
+          python -m json.tool fixtures/canonical-signed-envelope-v0.11.json > /dev/null
 
       - name: Install isolated VTL prototype
         working-directory: prototypes/verified-transition-loop
@@ -59,28 +60,27 @@ jobs:
         run: |
           python - <<'PY'
           from importlib.metadata import version
-          assert version('verified-transition-loop') == '0.10.0'
+          assert version('verified-transition-loop') == '0.11.0'
           PY
 
       - name: Run focused VTL suite
         working-directory: prototypes/verified-transition-loop
         run: python -m pytest -q
 
-      - name: Run Python canonical proof
+      - name: Run Python canonical proof v0.10
         working-directory: prototypes/verified-transition-loop
         run: vtl-canonical-verify fixtures/canonical-proof-v0.10.json > /tmp/vtl-canonical-python.json
 
-      - name: Run Node canonical proof
+      - name: Run Node canonical proof v0.10
         working-directory: prototypes/verified-transition-loop
         run: node reference/canonical-v0.10.mjs fixtures/canonical-proof-v0.10.json > /tmp/vtl-canonical-node.json
 
-      - name: Prove Python and Node structured parity
+      - name: Prove v0.10 Python and Node parity
         working-directory: prototypes/verified-transition-loop
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
           python_result = json.loads(Path('/tmp/vtl-canonical-python.json').read_text())
           node_result = json.loads(Path('/tmp/vtl-canonical-node.json').read_text())
           assert python_result == node_result
@@ -92,7 +92,7 @@ jobs:
           }
           PY
 
-      - name: Prove fixture contract fails closed across runtimes
+      - name: Preserve v0.10 malformed-fixture parity
         working-directory: prototypes/verified-transition-loop
         run: |
           python - <<'PY'
@@ -132,16 +132,116 @@ jobs:
           PY
           fixtures=(/tmp/vtl-canonical-invalid/*.json)
           if [[ ${#fixtures[@]} -ne 4 ]]; then
-            echo "Expected four malformed fixtures, found ${#fixtures[@]}" >&2
+            echo "Expected four malformed v0.10 fixtures, found ${#fixtures[@]}" >&2
             exit 1
           fi
           for fixture in "${fixtures[@]}"; do
             if vtl-canonical-verify "$fixture" > /dev/null 2>&1; then
-              echo "Python accepted invalid fixture: $fixture" >&2
+              echo "Python accepted invalid v0.10 fixture: $fixture" >&2
               exit 1
             fi
             if node reference/canonical-v0.10.mjs "$fixture" > /dev/null 2>&1; then
-              echo "Node accepted invalid fixture: $fixture" >&2
+              echo "Node accepted invalid v0.10 fixture: $fixture" >&2
+              exit 1
+            fi
+          done
+
+      - name: Run Python canonical signed envelope v0.11
+        working-directory: prototypes/verified-transition-loop
+        run: vtl-canonical-envelope-verify fixtures/canonical-signed-envelope-v0.11.json > /tmp/vtl-envelope-python.json
+
+      - name: Run Node canonical signed envelope v0.11
+        working-directory: prototypes/verified-transition-loop
+        run: node reference/canonical-signed-envelope-v0.11.mjs fixtures/canonical-signed-envelope-v0.11.json > /tmp/vtl-envelope-node.json
+
+      - name: Prove one signature verifies identically in Python and Node
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          python_result = json.loads(Path('/tmp/vtl-envelope-python.json').read_text())
+          node_result = json.loads(Path('/tmp/vtl-envelope-node.json').read_text())
+          assert python_result == node_result
+          assert python_result['summary'] == {
+              'total': 12,
+              'passed': 12,
+              'failed': 0,
+              'all_passed': True,
+          }
+          assert python_result['parity']['signed_payload_matches_expected'] is True
+          assert python_result['parity']['signature_matches_expected'] is True
+          assert python_result['cases'][0]['id'] == 'valid'
+          assert python_result['cases'][0]['actual']['signature_valid'] is True
+          assert python_result['cases'][0]['actual']['valid'] is True
+          PY
+
+      - name: Prove v0.11 fixture contract fails closed across runtimes
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from pathlib import Path
+
+          source = json.loads(
+              Path('fixtures/canonical-signed-envelope-v0.11.json').read_text()
+          )
+          output_dir = Path('/tmp/vtl-envelope-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_valid'] = True
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][1]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['envelope_mutations'] = [
+              {'path': '__proto__.polluted', 'value': True}
+          ]
+          fixtures['dangerous-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['envelope_mutations'] = [
+              {'path': 'payload.missing', 'value': True}
+          ]
+          fixtures['missing-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['envelope_mutations'] = [
+              {'path': 'payload.attempt', 'value': 1}
+          ]
+          fixtures['no-op-mutation'] = candidate
+
+          for name, fixture in fixtures.items():
+              (output_dir / f'{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+          PY
+          fixtures=(/tmp/vtl-envelope-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 6 ]]; then
+            echo "Expected six malformed v0.11 fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
+            if vtl-canonical-envelope-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid v0.11 fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/canonical-signed-envelope-v0.11.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid v0.11 fixture: $fixture" >&2
               exit 1
             fi
           done
@@ -169,7 +269,6 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-
           data = json.loads(Path('/tmp/vtl-demo.json').read_text())
           assert data['external_side_effects_performed'] is False
           assert data['healthy']['deploy'] == 'COMMIT'

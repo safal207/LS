@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.10
+# Verified Transition Loop (VTL) v0.11
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution and proof.
 
@@ -19,6 +19,7 @@ Intent
 -> verifier-controlled freshness checkpoint
 -> rollback / fork / continuity verification
 -> cross-language canonical bytes
+-> cross-language canonical signed envelope
 ```
 
 ## Proof layers stay separate
@@ -33,6 +34,7 @@ use-time authority
 -> trust-root snapshot authenticity
 -> trust-root freshness / continuity
 -> canonical-byte interoperability
+-> canonical-signature interoperability
 ```
 
 A valid higher-layer proof never repairs an invalid lower-layer proof.
@@ -248,6 +250,72 @@ reference/canonical-v0.10.mjs
 
 v0.10 does not silently re-hash v0.7/v0.8/v0.9 historical proofs. Existing versions keep their published identity rules. Future proof versions can opt into the v0.10 canonicalization profile explicitly.
 
+## v0.11 — canonical signed envelope
+
+v0.11 makes the canonicalization profile itself part of the Ed25519-signed identity.
+
+```text
+canonical payload
+-> SHA-256 payload digest
+-> versioned canonical signed statement
+-> Ed25519 signature
+-> Python verifier
+-> Node verifier
+-> identical structured result
+```
+
+The signed statement binds:
+
+```text
+attestation_id
+profile_id
+schema_version
+canonical_profile
+payload_digest
+issuer_id
+signer_key_id
+trust_root_id
+issued_at_ms
+not_before_ms
+not_after_ms
+signature_algorithm
+```
+
+This produces an important separation:
+
+```text
+payload_digest_matches
+attestation_id_valid
+canonical_profile_valid
+signature_valid
+trusted_current_authority
+```
+
+A payload mutation can leave the old signature mathematically valid while the envelope fails `PAYLOAD_DIGEST_MISMATCH`. A canonical-profile substitution changes the signed bytes themselves and therefore invalidates both attestation identity and signature. Revocation/expiry can leave `signature_valid=true` while `trusted_current_authority=false`.
+
+The shared v0.11 fixture contains **12 deterministic vectors** and uses exactly one public key, one signed byte sequence, and one Ed25519 signature in both runtimes. CI requires complete Python/Node result equality.
+
+Both runtimes snapshot the caller inputs once, reject unpublished fields at the
+envelope/attestation/trust-root/key boundaries, require non-negative safe epoch
+times and boolean revocation state, and pin canonical base64 Ed25519 material to
+32-byte public keys and 64-byte signatures. The fixture contract itself rejects
+duplicate IDs, empty cases, unsafe/missing mutation paths, prototype-polluting
+path segments, and canonical no-op mutations; an invalid base envelope cannot
+produce `all_passed=true`.
+
+```text
+schemas/canonical-signed-envelope-v0.11.schema.json
+fixtures/canonical-signed-envelope-v0.11.json
+docs/CANONICAL_SIGNED_ENVELOPE_V0_11.md
+src/verified_transition_loop/canonical_signed_envelope.py
+reference/canonical-signed-envelope-v0.11.mjs
+```
+
+v0.11 is opt-in and does not change historical v0.8/v0.9 signature identities,
+v0.7 replay/single-use behavior, verifier-controlled freshness, or the
+no-external-effect boundary. The v0.11 workflow supersedes the v0.10 workflow
+while retaining its 21-vector cross-runtime and malformed-fixture gates.
+
 ## Run the full portable stack
 
 ```bash
@@ -255,6 +323,8 @@ python -m pip install -e '.[dev]'
 pytest
 vtl-canonical-verify fixtures/canonical-proof-v0.10.json
 node reference/canonical-v0.10.mjs fixtures/canonical-proof-v0.10.json
+vtl-canonical-envelope-verify fixtures/canonical-signed-envelope-v0.11.json
+node reference/canonical-signed-envelope-v0.11.mjs fixtures/canonical-signed-envelope-v0.11.json
 vtl-conformance fixtures/use-time-conformance-v0.4.json
 vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
@@ -274,8 +344,8 @@ vtl-trust-root-verify snapshot.json \
 
 VTL remains a reference verification protocol. It does not execute framework tools, deploy software, merge code, call cloud IAM/KMS/HSM, send messages, make payments, or grant production authority.
 
-v0.10 proves cross-runtime canonical-byte agreement only for the declared safe-integer JSON subset. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, a globally available source of latest trust-root generation, independent witness quorum, transparency-log inclusion, or hardware-backed checkpoint storage.
+v0.11 proves cross-runtime signature verification only for the declared v0.10 safe-integer canonical JSON subset and a verifier-supplied trust root. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, a globally available source of latest trust-root generation, independent witness quorum, transparency-log inclusion, or hardware-backed checkpoint storage.
 
 The central rule is now:
 
-> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; and a digest is portable only when independent runtimes agree on the exact bytes being digested.**
+> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; a digest is portable only when runtimes agree on its exact bytes; and a signature is portable only when the canonicalization profile is itself bound into what was signed.**
