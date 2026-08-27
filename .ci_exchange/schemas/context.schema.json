@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/context.schema.json",
+  "title": "LS CI Exchange Context",
+  "type": "object",
+  "required": ["schema_version", "context_id", "summary", "claims", "evidence"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "context_id": {"type": "string"},
+    "summary": {"type": "string"},
+    "claims": {"type": "array", "items": {"type": "object"}},
+    "evidence": {"type": "array", "items": {"type": "object"}},
+    "valid_for": {"type": "array", "items": {"type": "string"}},
+    "not_validated_for": {"type": "array", "items": {"type": "string"}}
+  }
+}

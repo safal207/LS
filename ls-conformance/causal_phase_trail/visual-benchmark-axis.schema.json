@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/ls-conformance/causal_phase_trail/visual-benchmark-axis.schema.json",
+  "title": "LS Visual Benchmark Axis V0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "axisId", "trailId", "authority", "subject", "benchmarkWindow", "sources", "criteria", "assessments", "patternDecisions", "summary"],
+  "properties": {
+    "schemaVersion": {"const": "ls.visual-benchmark-axis.v0"},
+    "axisId": {"type": "string", "minLength": 1},
+    "trailId": {"type": "string", "minLength": 1},
+    "authority": {"const": "ADVISORY_ONLY"},
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "pullRequest", "head", "surfaceEvidenceIds"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "pullRequest": {"type": "integer", "minimum": 1},
+        "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "surfaceEvidenceIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "benchmarkWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["periodKey", "observedAt", "validUntil", "refreshCadence"],
+      "properties": {
+        "periodKey": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$"},
+        "observedAt": {"type": "string", "format": "date-time"},
+        "validUntil": {"type": "string", "format": "date-time"},
+        "refreshCadence": {"enum": ["MONTHLY", "QUARTERLY", "ANNUAL"]}
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "class", "title", "url", "capturedAt", "validUntil", "evidenceLevel", "claims"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "class": {"enum": ["NORMATIVE", "DESIGN_SYSTEM", "TREND_FEED", "EXEMPLAR"]},
+          "title": {"type": "string", "minLength": 1},
+          "url": {"type": "string", "pattern": "^https://"},
+          "capturedAt": {"type": "string", "format": "date-time"},
+          "validUntil": {"type": "string", "format": "date-time"},
+          "evidenceLevel": {"enum": ["E1", "E2", "E3", "E4", "E5"]},
+          "claims": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "criteria": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "normative", "weight"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "label": {"type": "string", "minLength": 1},
+          "normative": {"type": "boolean"},
+          "weight": {"type": "integer", "minimum": 1, "maximum": 5}
+        }
+      }
+    },
+    "assessments": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["criterionId", "currentScore", "targetScore", "gap", "interfaceEvidenceIds", "sourceIds", "observation", "recommendation"],
+        "properties": {
+          "criterionId": {"type": "string", "minLength": 1},
+          "currentScore": {"type": "number", "minimum": 0, "maximum": 5},
+          "targetScore": {"type": "number", "minimum": 0, "maximum": 5},
+          "gap": {"type": "number", "minimum": -5, "maximum": 5},
+          "interfaceEvidenceIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "sourceIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "observation": {"type": "string", "minLength": 1},
+          "recommendation": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "patternDecisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["patternId", "label", "status", "sourceIds", "criterionIds", "rationale", "riskNotes", "experimentGuard"],
+        "properties": {
+          "patternId": {"type": "string", "minLength": 1},
+          "label": {"type": "string", "minLength": 1},
+          "status": {"enum": ["ADOPT", "EXPERIMENT", "DEFER", "REJECT"]},
+          "sourceIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "criterionIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "rationale": {"type": "string", "minLength": 1},
+          "riskNotes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "experimentGuard": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["weightedCurrentScore", "weightedTargetScore", "largestGapCriterionIds", "adoptedPatternIds", "experimentalPatternIds", "refreshRequiredAfter", "mergeAuthority"],
+      "properties": {
+        "weightedCurrentScore": {"type": "number", "minimum": 0, "maximum": 5},
+        "weightedTargetScore": {"type": "number", "minimum": 0, "maximum": 5},
+        "largestGapCriterionIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "adoptedPatternIds": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "experimentalPatternIds": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "refreshRequiredAfter": {"type": "string", "format": "date-time"},
+        "mergeAuthority": {"const": false}
+      }
+    }
+  }
+}

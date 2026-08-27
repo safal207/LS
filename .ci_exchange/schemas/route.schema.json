@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/route.schema.json",
+  "title": "LS CI Exchange Route",
+  "type": "object",
+  "required": ["schema_version", "route_id", "problem", "best_path", "confidence", "evidence"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "route_id": {"type": "string"},
+    "problem": {"type": "string"},
+    "best_path": {"type": "object"},
+    "bad_paths": {"type": "array", "items": {"type": "object"}},
+    "confidence": {"type": "string", "enum": ["low", "medium", "medium_high", "high"]},
+    "evidence": {"type": "array", "items": {"type": "object"}},
+    "valid_for": {"type": "array", "items": {"type": "string"}},
+    "not_validated_for": {"type": "array", "items": {"type": "string"}}
+  }
+}

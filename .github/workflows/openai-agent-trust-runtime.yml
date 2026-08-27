@@ -1,0 +1,65 @@
+name: OpenAI Agent Trust Runtime
+
+on:
+  pull_request:
+    paths:
+      - "prototypes/openai-agent-trust-runtime/**"
+      - ".github/workflows/openai-agent-trust-runtime.yml"
+  push:
+    branches: [main]
+    paths:
+      - "prototypes/openai-agent-trust-runtime/**"
+      - ".github/workflows/openai-agent-trust-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: prototypes/openai-agent-trust-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact source
+        shell: bash
+        run: |
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$expected"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: prototypes/openai-agent-trust-runtime/pyproject.toml
+
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+
+      - name: Compile
+        run: python -m compileall -q src tests
+
+      - name: Test adversarial contracts
+        run: pytest
+
+      - name: Run offline demo
+        run: ls-agent-trust-demo --dry-run > /tmp/ls-agent-trust-demo.json
+
+      - name: Verify offline evidence
+        run: |
+          python - <<'PY'
+          import json
+          payload = json.load(open('/tmp/ls-agent-trust-demo.json', encoding='utf-8'))
+          assert payload['ledger_valid'] is True
+          assert payload['merge_before_approval']['allowed'] is False
+          assert payload['merge_after_approval']['allowed'] is True
+          assert payload['recovery']['superseded'] != payload['recovery']['replacement']
+          print('offline trust evidence: PASS')
+          PY

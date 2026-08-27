@@ -1,0 +1,16 @@
+{
+  "schema_version": "ls.ai_review_provider_routes.v0.1",
+  "provider": {
+    "key": "openrouter",
+    "adapter": "openrouter",
+    "base_url": "https://openrouter.ai/api/v1",
+    "credential_env": "OPENROUTER_API_KEY"
+  },
+  "routes": {
+    "north-mini-code": "cohere/north-mini-code:free",
+    "laguna-xs-2.1": "poolside/laguna-xs-2.1:free",
+    "hy3": "tencent/hy3:free",
+    "nemotron-3-ultra-550b-a55b": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "gpt-oss-120b": "openai/gpt-oss-120b:free"
+  }
+}

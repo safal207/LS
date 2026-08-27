@@ -1,0 +1,959 @@
+{
+  "base_bundle": {
+    "checkpoint": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_952355ac4c29c4cfaf8764ec",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "v+UZ+R7wAers75WrBLXzqM9sW9m5tKsAZEncafky8JJDST6EF4xyE8bcbD492UyTBTXjS3+f6znHGTGGtqoeCA==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 6
+    },
+    "consistency_path": [
+      "8e86e50bf8ef47c407bdbbf55ea5e7a09dfe6ad70123dc859f5a7186bb9891be",
+      "a1278ebe80ea1be0b9a9f9a5b7736a8ec4bb28f5292188309a38848f1d48c905",
+      "18d0b58f62f6880da79517126b5a0e80e26755ea6a1404313b9607d42abe723b",
+      "3b12ecc2ecc3c3953337117ddd5918c19ddb49c57f5dc7323fcbd6b91ac79a0c"
+    ],
+    "entry": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "entry_type": "trust-root-snapshot",
+      "log_id": "log-main",
+      "profile_id": "vtl-transparency-log-entry/v0.14",
+      "snapshot_digest": "9bd59187591ed2d259a438af8ea2cdd4d5ffa616327e2ac93712a4bb295433bc",
+      "snapshot_generation": 2,
+      "trust_root_id": "root-main"
+    },
+    "inclusion_path": [
+      "37db86a80a23172a1574f5dc8842b46af6090d1b978dbf08392976ab7c78c938",
+      "227554eafb372ae29263350313b52be148ab6ef76bbd88f0bf0d1f206c9768ac",
+      "3b12ecc2ecc3c3953337117ddd5918c19ddb49c57f5dc7323fcbd6b91ac79a0c"
+    ],
+    "leaf_index": 1,
+    "local_witnessed_freshness_valid": true,
+    "log_authority": {
+      "allowed_algorithms": [
+        "ED25519"
+      ],
+      "keys": [
+        {
+          "algorithm": "ED25519",
+          "issuer_id": "log-operator",
+          "log_key_id": "log-key-1",
+          "not_after_ms": 1900000000000,
+          "not_before_ms": 1790000000000,
+          "public_key_base64": "yFOtDwzSthmuqSzuxP1Wok1kmdWEznklfkXP2BObYKc=",
+          "revoked": false
+        }
+      ],
+      "log_authority_id": "log-authority-main",
+      "profile_id": "vtl-transparency-log-authority/v0.14"
+    },
+    "peer_checkpoints": [],
+    "target": {
+      "log_id": "log-main",
+      "snapshot_digest": "9bd59187591ed2d259a438af8ea2cdd4d5ffa616327e2ac93712a4bb295433bc",
+      "snapshot_generation": 2,
+      "trust_root_id": "root-main"
+    },
+    "verifier_checkpoint": {
+      "checkpointed_at_ms": 1800000004500,
+      "known_root_hash": "a70aa73f532508cffc1b6dc7f5f4984ffece17b78ba2dffdb40aba18b5a6fffe",
+      "known_tree_size": 3,
+      "log_id": "log-main",
+      "minimum_tree_size": 3,
+      "profile_id": "vtl-transparency-log-verifier-checkpoint/v0.14"
+    }
+  },
+  "base_now_ms": 1800000005000,
+  "canonical_profile": "rfc8785-safe-integer/v0.10",
+  "cases": [
+    {
+      "expected": {
+        "valid": true,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": 6,
+        "accepted_root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+        "reason_codes": []
+      },
+      "id": "valid-inclusion-and-consistency"
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": false,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "INCLUSION_PROOF_INVALID"
+        ]
+      },
+      "id": "wrong-leaf-index",
+      "mutations": [
+        {
+          "path": "leaf_index",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "checkpoint_ref": "tree4",
+      "consistency_path_ref": "to4",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": false,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "INCLUSION_PROOF_INVALID"
+        ]
+      },
+      "id": "tree4-valid-checkpoint-wrong-base-inclusion-path"
+    },
+    {
+      "id": "tree4-valid-inclusion-and-consistency",
+      "checkpoint_ref": "tree4",
+      "inclusion_path_ref": "tree4",
+      "consistency_path_ref": "to4",
+      "expected": {
+        "valid": true,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": 4,
+        "accepted_root_hash": "05144397d6716c955a4f380ea4916fef49d2e0e924e5b9bacad5cd24f3997130",
+        "reason_codes": []
+      }
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": false,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "INCLUSION_PROOF_INVALID"
+        ]
+      },
+      "id": "tampered-inclusion-path",
+      "mutations": [
+        {
+          "path": "inclusion_path.0",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": false,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "INCLUSION_PROOF_INVALID"
+        ]
+      },
+      "id": "malformed-inclusion-hash",
+      "mutations": [
+        {
+          "path": "inclusion_path.0",
+          "value": "abc"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": false,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": false,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "ENTRY_SNAPSHOT_DIGEST_MISMATCH",
+          "INCLUSION_PROOF_INVALID"
+        ]
+      },
+      "id": "wrong-snapshot-digest-in-entry",
+      "mutations": [
+        {
+          "path": "entry.snapshot_digest",
+          "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": false,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_CONSISTENCY_PROOF_INVALID"
+        ]
+      },
+      "id": "invalid-consistency-path",
+      "mutations": [
+        {
+          "path": "consistency_path.0",
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "checkpoint_ref": "tree2",
+      "consistency_path_ref": "empty",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": false,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_TREE_SIZE_BELOW_FLOOR",
+          "LOG_CHECKPOINT_ROLLBACK"
+        ]
+      },
+      "id": "checkpoint-rollback",
+      "inclusion_path_ref": "tree2"
+    },
+    {
+      "checkpoint_ref": "conflict",
+      "consistency_path_ref": "empty",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": false,
+        "consistency_valid": false,
+        "view_consistency_valid": false,
+        "log_equivocation_detected": true,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "INCLUSION_PROOF_INVALID",
+          "LOG_EQUIVOCATION_DETECTED"
+        ]
+      },
+      "id": "same-size-different-root-candidate",
+      "verifier_checkpoint_ref": "current6"
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": false,
+        "log_equivocation_detected": true,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_EQUIVOCATION_DETECTED"
+        ]
+      },
+      "id": "peer-split-view-detected",
+      "peer_checkpoint_refs": [
+        "conflict"
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": false,
+        "log_checkpoint_signature_valid": false,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "CHECKPOINT_SIGNATURE_ENCODING_INVALID"
+        ]
+      },
+      "id": "bad-checkpoint-signature",
+      "mutations": [
+        {
+          "path": "checkpoint.signature",
+          "value": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": false,
+        "log_checkpoint_authority_valid": false,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_KEY_NOT_TRUSTED"
+        ]
+      },
+      "id": "unknown-log-key",
+      "mutations": [
+        {
+          "path": "log_authority.keys.0.log_key_id",
+          "value": "other-key"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": false,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_KEY_REVOKED"
+        ]
+      },
+      "id": "revoked-log-key",
+      "mutations": [
+        {
+          "path": "log_authority.keys.0.revoked",
+          "value": true
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": false,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_KEY_EXPIRED"
+        ]
+      },
+      "id": "expired-log-key",
+      "mutations": [
+        {
+          "path": "log_authority.keys.0.not_after_ms",
+          "value": 1799999999999
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": false,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_KEY_NOT_YET_VALID"
+        ]
+      },
+      "id": "not-yet-valid-log-key",
+      "mutations": [
+        {
+          "path": "log_authority.keys.0.not_before_ms",
+          "value": 1800000010000
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": false,
+        "log_checkpoint_authority_valid": false,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_KEY_MATERIAL_INVALID"
+        ]
+      },
+      "id": "malformed-log-key",
+      "mutations": [
+        {
+          "path": "log_authority.keys.0.public_key_base64",
+          "value": "AAAA"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": false,
+        "log_checkpoint_authority_valid": false,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_KEY_AMBIGUOUS"
+        ]
+      },
+      "id": "ambiguous-log-key",
+      "mutations": [
+        {
+          "path": "log_authority.keys",
+          "value": [
+            {
+              "algorithm": "ED25519",
+              "issuer_id": "log-operator",
+              "log_key_id": "log-key-1",
+              "not_after_ms": 1900000000000,
+              "not_before_ms": 1790000000000,
+              "public_key_base64": "yFOtDwzSthmuqSzuxP1Wok1kmdWEznklfkXP2BObYKc=",
+              "revoked": false
+            },
+            {
+              "algorithm": "ED25519",
+              "issuer_id": "log-operator",
+              "log_key_id": "log-key-1",
+              "not_after_ms": 1900000000000,
+              "not_before_ms": 1790000000000,
+              "public_key_base64": "yFOtDwzSthmuqSzuxP1Wok1kmdWEznklfkXP2BObYKc=",
+              "revoked": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "checkpoint_ref": "stale",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": false,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "CHECKPOINT_EXPIRED"
+        ]
+      },
+      "id": "stale-log-checkpoint"
+    },
+    {
+      "checkpoint_ref": "future",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": false,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "CHECKPOINT_NOT_YET_VALID",
+          "CHECKPOINT_ISSUED_IN_FUTURE"
+        ]
+      },
+      "id": "future-log-checkpoint"
+    },
+    {
+      "checkpoint_ref": "wrong_log",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": false,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": false,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "ENTRY_CHECKPOINT_LOG_ID_MISMATCH",
+          "LOG_ID_MISMATCH"
+        ]
+      },
+      "id": "wrong-log-id"
+    },
+    {
+      "checkpoint_ref": "bad_profile",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": false,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "CANONICAL_PROFILE_MISMATCH"
+        ]
+      },
+      "id": "canonical-profile-substitution"
+    },
+    {
+      "checkpoint_ref": "algorithm_substitution",
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": false,
+        "log_checkpoint_authority_valid": false,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_ALGORITHM_NOT_ALLOWED",
+          "LOG_KEY_ALGORITHM_MISMATCH"
+        ]
+      },
+      "id": "algorithm-substitution"
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": false,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOCAL_WITNESSED_FRESHNESS_INVALID"
+        ]
+      },
+      "id": "inherited-v013-failure-not-rescued",
+      "mutations": [
+        {
+          "path": "local_witnessed_freshness_valid",
+          "value": false
+        }
+      ]
+    },
+    {
+      "consistency_path_ref": "empty",
+      "expected": {
+        "valid": true,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": true,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": 6,
+        "accepted_root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+        "reason_codes": []
+      },
+      "id": "known-current-same-root",
+      "verifier_checkpoint_ref": "current6"
+    },
+    {
+      "expected": {
+        "valid": false,
+        "local_witnessed_freshness_valid": true,
+        "entry_integrity_valid": true,
+        "log_checkpoint_integrity_valid": true,
+        "log_checkpoint_signature_valid": true,
+        "log_checkpoint_authority_valid": true,
+        "log_checkpoint_freshness_valid": true,
+        "inclusion_valid": true,
+        "consistency_valid": false,
+        "view_consistency_valid": true,
+        "log_equivocation_detected": false,
+        "accepted_tree_size": null,
+        "accepted_root_hash": null,
+        "reason_codes": [
+          "LOG_VERIFIER_CHECKPOINT_FROM_FUTURE"
+        ]
+      },
+      "id": "verifier-checkpoint-from-future",
+      "mutations": [
+        {
+          "path": "verifier_checkpoint.checkpointed_at_ms",
+          "value": 1800000006000
+        }
+      ]
+    }
+  ],
+  "checkpoint_variants": {
+    "algorithm_substitution": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_37b6d67a6f335a01c5a26d51",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "fF0cLOS6MXllxrAqFI1VzZRJU8ibEbpLzyIICynYLqfNmh1ULPebZOGMAj72WBleulOGbk6U6ZoWF9fekzMJDQ==",
+      "signature_algorithm": "RSA",
+      "tree_size": 6
+    },
+    "bad_profile": {
+      "canonical_profile": "rfc8785-safe-integer/v999",
+      "checkpoint_id": "logcp_cdfa06803ab9067d9e389a01",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "AoPIlj343eG6bfvZB173uJn6jNTcLVPBWiySl4M8JvY3hr4SLWz85p0GUF9HNOI8YX9c80KeKqfhqj5cpnOsAg==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 6
+    },
+    "base": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_952355ac4c29c4cfaf8764ec",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "v+UZ+R7wAers75WrBLXzqM9sW9m5tKsAZEncafky8JJDST6EF4xyE8bcbD492UyTBTXjS3+f6znHGTGGtqoeCA==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 6
+    },
+    "conflict": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_4fa98b2abbc9bb7fe32e7058",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "XsuafBkXpzY79lZcbj+0nEvwNm6u1N6xwr0M3oBRdvoEV6GezkdQDFLvutfIKa5Aja2i5M3SPLoL655sZN66Bw==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 6
+    },
+    "future": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_6f84a2eea1df2b44e682b50a",
+      "issued_at_ms": 1800000300000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000400000,
+      "not_before_ms": 1800000250000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "b+XXzYqn23rVCVt7lSlTSMl5Leq5ZTpdwT9vfzxedSU6jx4iJxcY9yhp+IFEtCjoihHhJ7bWOHahstdKn99dDw==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 6
+    },
+    "stale": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_6b977529bfadfafe8e55a555",
+      "issued_at_ms": 1799999700000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1799999800000,
+      "not_before_ms": 1799999600000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "OCqHN5ivBE8rJU83WgepQ3lPfEw0LmhjyYeKaytsCnAw3pEXJyLt1KeI/fbLvliMwwIOgw3bHp4/DN0rniqkBg==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 6
+    },
+    "tree2": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_df4ec106e7022a584d663d9b",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "18d0b58f62f6880da79517126b5a0e80e26755ea6a1404313b9607d42abe723b",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "jNfAKRuhAPBoMPxJBUHSes54QT8Wb9gax6eSJOg1jDaLazjvamNNjwQ40OndhrDLZtHmE+edzNaU434JNLuLDg==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 2
+    },
+    "tree4": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_49f05a2e9aa988ea009a6eab",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-main",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "05144397d6716c955a4f380ea4916fef49d2e0e924e5b9bacad5cd24f3997130",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "CG22ZX8Vmqz0GgxGK9YQN3x9ld36kDhq2fPBrxvrxgwt93U/AGIXW/fUntGpbjiThxl93aZJpFQtkOl0YjUiAw==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 4
+    },
+    "wrong_log": {
+      "canonical_profile": "rfc8785-safe-integer/v0.10",
+      "checkpoint_id": "logcp_d62113648240f460be745829",
+      "issued_at_ms": 1800000004000,
+      "issuer_id": "log-operator",
+      "log_authority_id": "log-authority-main",
+      "log_id": "log-other",
+      "log_key_id": "log-key-1",
+      "not_after_ms": 1800000200000,
+      "not_before_ms": 1799999990000,
+      "profile_id": "vtl-transparency-log-checkpoint/v0.14",
+      "root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "schema_version": "vtl.transparency-log/v0.14",
+      "signature": "3M6tLd21Bf/ZBSfSfV13iAscwxvEfwhxHZDddwuCSf1wMzmzNo9vmSPyJzGrKslywmbRCpCZo+NqwUxBkr2RCg==",
+      "signature_algorithm": "ED25519",
+      "tree_size": 6
+    }
+  },
+  "consistency_path_variants": {
+    "base": [
+      "8e86e50bf8ef47c407bdbbf55ea5e7a09dfe6ad70123dc859f5a7186bb9891be",
+      "a1278ebe80ea1be0b9a9f9a5b7736a8ec4bb28f5292188309a38848f1d48c905",
+      "18d0b58f62f6880da79517126b5a0e80e26755ea6a1404313b9607d42abe723b",
+      "3b12ecc2ecc3c3953337117ddd5918c19ddb49c57f5dc7323fcbd6b91ac79a0c"
+    ],
+    "empty": [],
+    "to4": [
+      "8e86e50bf8ef47c407bdbbf55ea5e7a09dfe6ad70123dc859f5a7186bb9891be",
+      "a1278ebe80ea1be0b9a9f9a5b7736a8ec4bb28f5292188309a38848f1d48c905",
+      "18d0b58f62f6880da79517126b5a0e80e26755ea6a1404313b9607d42abe723b"
+    ]
+  },
+  "expected_base_checkpoint_digest": "ccb7c9ebb5f62b8bcfcb6b23e67f8b5aa6a8b78529cb899df09fecc8b9a5686c",
+  "expected_base_checkpoint_signature_base64": "v+UZ+R7wAers75WrBLXzqM9sW9m5tKsAZEncafky8JJDST6EF4xyE8bcbD492UyTBTXjS3+f6znHGTGGtqoeCA==",
+  "expected_base_checkpoint_signed_payload_base64": "eyJjYW5vbmljYWxfcHJvZmlsZSI6InJmYzg3ODUtc2FmZS1pbnRlZ2VyL3YwLjEwIiwiY2hlY2twb2ludF9pZCI6ImxvZ2NwXzk1MjM1NWFjNGMyOWM0Y2ZhZjg3NjRlYyIsImlzc3VlZF9hdF9tcyI6MTgwMDAwMDAwNDAwMCwiaXNzdWVyX2lkIjoibG9nLW9wZXJhdG9yIiwibG9nX2F1dGhvcml0eV9pZCI6ImxvZy1hdXRob3JpdHktbWFpbiIsImxvZ19pZCI6ImxvZy1tYWluIiwibG9nX2tleV9pZCI6ImxvZy1rZXktMSIsIm5vdF9hZnRlcl9tcyI6MTgwMDAwMDIwMDAwMCwibm90X2JlZm9yZV9tcyI6MTc5OTk5OTk5MDAwMCwicHJvZmlsZV9pZCI6InZ0bC10cmFuc3BhcmVuY3ktbG9nLWNoZWNrcG9pbnQvdjAuMTQiLCJyb290X2hhc2giOiI2ZWZkZWQ4Zjk2OTA1MDZlOGI3MTVjNWRmNzIwMDFjZGM3MzlkYzY2YjE1NzQxMTRkZDJmN2ZjZDA1OWMzNjcyIiwic2NoZW1hX3ZlcnNpb24iOiJ2dGwudHJhbnNwYXJlbmN5LWxvZy92MC4xNCIsInNpZ25hdHVyZV9hbGdvcml0aG0iOiJFRDI1NTE5IiwidHJlZV9zaXplIjo2fQ==",
+  "expected_base_entry_canonical_base64": "eyJjYW5vbmljYWxfcHJvZmlsZSI6InJmYzg3ODUtc2FmZS1pbnRlZ2VyL3YwLjEwIiwiZW50cnlfdHlwZSI6InRydXN0LXJvb3Qtc25hcHNob3QiLCJsb2dfaWQiOiJsb2ctbWFpbiIsInByb2ZpbGVfaWQiOiJ2dGwtdHJhbnNwYXJlbmN5LWxvZy1lbnRyeS92MC4xNCIsInNuYXBzaG90X2RpZ2VzdCI6IjliZDU5MTg3NTkxZWQyZDI1OWE0MzhhZjhlYTJjZGQ0ZDVmZmE2MTYzMjdlMmFjOTM3MTJhNGJiMjk1NDMzYmMiLCJzbmFwc2hvdF9nZW5lcmF0aW9uIjoyLCJ0cnVzdF9yb290X2lkIjoicm9vdC1tYWluIn0=",
+  "expected_base_leaf_hash": "fe3be12e8d916f1ae07ad8001a9d3662ea10486b39e7a1b07d811e0ad1e3c537",
+  "expected_base_root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+  "inclusion_path_variants": {
+    "base": [
+      "37db86a80a23172a1574f5dc8842b46af6090d1b978dbf08392976ab7c78c938",
+      "227554eafb372ae29263350313b52be148ab6ef76bbd88f0bf0d1f206c9768ac",
+      "3b12ecc2ecc3c3953337117ddd5918c19ddb49c57f5dc7323fcbd6b91ac79a0c"
+    ],
+    "tree2": [
+      "37db86a80a23172a1574f5dc8842b46af6090d1b978dbf08392976ab7c78c938"
+    ],
+    "tree4": [
+      "37db86a80a23172a1574f5dc8842b46af6090d1b978dbf08392976ab7c78c938",
+      "227554eafb372ae29263350313b52be148ab6ef76bbd88f0bf0d1f206c9768ac"
+    ]
+  },
+  "profile_id": "vtl-transparency-log-v0.14",
+  "schema_version": "vtl.transparency-log-fixture/v0.14",
+  "verifier_checkpoint_variants": {
+    "base": {
+      "checkpointed_at_ms": 1800000004500,
+      "known_root_hash": "a70aa73f532508cffc1b6dc7f5f4984ffece17b78ba2dffdb40aba18b5a6fffe",
+      "known_tree_size": 3,
+      "log_id": "log-main",
+      "minimum_tree_size": 3,
+      "profile_id": "vtl-transparency-log-verifier-checkpoint/v0.14"
+    },
+    "current6": {
+      "checkpointed_at_ms": 1800000004500,
+      "known_root_hash": "6efded8f9690506e8b715c5df72001cdc739dc66b1574114dd2f7fcd059c3672",
+      "known_tree_size": 6,
+      "log_id": "log-main",
+      "minimum_tree_size": 3,
+      "profile_id": "vtl-transparency-log-verifier-checkpoint/v0.14"
+    }
+  }
+}

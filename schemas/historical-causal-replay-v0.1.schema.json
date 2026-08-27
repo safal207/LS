@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/schemas/historical-causal-replay-v0.1.schema.json",
+  "title": "LS Historical Causal Replay v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "pr_number", "head_sha", "records"],
+  "properties": {
+    "schema_version": {"const": "ls.historical-causal-replay.v0.1"},
+    "repository": {"type": "string", "pattern": "^[^/]+/[^/]+$"},
+    "pr_number": {"type": "integer", "minimum": 1},
+    "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id",
+          "reviewer_id",
+          "source_url",
+          "commit_sha",
+          "title",
+          "adjudication",
+          "root_cause_key"
+        ],
+        "properties": {
+          "source_id": {"type": "string", "minLength": 1},
+          "reviewer_id": {"type": "string", "minLength": 1},
+          "source_url": {"type": "string", "format": "uri"},
+          "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "title": {"type": "string", "minLength": 1},
+          "adjudication": {
+            "enum": [
+              "TRUE_CONFIRMED",
+              "TRUE_REPRODUCED",
+              "FALSE_POSITIVE",
+              "REQUIRES_HUMAN_DECISION"
+            ]
+          },
+          "root_cause_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._:/-]{2,127}$"
+              },
+              {"type": "null"}
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,217 @@
+# SECURITY BOUNDARY:
+# - Runs only after a request JSON is merged into protected main.
+# - Workflow definition, tools, and request are therefore protected-main state.
+# - Target PR code is never checked out or executed; only exact GitHub patch bytes are reviewed.
+name: Trusted Causal Review — Protected Queue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "causal-review-requests/queue/*.json"
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+concurrency:
+  group: trusted-causal-queue-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  ensemble:
+    name: Execute protected causal review request
+    runs-on: ubuntu-latest
+    timeout-minutes: 42
+
+    env:
+      REQUEST_DIR: /tmp/causal-review-request
+      OUTPUT_DIR: /tmp/causal-review-ensemble
+      QUEUE_ENV_FILE: /tmp/causal-review-ensemble/queue.env
+      TARGET_ENV_FILE: /tmp/causal-review-ensemble/target.env
+      CAUSAL_PROMPT_FILE: .github/prompts/causal-review-v0.1.md
+      PATCH_LIMIT_CHARS: "60000"
+      XAI_MODEL: grok-4.5
+      DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-reasoner' }}
+      DEEPSEEK_API_URL: ${{ vars.DEEPSEEK_API_URL || 'https://api.deepseek.com/chat/completions' }}
+      CODEX_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-terra' }}
+      CODEX_MAX_OUTPUT_TOKENS: ${{ vars.CODEX_MAX_OUTPUT_TOKENS || '12000' }}
+      OPENAI_RESPONSES_API_URL: ${{ vars.OPENAI_RESPONSES_API_URL || 'https://api.openai.com/v1/responses' }}
+
+    steps:
+      - name: Check out protected main request and tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Select and validate one protected request
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REQUEST_DIR" "$OUTPUT_DIR"
+          python tools/causal_review_queue.py \
+            --repo-root . \
+            --before-sha "${{ github.event.before }}" \
+            --after-sha "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --output "$OUTPUT_DIR/queue-request.json" \
+            --env-file "$QUEUE_ENV_FILE"
+          source "$QUEUE_ENV_FILE"
+          cp "$REQUEST_FILE" "$OUTPUT_DIR/request-source.json"
+
+      - name: Collect exact patch and observer evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$QUEUE_ENV_FILE"
+          python tools/retrying_causal_review_github.py collect \
+            --repository "$GITHUB_REPOSITORY" \
+            --pr-number "$PR_NUMBER" \
+            --output-dir "$REQUEST_DIR"
+
+      - name: Verify exact target before credentials
+        id: request
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$QUEUE_ENV_FILE"
+          python tools/retrying_causal_review_github.py verify \
+            --input-dir "$REQUEST_DIR" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-run-id "$GITHUB_RUN_ID" \
+            --expected-pr-number "$PR_NUMBER" \
+            --expected-head-sha "$EXPECTED_HEAD_SHA" \
+            --expected-head-branch "$EXPECTED_HEAD_BRANCH" \
+            --output "$OUTPUT_DIR/trusted-request.json" \
+            --env-file "$TARGET_ENV_FILE" \
+            2>&1 | tee "$OUTPUT_DIR/request-verification.txt"
+
+      - name: Adapt collected observer lanes
+        if: ${{ steps.request.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/causal_review_adapters.py adapt \
+            "$REQUEST_DIR/coderabbit-bundle.json" \
+            --output "$OUTPUT_DIR/coderabbit-review.json"
+          python tools/causal_review_adapters.py adapt \
+            "$REQUEST_DIR/qodo-bundle.json" \
+            --output "$OUTPUT_DIR/qodo-review.json"
+
+      - name: Run native causal reviewers
+        if: ${{ steps.request.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 32
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        shell: bash
+        run: bash tools/run_native_causal_reviewers.sh
+
+      - name: Reverify exact head after model calls
+        id: final_request
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$QUEUE_ENV_FILE"
+          python tools/retrying_causal_review_github.py verify \
+            --input-dir "$REQUEST_DIR" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-run-id "$GITHUB_RUN_ID" \
+            --expected-pr-number "$PR_NUMBER" \
+            --expected-head-sha "$EXPECTED_HEAD_SHA" \
+            --expected-head-branch "$EXPECTED_HEAD_BRANCH" \
+            --output "$OUTPUT_DIR/final-trusted-request.json" \
+            --env-file "$OUTPUT_DIR/final-target.env" \
+            2>&1 | tee "$OUTPUT_DIR/final-verification.txt"
+
+      - name: Build exact-target ensemble report
+        if: ${{ steps.request.outcome == 'success' && steps.final_request.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/causal_review_pilot.py \
+            --raw \
+              "$REQUEST_DIR/coderabbit-bundle.json" \
+              "$REQUEST_DIR/qodo-bundle.json" \
+              "$OUTPUT_DIR/grok-review.json" \
+              "$OUTPUT_DIR/deepseek-lane.json" \
+              "$OUTPUT_DIR/codex-review.json" \
+            --reviews \
+              "$OUTPUT_DIR/coderabbit-review.json" \
+              "$OUTPUT_DIR/qodo-review.json" \
+              "$OUTPUT_DIR/grok-review.json" \
+              "$OUTPUT_DIR/deepseek-review.json" \
+              "$OUTPUT_DIR/codex-review.json" \
+            --measurement-class ENSEMBLE \
+            --output "$OUTPUT_DIR/ensemble-report.json"
+
+      - name: Upload exact queue evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trusted-causal-queue-${{ github.sha }}
+          path: |
+            ${{ env.REQUEST_DIR }}
+            ${{ env.OUTPUT_DIR }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish queue result on target PR
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          OUTPUT_DIR: ${{ env.OUTPUT_DIR }}
+        with:
+          script: |
+            const fs = require('fs');
+            const queuePath = `${process.env.OUTPUT_DIR}/queue-request.json`;
+            if (!fs.existsSync(queuePath)) {
+              core.notice('No validated queue request exists; target comment cannot be published.');
+              return;
+            }
+            const queue = JSON.parse(fs.readFileSync(queuePath, 'utf8'));
+            const marker = `<!-- trusted-causal-review-queue:${queue.request_id} -->`;
+            const reportPath = `${process.env.OUTPUT_DIR}/ensemble-report.json`;
+            const requestPath = `${process.env.OUTPUT_DIR}/trusted-request.json`;
+            const [owner, repo] = queue.repository.split('/');
+            const issue_number = Number(queue.pr_number);
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            let body;
+            if (!fs.existsSync(requestPath)) {
+              body = `${marker}\n## 🧭 Protected causal request — REJECTED\n\nRequest \`${queue.request_id}\` did not pass exact-target verification. No model result is valid.\n\n- Requested head: \`${queue.head_sha}\`\n- Workflow run: ${runUrl}`;
+            } else if (!fs.existsSync(reportPath)) {
+              body = `${marker}\n## 🧭 Protected causal request — STALE/FAILED\n\nRequest \`${queue.request_id}\` passed initial verification, but final verification or report construction failed. No model finding is valid for publication.\n\n- Requested head: \`${queue.head_sha}\`\n- Workflow run: ${runUrl}`;
+            } else {
+              const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+              const rate = value => value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`;
+              const incomplete = report.incomplete_lanes.length
+                ? report.incomplete_lanes.map(lane => `- \`${lane.provider}\`: ${lane.status} / ${lane.provenance}`).join('\n')
+                : '_None_';
+              body = `${marker}\n## 🧭 Protected causal request — PROVISIONAL\n\n- Request: \`${queue.request_id}\`\n- Exact head: \`${report.target.head_sha}\`\n- Patch: \`${report.target.patch_sha256}\`\n- Raw findings: **${report.raw_finding_count}**\n- Evidence-bound findings: **${report.evidence_bound_count}**\n- Root-cause clusters: **${report.root_cause_cluster_count}**\n- Corroborated clusters: **${report.corroborated_cluster_count}**\n- Human adjudication items: **${report.adjudication_item_count}**\n- Provisional queue reduction: **${rate(report.human_queue_reduction)}**\n\n### Incomplete lanes\n${incomplete}\n\n⚠️ Advisory only. Human adjudication is pending; this result cannot approve, block, or merge.\n\n- Workflow run: ${runUrl}`;
+            }
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({owner, repo, comment_id: existing.id, body});
+            } else {
+              await github.rest.issues.createComment({owner, repo, issue_number, body});
+            }

@@ -1,0 +1,84 @@
+name: Causal Review Collect — Forks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: causal-review-collect-fork-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    name: Freeze fork PR evidence without secrets
+    if: >-
+      ${{
+        github.event.pull_request.draft == false
+        && github.event.pull_request.head.repo.full_name != github.repository
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      OUTPUT_DIR: /tmp/causal-review-request
+
+    steps:
+      - name: Check out trusted main collector implementation
+        uses: actions/checkout@v4
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+
+      - name: Collect exact patch and reviewer evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/retrying_causal_review_github.py collect \
+            --repository "$GITHUB_REPOSITORY" \
+            --pr-number "$PR_NUMBER" \
+            --output-dir "$OUTPUT_DIR"
+
+      - name: Record unprivileged fork context
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT_DIR"])
+          manifest = json.loads(
+              (output / "collection-manifest.json").read_text(encoding="utf-8")
+          )
+          context = {
+              "schema_version": "ls.causal-review-collection-context.v0.1",
+              "event": "pull_request",
+              "source_run_id": os.environ["GITHUB_RUN_ID"],
+              "source_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "target": manifest["target"],
+              "head_repository": "${{ github.event.pull_request.head.repo.full_name }}",
+              "secret_access": False,
+              "native_reviewers": "NOT_AUTHORIZED_FOR_FORK",
+          }
+          (output / "collection-context.json").write_text(
+              json.dumps(context, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload unprivileged fork artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: causal-review-fork-pr-${{ env.PR_NUMBER }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ env.OUTPUT_DIR }}
+          if-no-files-found: error
+          retention-days: 7

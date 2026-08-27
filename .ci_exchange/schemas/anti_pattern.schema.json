@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/anti_pattern.schema.json",
+  "title": "LS CI Exchange Anti-Pattern",
+  "type": "object",
+  "required": ["schema_version", "anti_pattern_id", "symptom", "impact", "replacement", "evidence"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "anti_pattern_id": {"type": "string"},
+    "symptom": {"type": "string"},
+    "impact": {"type": "string"},
+    "replacement": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "object"}},
+    "confidence": {"type": "string"}
+  }
+}

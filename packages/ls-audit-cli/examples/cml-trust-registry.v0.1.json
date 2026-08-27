@@ -1,0 +1,9 @@
+{
+  "schema_version": "ls.cml-trust-registry.v0.1",
+  "sources": [
+    {
+      "repository": "safal207/Causal-Memory-Layer",
+      "commit": "e84ba18b52ae697789071ceae816e467ab5f36de"
+    }
+  ]
+}

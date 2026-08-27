@@ -1,0 +1,59 @@
+name: External issue watch
+
+on:
+  pull_request:
+    paths:
+      - "tools/watch_external_issue.py"
+      - "tools/test_watch_external_issue.py"
+      - ".github/workflows/external-issue-watch.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/watch_external_issue.py"
+      - "tools/test_watch_external_issue.py"
+      - ".github/workflows/external-issue-watch.yml"
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run external issue watcher tests
+        run: python tools/test_watch_external_issue.py
+
+  watch:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: external-issue-watch-codex-29627
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check openai/codex approval lifecycle issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/watch_external_issue.py \
+            --source-repo openai/codex \
+            --source-issue 29627 \
+            --tracker-repo "${{ github.repository }}" \
+            --tracker-issue 805 \
+            --ignore-login safal207

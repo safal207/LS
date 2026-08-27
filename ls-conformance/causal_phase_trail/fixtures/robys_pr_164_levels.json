@@ -1,0 +1,209 @@
+{
+  "schemaVersion": "ls.causal-level-overlay.v0",
+  "overlayId": "CLO-ROBYS-WORDMARK-001",
+  "authority": "EVIDENCE_ONLY",
+  "trailRef": {
+    "trailId": "CPT-ROBYS-WORDMARK-001",
+    "path": "fixtures/robys_pr_164_wordmark.json",
+    "currentHead": "3063729d7290b47116cdf56d81eae8e2b060a5bf"
+  },
+  "levelDefinitions": [
+    {
+      "level": "INDIVIDUAL",
+      "meaning": "A human or agent observes, decides, reviews, or performs a corrective action."
+    },
+    {
+      "level": "SYSTEM",
+      "meaning": "Code, pull-request governance, evidence contracts, gates, and derived trust phase."
+    },
+    {
+      "level": "ENVIRONMENT",
+      "meaning": "External runtime capabilities and conditions under which the system is rendered or used."
+    }
+  ],
+  "assignments": [
+    {
+      "nodeId": "event.enhanced-syntax",
+      "level": "INDIVIDUAL",
+      "rationale": "The node represents a maintainer-authored implementation action."
+    },
+    {
+      "nodeId": "cause.generated-content-dependency",
+      "level": "SYSTEM",
+      "rationale": "The dependency is an internal architectural property of the wordmark implementation."
+    },
+    {
+      "nodeId": "cause.legacy-parser-rejection",
+      "level": "ENVIRONMENT",
+      "rationale": "The condition exists in an external browser capability boundary."
+    },
+    {
+      "nodeId": "cause.hidden-source-text",
+      "level": "SYSTEM",
+      "rationale": "The amplifying condition is encoded in the system CSS."
+    },
+    {
+      "nodeId": "evidence.compatibility-review",
+      "level": "INDIVIDUAL",
+      "rationale": "An independent review agent surfaced a risk that already existed."
+    },
+    {
+      "nodeId": "evidence.pre-fallback-visual",
+      "level": "INDIVIDUAL",
+      "rationale": "The evidence records a human visual judgement."
+    },
+    {
+      "nodeId": "event.plain-fallback",
+      "level": "INDIVIDUAL",
+      "rationale": "The corrective action was selected and applied by the maintainer."
+    },
+    {
+      "nodeId": "event.evidence-rebind",
+      "level": "INDIVIDUAL",
+      "rationale": "The maintainer deliberately rebound governance evidence after the code changed."
+    },
+    {
+      "nodeId": "evidence.current-ci-green",
+      "level": "SYSTEM",
+      "rationale": "Automated gates produced a system-level verification result."
+    },
+    {
+      "nodeId": "evidence.ai-review-failure",
+      "level": "SYSTEM",
+      "rationale": "The review contract is a system gate and its failure constrains legal transitions."
+    },
+    {
+      "nodeId": "evidence.qodo-current-findings",
+      "level": "INDIVIDUAL",
+      "rationale": "Qodo acts as an independent reviewer observing the system."
+    },
+    {
+      "nodeId": "evidence.coderabbit-current-finding",
+      "level": "INDIVIDUAL",
+      "rationale": "CodeRabbit acts as an independent reviewer observing the system."
+    },
+    {
+      "nodeId": "state.current-risk-discovered",
+      "level": "SYSTEM",
+      "rationale": "The node is the derived governance phase of the pull request."
+    }
+  ],
+  "interactions": [
+    {
+      "id": "interaction.individual-detects-system-risk",
+      "edgeId": "edge.qodo-detects-new-risk",
+      "fromNodeId": "evidence.qodo-current-findings",
+      "toNodeId": "state.current-risk-discovered",
+      "fromLevel": "INDIVIDUAL",
+      "toLevel": "SYSTEM",
+      "mode": "CROSS_LEVEL",
+      "mechanism": "OBSERVES",
+      "evidenceNodeIds": [
+        "evidence.qodo-current-findings",
+        "state.current-risk-discovered"
+      ],
+      "explanation": "An individual review agent changes what the governance system knows, not the code state by itself."
+    },
+    {
+      "id": "interaction.system-confirms-individual-action",
+      "edgeId": "edge.current-ci-confirms-fallback",
+      "fromNodeId": "evidence.current-ci-green",
+      "toNodeId": "event.plain-fallback",
+      "fromLevel": "SYSTEM",
+      "toLevel": "INDIVIDUAL",
+      "mode": "CROSS_LEVEL",
+      "mechanism": "CONFIRMS",
+      "evidenceNodeIds": [
+        "evidence.current-ci-green",
+        "event.plain-fallback"
+      ],
+      "explanation": "Automated system gates provide feedback about whether the maintainer's corrective action preserved expected behavior."
+    },
+    {
+      "id": "interaction.system-exposes-environment-risk",
+      "edgeId": "edge.root-causes-parser-risk",
+      "fromNodeId": "cause.generated-content-dependency",
+      "toNodeId": "cause.legacy-parser-rejection",
+      "fromLevel": "SYSTEM",
+      "toLevel": "ENVIRONMENT",
+      "mode": "CROSS_LEVEL",
+      "mechanism": "AMPLIFIES",
+      "evidenceNodeIds": [
+        "cause.generated-content-dependency",
+        "cause.legacy-parser-rejection"
+      ],
+      "explanation": "An internal visual dependency turns an external browser limitation into a user-visible failure mode."
+    },
+    {
+      "id": "interaction.environment-constrains-system-phase",
+      "edgeId": null,
+      "fromNodeId": "cause.legacy-parser-rejection",
+      "toNodeId": "state.current-risk-discovered",
+      "fromLevel": "ENVIRONMENT",
+      "toLevel": "SYSTEM",
+      "mode": "CROSS_LEVEL",
+      "mechanism": "CONSTRAINS",
+      "evidenceNodeIds": [
+        "cause.legacy-parser-rejection",
+        "evidence.compatibility-review",
+        "state.current-risk-discovered"
+      ],
+      "explanation": "The browser-capability boundary constrains the system's trust phase once the condition is observed and accepted as relevant."
+    },
+    {
+      "id": "interaction.individual-observes-environment",
+      "edgeId": "edge.review-detects-risk",
+      "fromNodeId": "evidence.compatibility-review",
+      "toNodeId": "cause.legacy-parser-rejection",
+      "fromLevel": "INDIVIDUAL",
+      "toLevel": "ENVIRONMENT",
+      "mode": "CROSS_LEVEL",
+      "mechanism": "OBSERVES",
+      "evidenceNodeIds": [
+        "evidence.compatibility-review",
+        "cause.legacy-parser-rejection"
+      ],
+      "explanation": "The reviewer detects an environmental capability risk but does not create it."
+    },
+    {
+      "id": "interaction.individual-adapts-to-environment",
+      "edgeId": "edge.fallback-resolves-risk",
+      "fromNodeId": "event.plain-fallback",
+      "toNodeId": "cause.legacy-parser-rejection",
+      "fromLevel": "INDIVIDUAL",
+      "toLevel": "ENVIRONMENT",
+      "mode": "CROSS_LEVEL",
+      "mechanism": "ADAPTS_TO",
+      "evidenceNodeIds": [
+        "event.plain-fallback",
+        "cause.legacy-parser-rejection"
+      ],
+      "explanation": "The maintainer changes the system so it degrades safely under the external browser limitation."
+    },
+    {
+      "id": "interaction.system-blocks-system-transition",
+      "edgeId": "edge.ai-contract-blocks-merge-ready",
+      "fromNodeId": "evidence.ai-review-failure",
+      "toNodeId": "state.current-risk-discovered",
+      "fromLevel": "SYSTEM",
+      "toLevel": "SYSTEM",
+      "mode": "INTRA_LEVEL",
+      "mechanism": "BLOCKS",
+      "evidenceNodeIds": [
+        "evidence.ai-review-failure",
+        "state.current-risk-discovered"
+      ],
+      "explanation": "A system gate prevents another system-level phase transition until evidence is restored."
+    }
+  ],
+  "summary": {
+    "dominantLoop": [
+      "INDIVIDUAL",
+      "SYSTEM",
+      "ENVIRONMENT",
+      "SYSTEM",
+      "INDIVIDUAL"
+    ],
+    "conclusion": "The individual changes or reviews the system; the system meets environmental constraints; environmental behavior feeds back into system trust; system evidence then guides the individual's next action."
+  }
+}

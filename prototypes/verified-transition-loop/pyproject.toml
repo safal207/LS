@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "verified-transition-loop"
+version = "0.14.0"
+description = "Evidence-gated state transitions for AI agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "LS contributors"}]
+dependencies = ["cryptography>=42"]
+
+[project.optional-dependencies]
+dev = ["jsonschema>=4.23", "pytest>=8"]
+
+[project.scripts]
+vtl-deployment-demo = "verified_transition_loop.deployment_demo:main"
+vtl-conformance = "verified_transition_loop.conformance:main"
+vtl-dispatch-verify = "verified_transition_loop.dispatch_receipt:main"
+vtl-attestation-verify = "verified_transition_loop.attestation:main"
+vtl-trust-root-verify = "verified_transition_loop.trust_snapshot:main"
+vtl-canonical-verify = "verified_transition_loop.canonical:main"
+vtl-canonical-envelope-verify = "verified_transition_loop.canonical_signed_envelope:main"
+vtl-canonical-trust-root-verify = "verified_transition_loop.canonical_trust_snapshot_conformance:main"
+vtl-witness-verify = "verified_transition_loop.witnessed_freshness_conformance:main"
+vtl-transparency-log-verify = "verified_transition_loop.transparency_log_conformance:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

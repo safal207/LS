@@ -1,0 +1,69 @@
+{
+  "profile_id": "vtl-canonical-signed-envelope-v0.11",
+  "schema_version": "vtl.canonical-signed-envelope-fixture/v0.11",
+  "canonical_profile": "rfc8785-safe-integer/v0.10",
+  "base_now_ms": 1800000001000,
+  "base_envelope": {
+    "profile_id": "vtl-canonical-signed-envelope-v0.11",
+    "schema_version": "vtl.canonical-signed-envelope/v0.11",
+    "canonical_profile": "rfc8785-safe-integer/v0.10",
+    "payload": {
+      "transition_id": "tr_v011_001",
+      "actor_ref": "agent-a",
+      "action": {
+        "tool": "deploy",
+        "payload": {
+          "commit": "abc123",
+          "dry_run": true
+        }
+      },
+      "invariants": ["healthcheck", "exact-head"],
+      "attempt": 1,
+      "note": "café 😀"
+    },
+    "attestation": {
+      "attestation_id": "attest_cff196ce1b4813400fec74ed",
+      "payload_digest": "d56958db5313d1d6ef3c2551b296112dcb3cc38db32c6d9c4b68f06d0ef87153",
+      "issuer_id": "vtl-fixture-issuer",
+      "signer_key_id": "fixture-ed25519-1",
+      "trust_root_id": "root-v0.11-fixture",
+      "issued_at_ms": 1800000000000,
+      "not_before_ms": 1799999999000,
+      "not_after_ms": 1800003600000,
+      "signature_algorithm": "ED25519",
+      "signature": "R7TH2uDvWdDRGmsY+V/erD2Iyy/QV3eff3LHUUwDec1Rg9bwXNvSRxQvVZU8ThXywdJ/Wyex7K1Yggd0dBDoDA=="
+    }
+  },
+  "trust_root": {
+    "profile_id": "vtl-canonical-trust-root/v0.11",
+    "trust_root_id": "root-v0.11-fixture",
+    "allowed_algorithms": ["ED25519"],
+    "keys": [
+      {
+        "signer_key_id": "fixture-ed25519-1",
+        "issuer_id": "vtl-fixture-issuer",
+        "algorithm": "ED25519",
+        "public_key_base64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+        "not_before_ms": 1790000000000,
+        "not_after_ms": 1810000000000,
+        "revoked": false
+      }
+    ]
+  },
+  "expected_signed_payload_base64": "eyJhdHRlc3RhdGlvbl9pZCI6ImF0dGVzdF9jZmYxOTZjZTFiNDgxMzQwMGZlYzc0ZWQiLCJjYW5vbmljYWxfcHJvZmlsZSI6InJmYzg3ODUtc2FmZS1pbnRlZ2VyL3YwLjEwIiwiaXNzdWVkX2F0X21zIjoxODAwMDAwMDAwMDAwLCJpc3N1ZXJfaWQiOiJ2dGwtZml4dHVyZS1pc3N1ZXIiLCJub3RfYWZ0ZXJfbXMiOjE4MDAwMDM2MDAwMDAsIm5vdF9iZWZvcmVfbXMiOjE3OTk5OTk5OTkwMDAsInBheWxvYWRfZGlnZXN0IjoiZDU2OTU4ZGI1MzEzZDFkNmVmM2MyNTUxYjI5NjExMmRjYjNjYzM4ZGIzMmM2ZDljNGI2OGYwNmQwZWY4NzE1MyIsInByb2ZpbGVfaWQiOiJ2dGwtY2Fub25pY2FsLXNpZ25lZC1lbnZlbG9wZS12MC4xMSIsInNjaGVtYV92ZXJzaW9uIjoidnRsLmNhbm9uaWNhbC1zaWduZWQtZW52ZWxvcGUvdjAuMTEiLCJzaWduYXR1cmVfYWxnb3JpdGhtIjoiRUQyNTUxOSIsInNpZ25lcl9rZXlfaWQiOiJmaXh0dXJlLWVkMjU1MTktMSIsInRydXN0X3Jvb3RfaWQiOiJyb290LXYwLjExLWZpeHR1cmUifQ==",
+  "expected_signature_base64": "R7TH2uDvWdDRGmsY+V/erD2Iyy/QV3eff3LHUUwDec1Rg9bwXNvSRxQvVZU8ThXywdJ/Wyex7K1Yggd0dBDoDA==",
+  "cases": [
+    {"id":"valid","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[],"expected":{"valid":true,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":true,"trusted_current_authority":true,"reason_codes":[]}},
+    {"id":"payload-tamper","now_ms":1800000001000,"envelope_mutations":[{"path":"payload.action.payload.commit","value":"def456"}],"trust_root_mutations":[],"expected":{"valid":false,"payload_digest_matches":false,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":true,"trusted_current_authority":true,"reason_codes":["PAYLOAD_DIGEST_MISMATCH"]}},
+    {"id":"canonical-profile-drift","now_ms":1800000001000,"envelope_mutations":[{"path":"canonical_profile","value":"rfc8785-safe-integer/v0.9"}],"trust_root_mutations":[],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":false,"canonical_profile_valid":false,"signature_valid":false,"trusted_current_authority":true,"reason_codes":["CANONICAL_PROFILE_MISMATCH","ATTESTATION_ID_INVALID","SIGNATURE_INVALID"]}},
+    {"id":"attestation-id-tamper","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.attestation_id","value":"attest_000000000000000000000000"}],"trust_root_mutations":[],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":false,"canonical_profile_valid":true,"signature_valid":false,"trusted_current_authority":true,"reason_codes":["ATTESTATION_ID_INVALID","SIGNATURE_INVALID"]}},
+    {"id":"signature-tamper","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.signature","value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}],"trust_root_mutations":[],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":false,"trusted_current_authority":true,"reason_codes":["SIGNATURE_INVALID"]}},
+    {"id":"trust-root-id-mismatch","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[{"path":"trust_root_id","value":"root-other"}],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":true,"trusted_current_authority":false,"reason_codes":["TRUST_ROOT_MISMATCH"]}},
+    {"id":"issuer-mismatch","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[{"path":"keys.0.issuer_id","value":"other-issuer"}],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":true,"trusted_current_authority":false,"reason_codes":["ISSUER_MISMATCH"]}},
+    {"id":"signer-revoked","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[{"path":"keys.0.revoked","value":true}],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":true,"trusted_current_authority":false,"reason_codes":["SIGNER_REVOKED"]}},
+    {"id":"signer-key-expired","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[{"path":"keys.0.not_after_ms","value":1799999999999}],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":true,"trusted_current_authority":false,"reason_codes":["SIGNER_KEY_NOT_CURRENT"]}},
+    {"id":"attestation-expired","now_ms":1800003600001,"envelope_mutations":[],"trust_root_mutations":[],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":true,"trusted_current_authority":false,"reason_codes":["ATTESTATION_EXPIRED"]}},
+    {"id":"algorithm-substitution","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.signature_algorithm","value":"ED448"}],"trust_root_mutations":[],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":false,"canonical_profile_valid":true,"signature_valid":false,"trusted_current_authority":false,"reason_codes":["ATTESTATION_ID_INVALID","ALGORITHM_NOT_ALLOWED","KEY_ALGORITHM_MISMATCH"]}},
+    {"id":"wrong-public-key","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[{"path":"keys.0.public_key_base64","value":"Hx4dHBsaGRgXFhUUExIREA8ODQwLCgkIBwYFBAMCAQA="}],"expected":{"valid":false,"payload_digest_matches":true,"attestation_id_valid":true,"canonical_profile_valid":true,"signature_valid":false,"trusted_current_authority":true,"reason_codes":["SIGNATURE_INVALID"]}}
+  ]
+}

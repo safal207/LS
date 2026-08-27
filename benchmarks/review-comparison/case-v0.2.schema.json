@@ -1,0 +1,195 @@
+{
+  "$id": "https://github.com/safal207/LS/benchmarks/review-comparison/case-v0.2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "PREPARED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evidence_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "FROZEN"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evidence_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "lanes": {
+          "contains": {
+            "properties": {
+              "lane": {
+                "const": "FRONTIER_MODEL"
+              }
+            },
+            "required": [
+              "lane"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "lanes": {
+          "contains": {
+            "properties": {
+              "lane": {
+                "const": "LS"
+              }
+            },
+            "required": [
+              "lane"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        }
+      }
+    }
+  ],
+  "properties": {
+    "case_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "coordinates": {
+      "additionalProperties": false,
+      "properties": {
+        "base_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "changed_file_count": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "head_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "pr_number": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "pr_number",
+        "base_sha",
+        "head_sha",
+        "changed_file_count"
+      ],
+      "type": "object"
+    },
+    "evidence_manifest_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "evidence_sha256": {
+      "oneOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lanes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "lane": {
+            "enum": [
+              "FRONTIER_MODEL",
+              "LS"
+            ]
+          },
+          "must_not_receive": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "visibility": {
+            "const": "FROZEN_BUNDLE_ONLY"
+          }
+        },
+        "required": [
+          "lane",
+          "visibility",
+          "must_not_receive"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "prompt_path": {
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$",
+      "type": "string"
+    },
+    "prompt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ls.review_benchmark_case.v0.2"
+    },
+    "status": {
+      "enum": [
+        "PREPARED",
+        "FROZEN"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "case_id",
+    "status",
+    "evidence_manifest_path",
+    "evidence_sha256",
+    "coordinates",
+    "prompt_path",
+    "prompt_sha256",
+    "lanes"
+  ],
+  "title": "LS Blind Review Benchmark Case v0.2",
+  "type": "object"
+}

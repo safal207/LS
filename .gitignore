@@ -10,6 +10,7 @@ dist/
 !ghostgpt-ls-landing/dist/
 !ghostgpt-ls-landing/dist/**
 build/
+*.egg-info/
 rust_core/target/
 data/patterns.db
 .pytest_cache/
@@ -44,6 +45,7 @@ python/data/
 artifacts/chat*/
 artifacts/council-ledger/*.json
 artifacts/council-quality/*.json
+artifacts/ls-audit/
 artifacts/relation-memory/
 artifacts/relational-episodes/
 artifacts/relational-learning/

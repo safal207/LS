@@ -1,0 +1,39 @@
+{
+  "schema_version": "ls.ci_exchange.route.v0.1",
+  "route_id": "ls.route.grok_review.command_pr_pull_request",
+  "problem": "Dispatch an advisory Grok review from a connector-controlled GitHub flow without using a separate server.",
+  "best_path": {
+    "type": "command_pr_pull_request",
+    "event": "pull_request",
+    "branch_prefix": "ci/grok-review-command",
+    "command_file": ".github/grok-review-command.json",
+    "observable_markers": [
+      "grok-review-command-bus-source-diagnostic",
+      "grok-review-command-bus-ack",
+      "grok-review-command-bus-result"
+    ]
+  },
+  "bad_paths": [
+    {"type": "issue_comment", "result": "no visible acknowledgement in connector-created command test"},
+    {"type": "push_command_branch", "result": "command file was written but no visible acknowledgement appeared"},
+    {"type": "pull_request_target", "result": "command PR opened but no source diagnostic appeared"}
+  ],
+  "confidence": "medium_high",
+  "evidence": [
+    {"kind": "pull_request", "ref": "#847", "description": "Validation-only command PR closed after successful smoke."},
+    {"kind": "pull_request", "ref": "#848", "description": "Merged route change to pull_request event."},
+    {"kind": "workflow_run", "ref": "29027359506", "description": "Command bus workflow completed successfully."}
+  ],
+  "valid_for": [
+    "GitHub connector",
+    "same-repository command PRs",
+    "advisory PR review",
+    "observable CI evidence"
+  ],
+  "not_validated_for": [
+    "forked command PRs",
+    "GitLab CI",
+    "self-hosted runners",
+    "production deploy commands"
+  ]
+}

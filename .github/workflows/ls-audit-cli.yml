@@ -1,0 +1,74 @@
+name: LS Exact-Head Audit CLI
+
+on:
+  pull_request:
+    paths:
+      - packages/ls-audit-cli/**
+      - .github/workflows/ls-audit-cli.yml
+  push:
+    branches: [main]
+    paths:
+      - packages/ls-audit-cli/**
+      - .github/workflows/ls-audit-cli.yml
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: packages/ls-audit-cli/pyproject.toml
+      - name: Install lightweight CLI
+        run: python -m pip install ./packages/ls-audit-cli
+      - name: Run unit tests
+        run: python -m unittest discover -s packages/ls-audit-cli/tests -v
+      - name: Verify console entrypoint
+        run: ls-audit --help
+      - name: Build wheel
+        run: python -m pip wheel --no-deps ./packages/ls-audit-cli --wheel-dir /tmp/ls-audit-wheel
+      - name: Live exact-head and CML Git Internet smoke on this PR
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          start="$(date +%s)"
+          ls-audit "$PR_URL" \
+            --expected-head "$EXPECTED_HEAD" \
+            --cml-registry packages/ls-audit-cli/examples/cml-trust-registry.v0.1.json \
+            --output /tmp/ls-audit-live
+          elapsed="$(( $(date +%s) - start ))"
+          test "$elapsed" -le 900
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('/tmp/ls-audit-live')
+          card = json.loads((root / 'scorecard.json').read_text())
+          manifest = json.loads((root / 'manifest.json').read_text())
+          memory = json.loads((root / 'evidence/cml-memory.json').read_text())
+
+          assert card['lanes']['exact_head'] == 'PASS'
+          assert card['target']['expected_head'] == card['target']['observed_head']
+          assert card['authority'] == 'advisory-only'
+          assert card['lanes']['causal_memory'] == 'PASS'
+          assert card['causal_memory']['selected_count'] <= 3
+          assert memory['target']['expected_head'] == card['target']['expected_head']
+          assert memory['target']['base_sha']
+          assert memory['sources'][0]['repository'] == 'safal207/Causal-Memory-Layer'
+          assert memory['sources'][0]['commit'] == 'e84ba18b52ae697789071ceae816e467ab5f36de'
+          assert not any(memory['authority'].values())
+          assert 'evidence/cml-memory.json' in manifest['evidence_digests']
+          assert '## Causal Memory' in (root / 'SCORECARD.md').read_text()
+          print(card['verdict'])
+          PY

@@ -1,0 +1,388 @@
+{
+  "schemaVersion": "ls.causal-phase-trail.v0",
+  "trailId": "CPT-ROBYS-DELIVERY-TAILS-CLOSED-001",
+  "authority": "EVIDENCE_ONLY",
+  "observedAt": "2026-07-10T14:55:00Z",
+  "subject": {
+    "repository": "safal207/robys-coffee-house-demo",
+    "pullRequest": 167,
+    "baseHead": "0f35515a460ea3e1e0f0aac2075656b18d6b2b67",
+    "currentHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9"
+  },
+  "spaces": [
+    {"id": "space.repo", "kind": "REPOSITORY", "value": "safal207/robys-coffee-house-demo"},
+    {"id": "space.pr165", "kind": "PULL_REQUEST", "value": "#165 hero pairing CTA"},
+    {"id": "space.pr173", "kind": "PULL_REQUEST", "value": "#173 production-referenced wordmark"},
+    {"id": "space.pr167", "kind": "PULL_REQUEST", "value": "#167 pairing catalog parity"},
+    {"id": "space.main", "kind": "ARTIFACT", "value": "trusted main represented by PR #167 base"},
+    {"id": "space.logo", "kind": "COMPONENT", "value": "Roby's production-referenced wordmark"},
+    {"id": "space.pairings", "kind": "SURFACE", "value": "menu.html#pairing-offers"},
+    {"id": "space.customer-journey", "kind": "SURFACE", "value": "hero to pairing selection customer journey"},
+    {"id": "space.coderabbit", "kind": "AGENT", "value": "CodeRabbit"},
+    {"id": "space.attestation", "kind": "GATE", "value": "maintainer merge attestation"},
+    {"id": "space.evidence", "kind": "EVIDENCE", "value": "cross-repository exact-head closure recheck"}
+  ],
+  "nodes": [
+    {
+      "id": "cause.local-contract-without-end-to-end-closure",
+      "kind": "CAUSE",
+      "label": "The local CTA merge contract did not require every customer-visible dependency to be delivered in main",
+      "eventTime": "2026-07-04T21:52:37Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr165", "space.customer-journey"],
+      "agent": null,
+      "claimRole": "ROOT_CAUSE",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Reconstructed from PR #165 scope and the original delivery-tail trail"
+    },
+    {
+      "id": "evidence.customer-detected-open-tails",
+      "kind": "EVIDENCE",
+      "label": "Customer-path inspection detected the missing wordmark delivery and singleton pairing catalog",
+      "eventTime": "2026-07-05T00:05:00Z",
+      "observedAt": "2026-07-05T00:05:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "spaceRefs": ["space.pr165", "space.logo", "space.pairings", "space.customer-journey"],
+      "agent": "human-customer-review",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "STALE",
+      "blocking": false,
+      "binding": true,
+      "source": "Historical live-site observation recorded by CPT-ROBYS-DELIVERY-TAILS-001"
+    },
+    {
+      "id": "state.logo-delivery-tail-open",
+      "kind": "STATE",
+      "label": "Historical tail: the reviewed wordmark was absent from the deployed branch",
+      "eventTime": "2026-07-05T00:05:00Z",
+      "observedAt": "2026-07-05T00:08:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": "ed9b736bea78d3eabdc70bde21b29df338348a73",
+      "spaceRefs": ["space.logo", "space.main", "space.pr173"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Historical state from CPT-ROBYS-DELIVERY-TAILS-001"
+    },
+    {
+      "id": "state.pairing-catalog-tail-open",
+      "kind": "STATE",
+      "label": "Historical tail: the hero CTA landed on a singleton catalog while another active pairing existed",
+      "eventTime": "2026-07-05T00:05:00Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "spaceRefs": ["space.pairings", "space.customer-journey", "space.pr167"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Historical state from CPT-ROBYS-DELIVERY-TAILS-001"
+    },
+    {
+      "id": "event.wordmark-delivered-by-pr173",
+      "kind": "EVENT",
+      "label": "PR #173 delivered the production-referenced wordmark across product and offline surfaces",
+      "eventTime": "2026-07-06T19:33:53Z",
+      "observedAt": "2026-07-10T14:55:00Z",
+      "validFromHead": "ed9b736bea78d3eabdc70bde21b29df338348a73",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr173", "space.logo", "space.main"],
+      "agent": "safal207",
+      "claimRole": "CORRECTIVE_ACTION",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/pull/173"
+    },
+    {
+      "id": "event.pairing-parity-delivered-by-pr167",
+      "kind": "EVENT",
+      "label": "PR #167 delivered two pairing offers and enforced parity with Discover journeys",
+      "eventTime": "2026-07-06T21:06:59Z",
+      "observedAt": "2026-07-10T14:55:00Z",
+      "validFromHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr167", "space.pairings", "space.customer-journey"],
+      "agent": "safal207",
+      "claimRole": "CORRECTIVE_ACTION",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/pull/167"
+    },
+    {
+      "id": "evidence.current-cross-repo-closure",
+      "kind": "EVIDENCE",
+      "label": "Current exact-head recheck confirms PR #173 and PR #167 are merged and both delivery tails are closed",
+      "eventTime": "2026-07-06T21:06:59Z",
+      "observedAt": "2026-07-10T14:55:00Z",
+      "validFromHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr173", "space.pr167", "space.evidence", "space.customer-journey"],
+      "agent": "ls-cross-repo-recheck",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "GitHub PR state and exact-head metadata for Robys PR #173 and PR #167"
+    },
+    {
+      "id": "evidence.current-review-status",
+      "kind": "EVIDENCE",
+      "label": "PR #167 exact head has successful CodeRabbit and maintainer attestation statuses",
+      "eventTime": "2026-07-06T21:07:05Z",
+      "observedAt": "2026-07-10T14:55:00Z",
+      "validFromHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr167", "space.coderabbit", "space.attestation"],
+      "agent": "github-status-api",
+      "claimRole": "OTHER",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "Combined commit statuses for e3f2a14696e9bc3ff5ab2f87829e5540019a39b9"
+    },
+    {
+      "id": "state.logo-delivery-tail-closed",
+      "kind": "STATE",
+      "label": "The production-referenced wordmark is delivered on the trusted product path",
+      "eventTime": "2026-07-06T19:33:53Z",
+      "observedAt": "2026-07-10T14:55:00Z",
+      "validFromHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "validUntilHead": null,
+      "spaceRefs": ["space.logo", "space.main", "space.pr173"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Derived from merged PR #173 and current PR #167 base ancestry"
+    },
+    {
+      "id": "state.pairing-catalog-tail-closed",
+      "kind": "STATE",
+      "label": "The pairing destination contains two offers with enforced source parity",
+      "eventTime": "2026-07-06T21:06:59Z",
+      "observedAt": "2026-07-10T14:55:00Z",
+      "validFromHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pairings", "space.customer-journey", "space.pr167"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Derived from merged PR #167 exact-head contract"
+    },
+    {
+      "id": "outcome.end-to-end-promise-complete",
+      "kind": "OUTCOME",
+      "label": "The hero-to-pairing customer path now delivers the intended brand and catalog dependencies",
+      "eventTime": "2026-07-06T21:06:59Z",
+      "observedAt": "2026-07-10T14:55:00Z",
+      "validFromHead": "e3f2a14696e9bc3ff5ab2f87829e5540019a39b9",
+      "validUntilHead": null,
+      "spaceRefs": ["space.logo", "space.pairings", "space.customer-journey"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Derived from both closed delivery-tail states"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge.local-contract-caused-logo-tail",
+      "from": "cause.local-contract-without-end-to-end-closure",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The local CTA contract did not require the wordmark dependency to be delivered with the entry-point change."
+    },
+    {
+      "id": "edge.local-contract-caused-pairing-tail",
+      "from": "cause.local-contract-without-end-to-end-closure",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The local CTA contract excluded pairing contents and allowed a singleton destination."
+    },
+    {
+      "id": "edge.customer-detected-logo-tail",
+      "from": "evidence.customer-detected-open-tails",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The original live-site inspection surfaced the missing brand dependency."
+    },
+    {
+      "id": "edge.customer-detected-pairing-tail",
+      "from": "evidence.customer-detected-open-tails",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The original live-site inspection surfaced the singleton pairing destination."
+    },
+    {
+      "id": "edge.pr173-resolved-logo-tail",
+      "from": "event.wordmark-delivered-by-pr173",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "RESOLVED",
+      "binding": true,
+      "explanation": "The merged wordmark delivery replaced the historical open-tail state."
+    },
+    {
+      "id": "edge.pr167-resolved-pairing-tail",
+      "from": "event.pairing-parity-delivered-by-pr167",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "RESOLVED",
+      "binding": true,
+      "explanation": "The merged pairing parity contract replaced the historical singleton-catalog state."
+    },
+    {
+      "id": "edge.current-recheck-detects-logo-closure",
+      "from": "evidence.current-cross-repo-closure",
+      "to": "state.logo-delivery-tail-closed",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The current cross-repository recheck observes that the logo tail is no longer open."
+    },
+    {
+      "id": "edge.current-recheck-detects-pairing-closure",
+      "from": "evidence.current-cross-repo-closure",
+      "to": "state.pairing-catalog-tail-closed",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The current cross-repository recheck observes that the pairing tail is no longer open."
+    },
+    {
+      "id": "edge.status-confirms-wordmark-delivery",
+      "from": "evidence.current-review-status",
+      "to": "state.logo-delivery-tail-closed",
+      "relation": "CONFIRMED",
+      "binding": true,
+      "explanation": "The final product head retains successful independent review and maintainer attestation evidence."
+    },
+    {
+      "id": "edge.status-confirms-pairing-delivery",
+      "from": "evidence.current-review-status",
+      "to": "state.pairing-catalog-tail-closed",
+      "relation": "CONFIRMED",
+      "binding": true,
+      "explanation": "The final pairing head retains successful independent review and maintainer attestation evidence."
+    },
+    {
+      "id": "edge.logo-closure-enables-complete-promise",
+      "from": "state.logo-delivery-tail-closed",
+      "to": "outcome.end-to-end-promise-complete",
+      "relation": "ENABLED",
+      "binding": true,
+      "explanation": "Brand continuity is restored across the promoted customer path."
+    },
+    {
+      "id": "edge.pairing-closure-enables-complete-promise",
+      "from": "state.pairing-catalog-tail-closed",
+      "to": "outcome.end-to-end-promise-complete",
+      "relation": "ENABLED",
+      "binding": true,
+      "explanation": "Catalog parity restores meaningful pairing choice at the CTA destination."
+    }
+  ],
+  "phaseHistory": [
+    {
+      "phase": "RISK_DISCOVERED",
+      "enteredAt": "2026-07-05T00:05:00Z",
+      "triggerNodeId": "evidence.customer-detected-open-tails",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "logo dependency delivered", "satisfied": false, "evidenceNodeIds": ["state.logo-delivery-tail-open"]},
+        {"name": "pairing catalog parity delivered", "satisfied": false, "evidenceNodeIds": ["state.pairing-catalog-tail-open"]}
+      ]
+    },
+    {
+      "phase": "CORRECTED",
+      "enteredAt": "2026-07-06T19:33:53Z",
+      "triggerNodeId": "event.wordmark-delivered-by-pr173",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "logo dependency delivered", "satisfied": true, "evidenceNodeIds": ["event.wordmark-delivered-by-pr173"]},
+        {"name": "pairing catalog parity delivered", "satisfied": false, "evidenceNodeIds": ["state.pairing-catalog-tail-open"]}
+      ]
+    },
+    {
+      "phase": "EVIDENCE_ACCUMULATING",
+      "enteredAt": "2026-07-06T21:06:59Z",
+      "triggerNodeId": "event.pairing-parity-delivered-by-pr167",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "both delivery tails have corrective actions", "satisfied": true, "evidenceNodeIds": ["event.wordmark-delivered-by-pr173", "event.pairing-parity-delivered-by-pr167"]}
+      ]
+    },
+    {
+      "phase": "STABLE",
+      "enteredAt": "2026-07-06T21:07:05Z",
+      "triggerNodeId": "evidence.current-cross-repo-closure",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "current exact-head closure is independently observable", "satisfied": true, "evidenceNodeIds": ["evidence.current-cross-repo-closure", "evidence.current-review-status"]}
+      ]
+    },
+    {
+      "phase": "MERGED",
+      "enteredAt": "2026-07-06T21:07:05Z",
+      "triggerNodeId": "evidence.current-review-status",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {"name": "logo and pairing delivery are merged with no unresolved blockers", "satisfied": true, "evidenceNodeIds": ["state.logo-delivery-tail-closed", "state.pairing-catalog-tail-closed", "evidence.current-review-status"]}
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "routeId": "route.ignore-cross-repo-dependencies",
+      "title": "Treat the local CTA merge as complete",
+      "selected": false,
+      "components": {"riskReduction": 0, "evidenceConfidence": 1, "reversibility": 5, "implementationCost": 0, "scopeExpansion": 0, "staleEvidenceCost": 0},
+      "score": 6,
+      "explanation": "This route is cheap but leaves the promoted customer path dependent on unmerged brand and catalog work.",
+      "rejectedReason": "It preserves the original delivery-tail risk."
+    },
+    {
+      "routeId": "route.close-tails-sequentially",
+      "title": "Deliver the wordmark, then enforce pairing parity",
+      "selected": true,
+      "components": {"riskReduction": 5, "evidenceConfidence": 5, "reversibility": 4, "implementationCost": 3, "scopeExpansion": 2, "staleEvidenceCost": 1},
+      "score": 8,
+      "explanation": "The selected route closes each dependency on an independently reviewed exact head and preserves a replayable cross-repository trail.",
+      "rejectedReason": null
+    },
+    {
+      "routeId": "route.combine-all-work-in-one-pr",
+      "title": "Rebuild CTA, wordmark and catalog in one replacement PR",
+      "selected": false,
+      "components": {"riskReduction": 5, "evidenceConfidence": 3, "reversibility": 2, "implementationCost": 5, "scopeExpansion": 5, "staleEvidenceCost": 5},
+      "score": -5,
+      "explanation": "A combined replacement could close the same risks but would invalidate more evidence and create a much larger conflict surface.",
+      "rejectedReason": "Scope and stale-evidence cost are disproportionate."
+    }
+  ],
+  "decision": {
+    "currentPhase": "MERGED",
+    "bestRouteId": "route.close-tails-sequentially",
+    "rootCauseNodeId": "cause.local-contract-without-end-to-end-closure",
+    "detectorNodeIds": ["evidence.customer-detected-open-tails", "evidence.current-cross-repo-closure"],
+    "unresolvedBlockerNodeIds": [],
+    "nextLegalTransitions": [],
+    "summary": "The historical CTA-local merge exposed two cross-repository delivery tails. The selected sequential route delivered the production-referenced wordmark through merged PR #173 and pairing cardinality/source parity through merged PR #167. Current exact-head evidence shows both tails closed with no unresolved blockers."
+  }
+}

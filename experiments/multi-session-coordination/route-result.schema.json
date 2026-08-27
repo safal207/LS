@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/experiments/multi-session-coordination/route-result.schema.json",
+  "title": "LS Coordination Route Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "route_id", "scenario_hash", "verdict", "metrics", "evidence_refs"],
+  "properties": {
+    "schema": {"const": "ls.multi-session.route-result.v0.1"},
+    "route_id": {"type": "string", "minLength": 1},
+    "scenario_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "verdict": {
+      "enum": [
+        "SAFE_PARETO_CANDIDATE",
+        "SAFE_DOMINATED",
+        "UNSAFE_STALE_ACTION",
+        "UNSAFE_DEPENDENCY_RELEASE",
+        "UNSAFE_UNAUTHORIZED_EVENT",
+        "UNSAFE_DUPLICATE_EFFECT",
+        "INCONCLUSIVE_MISSING_EVIDENCE"
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {"type": ["integer", "number"]},
+      "required": [
+        "stale_action_count",
+        "dependency_violation_count",
+        "unverified_release_count",
+        "unauthorized_event_acceptance_count",
+        "duplicate_side_effect_count"
+      ],
+      "properties": {
+        "stale_action_count": {"type": "integer", "minimum": 0},
+        "dependency_violation_count": {"type": "integer", "minimum": 0},
+        "unverified_release_count": {"type": "integer", "minimum": 0},
+        "unauthorized_event_acceptance_count": {"type": "integer", "minimum": 0},
+        "duplicate_side_effect_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

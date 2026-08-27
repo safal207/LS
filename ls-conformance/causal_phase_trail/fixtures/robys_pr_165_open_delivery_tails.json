@@ -1,0 +1,634 @@
+{
+  "schemaVersion": "ls.causal-phase-trail.v0",
+  "trailId": "CPT-ROBYS-DELIVERY-TAILS-001",
+  "authority": "EVIDENCE_ONLY",
+  "observedAt": "2026-07-05T00:20:00Z",
+  "subject": {
+    "repository": "safal207/robys-coffee-house-demo",
+    "pullRequest": 165,
+    "baseHead": "3716b183a2873d61e33635a37ca6933af855af95",
+    "currentHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351"
+  },
+  "spaces": [
+    {"id": "space.repo", "kind": "REPOSITORY", "value": "safal207/robys-coffee-house-demo"},
+    {"id": "space.pr165", "kind": "PULL_REQUEST", "value": "#165 hero pairing CTA"},
+    {"id": "space.pr164", "kind": "PULL_REQUEST", "value": "#164 compact wordmark"},
+    {"id": "space.main", "kind": "ARTIFACT", "value": "main branch at 39d77bc244e1a3ffa6e0ab930f2605982adcd483"},
+    {"id": "space.styles", "kind": "ARTIFACT", "value": "styles.css"},
+    {"id": "space.menu-data", "kind": "ARTIFACT", "value": "menu-data.js"},
+    {"id": "space.discover-data", "kind": "ARTIFACT", "value": "discover-journeys-v2.js"},
+    {"id": "space.logo", "kind": "COMPONENT", "value": "Roby's compact wordmark"},
+    {"id": "space.pairing-offers", "kind": "SURFACE", "value": "menu.html#pairing-offers"},
+    {"id": "space.hero", "kind": "SURFACE", "value": "home hero primary CTA"},
+    {"id": "space.customer-journey", "kind": "SURFACE", "value": "hero to pairing selection customer journey"},
+    {"id": "space.analytics", "kind": "EVIDENCE", "value": "pairing_click measurement stream"},
+    {"id": "space.customer", "kind": "AGENT", "value": "site visitor observation"}
+  ],
+  "nodes": [
+    {
+      "id": "event.cta-scope-defined",
+      "kind": "EVENT",
+      "label": "PR 165 explicitly limits scope to the entry point and excludes pairing contents and artwork",
+      "eventTime": "2026-07-04T21:52:37Z",
+      "observedAt": "2026-07-04T21:52:37Z",
+      "validFromHead": "3716b183a2873d61e33635a37ca6933af855af95",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr165", "space.hero", "space.customer-journey"],
+      "agent": "safal207",
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/pull/165"
+    },
+    {
+      "id": "cause.local-contract-without-end-to-end-closure",
+      "kind": "CAUSE",
+      "label": "The merge contract validated the local CTA route but did not require all customer-visible dependencies to be delivered in main",
+      "eventTime": "2026-07-04T21:52:37Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr165", "space.pr164", "space.customer-journey"],
+      "agent": null,
+      "claimRole": "ROOT_CAUSE",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Reconstructed from PR 165 boundary, PR 164 state, and deployed source files"
+    },
+    {
+      "id": "evidence.cta-contract-green",
+      "kind": "EVIDENCE",
+      "label": "PAIRING-CTA-001 confirms the hash route and category existence but does not require multiple pairing cards",
+      "eventTime": "2026-07-04T22:43:00Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr165", "space.hero", "space.pairing-offers"],
+      "agent": "github-actions",
+      "claimRole": "OTHER",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "scripts/verify-pairing-cta.mjs on PR 165 exact head"
+    },
+    {
+      "id": "event.cta-merged",
+      "kind": "EVENT",
+      "label": "Pairing-first hero CTA merged to main",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-04T22:50:52Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr165", "space.main", "space.hero"],
+      "agent": "safal207",
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/commit/e0ca7e29151bfd3d81b733871529746bbc1e56e3"
+    },
+    {
+      "id": "evidence.customer-live-observation",
+      "kind": "EVIDENCE",
+      "label": "Live-site observation finds the old logo and only one pairing card",
+      "eventTime": "2026-07-05T00:05:00Z",
+      "observedAt": "2026-07-05T00:05:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.customer", "space.logo", "space.pairing-offers", "space.customer-journey"],
+      "agent": "human-customer-review",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "Manual inspection of the deployed GitHub Pages customer path"
+    },
+    {
+      "id": "evidence.logo-pr-remains-open",
+      "kind": "EVIDENCE",
+      "label": "Compact wordmark PR 164 remains open and unmerged",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:08:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.logo", "space.main"],
+      "agent": "github",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "https://github.com/safal207/robys-coffee-house-demo/pull/164"
+    },
+    {
+      "id": "evidence.main-retains-legacy-logo-css",
+      "kind": "EVIDENCE",
+      "label": "Main styles still render the legacy ruby circle plus separate text lockup",
+      "eventTime": "2026-07-04T22:52:05Z",
+      "observedAt": "2026-07-05T00:08:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.main", "space.styles", "space.logo"],
+      "agent": "repository-inspection",
+      "claimRole": "OTHER",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "main styles.css brand rules at commit 39d77bc244e1a3ffa6e0ab930f2605982adcd483"
+    },
+    {
+      "id": "cause.logo-change-not-promoted",
+      "kind": "CAUSE",
+      "label": "The approved compact wordmark exists only on the unmerged PR 164 branch",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:08:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.main", "space.logo"],
+      "agent": null,
+      "claimRole": "IMMEDIATE_CAUSE",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "PR 164 remains unmerged while main keeps the previous brand CSS"
+    },
+    {
+      "id": "state.logo-delivery-tail-open",
+      "kind": "STATE",
+      "label": "Open tail: approved logo is not present on the deployed branch",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:08:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr164", "space.main", "space.logo"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": true,
+      "binding": true,
+      "source": "Derived from open PR 164 and main styles.css"
+    },
+    {
+      "id": "outcome.brand-continuity-gap",
+      "kind": "OUTCOME",
+      "label": "The promoted customer journey presents the old identity instead of the reviewed wordmark",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.logo", "space.hero", "space.customer-journey"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Downstream impact inferred from deployed brand mismatch"
+    },
+    {
+      "id": "evidence.menu-pairing-singleton",
+      "kind": "EVIDENCE",
+      "label": "The menu pairing-offers category contains exactly one item",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:08:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.menu-data", "space.pairing-offers"],
+      "agent": "repository-inspection",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "main menu-data.js pairing-offers items array"
+    },
+    {
+      "id": "evidence.discover-has-two-active-pairings",
+      "kind": "EVIDENCE",
+      "label": "Discover activates Cool Lime plus Macaron and Iced Latte plus San Sebastian",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:08:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.discover-data", "space.pairing-offers"],
+      "agent": "repository-inspection",
+      "claimRole": "DETECTOR",
+      "evidenceStatus": "FRESH",
+      "blocking": false,
+      "binding": true,
+      "source": "main discover-journeys-v2.js ACTIVE_PAIRING_IDS and journeys"
+    },
+    {
+      "id": "cause.split-pairing-source-of-truth",
+      "kind": "CAUSE",
+      "label": "Menu offers and Discover journeys are maintained in separate unlinked data structures",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.menu-data", "space.discover-data", "space.pairing-offers"],
+      "agent": null,
+      "claimRole": "IMMEDIATE_CAUSE",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Comparison of menu-data.js and discover-journeys-v2.js"
+    },
+    {
+      "id": "cause.cardinality-contract-missing",
+      "kind": "CAUSE",
+      "label": "The CTA contract checks that pairing-offers is first and routable but does not assert minimum card count or source parity",
+      "eventTime": "2026-07-04T22:43:00Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pr165", "space.menu-data", "space.discover-data"],
+      "agent": null,
+      "claimRole": "AMPLIFYING_CONDITION",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "scripts/verify-pairing-cta.mjs validates category identity without cardinality or parity"
+    },
+    {
+      "id": "state.pairing-catalog-tail-open",
+      "kind": "STATE",
+      "label": "Open tail: pairing CTA lands on a singleton catalog while another active pairing exists elsewhere",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.menu-data", "space.discover-data", "space.pairing-offers"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": true,
+      "binding": true,
+      "source": "Derived from the one-item menu category and two active Discover pairings"
+    },
+    {
+      "id": "outcome.choice-collapses-to-one",
+      "kind": "OUTCOME",
+      "label": "The promise of today's best pairing collapses into one fixed offer with no meaningful choice",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.pairing-offers", "space.customer-journey"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Downstream customer-choice impact of singleton pairing data"
+    },
+    {
+      "id": "outcome.analytics-selection-bias",
+      "kind": "OUTCOME",
+      "label": "pairing_click measures interest in the entry point but cannot compare preferences between pairings",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.analytics", "space.pairing-offers"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Measurement impact inferred from a single available choice"
+    },
+    {
+      "id": "outcome.customer-promise-gap",
+      "kind": "OUTCOME",
+      "label": "The hero promise is stronger than the delivered destination, reducing trust and conversion potential",
+      "eventTime": "2026-07-04T22:50:52Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.hero", "space.pairing-offers", "space.customer-journey"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Combined downstream impact of brand and catalog delivery tails"
+    },
+    {
+      "id": "state.end-to-end-promise-incomplete",
+      "kind": "STATE",
+      "label": "End-to-end customer promise remains incomplete after the local feature merge",
+      "eventTime": "2026-07-05T00:05:00Z",
+      "observedAt": "2026-07-05T00:10:00Z",
+      "validFromHead": "48cfca8a9b9d233f2b01fe06e1427dae26fce351",
+      "validUntilHead": null,
+      "spaceRefs": ["space.customer-journey", "space.logo", "space.pairing-offers"],
+      "agent": null,
+      "claimRole": "OTHER",
+      "evidenceStatus": "NOT_APPLICABLE",
+      "blocking": false,
+      "binding": true,
+      "source": "Derived end-to-end state after live observation"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge.scope-causes-logo-tail",
+      "from": "cause.local-contract-without-end-to-end-closure",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The local merge contract did not require the dependent wordmark change to be promoted with the CTA."
+    },
+    {
+      "id": "edge.scope-causes-pairing-tail",
+      "from": "cause.local-contract-without-end-to-end-closure",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The local merge contract explicitly excluded pairing contents and therefore allowed a singleton destination."
+    },
+    {
+      "id": "edge.merge-precedes-observation",
+      "from": "event.cta-merged",
+      "to": "evidence.customer-live-observation",
+      "relation": "PRECEDED",
+      "binding": false,
+      "explanation": "The incomplete end-to-end state became visible only after the CTA was deployed."
+    },
+    {
+      "id": "edge.customer-detects-logo-tail",
+      "from": "evidence.customer-live-observation",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The customer inspection surfaced that the reviewed wordmark was absent from the live site."
+    },
+    {
+      "id": "edge.customer-detects-pairing-tail",
+      "from": "evidence.customer-live-observation",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The customer inspection surfaced that the destination contained only one offer."
+    },
+    {
+      "id": "edge.github-detects-logo-tail",
+      "from": "evidence.logo-pr-remains-open",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The open PR state identifies the missing promotion step."
+    },
+    {
+      "id": "edge.menu-detects-catalog-tail",
+      "from": "evidence.menu-pairing-singleton",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The menu source proves that only one card can render."
+    },
+    {
+      "id": "edge.discover-detects-source-mismatch",
+      "from": "evidence.discover-has-two-active-pairings",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "DETECTED",
+      "binding": true,
+      "explanation": "The Discover source proves that the system already knows a second active pairing."
+    },
+    {
+      "id": "edge.unmerged-logo-causes-tail",
+      "from": "cause.logo-change-not-promoted",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "An unmerged branch cannot change the deployed main branch."
+    },
+    {
+      "id": "edge.main-css-confirms-logo-tail",
+      "from": "evidence.main-retains-legacy-logo-css",
+      "to": "state.logo-delivery-tail-open",
+      "relation": "CONFIRMED",
+      "binding": true,
+      "explanation": "The deployed source still contains the previous brand implementation."
+    },
+    {
+      "id": "edge.logo-tail-causes-brand-gap",
+      "from": "state.logo-delivery-tail-open",
+      "to": "outcome.brand-continuity-gap",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The absent wordmark preserves the old identity across the new path."
+    },
+    {
+      "id": "edge.split-source-causes-tail",
+      "from": "cause.split-pairing-source-of-truth",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "Adding a pairing to Discover does not automatically add it to the menu catalog."
+    },
+    {
+      "id": "edge.cardinality-blindness-causes-tail",
+      "from": "cause.cardinality-contract-missing",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "A routable category with one item satisfies the current contract."
+    },
+    {
+      "id": "edge.menu-confirms-singleton",
+      "from": "evidence.menu-pairing-singleton",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "CONFIRMED",
+      "binding": true,
+      "explanation": "The category contains exactly one serialized item."
+    },
+    {
+      "id": "edge.discover-confirms-mismatch",
+      "from": "evidence.discover-has-two-active-pairings",
+      "to": "state.pairing-catalog-tail-open",
+      "relation": "CONFIRMED",
+      "binding": true,
+      "explanation": "Two active journeys exist while only one menu offer exists."
+    },
+    {
+      "id": "edge.pairing-tail-causes-choice-collapse",
+      "from": "state.pairing-catalog-tail-open",
+      "to": "outcome.choice-collapses-to-one",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "A singleton destination cannot deliver a comparison or personalized choice."
+    },
+    {
+      "id": "edge.pairing-tail-causes-analytics-bias",
+      "from": "state.pairing-catalog-tail-open",
+      "to": "outcome.analytics-selection-bias",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "With one card, selection data cannot distinguish which pairing customers prefer."
+    },
+    {
+      "id": "edge.logo-tail-causes-promise-gap",
+      "from": "state.logo-delivery-tail-open",
+      "to": "outcome.customer-promise-gap",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The old identity weakens continuity between the promoted visual concept and the deployed site."
+    },
+    {
+      "id": "edge.pairing-tail-causes-promise-gap",
+      "from": "state.pairing-catalog-tail-open",
+      "to": "outcome.customer-promise-gap",
+      "relation": "CAUSED",
+      "binding": true,
+      "explanation": "The CTA promises a curated pairing destination but delivers one fixed item."
+    },
+    {
+      "id": "edge.logo-tail-blocks-complete-promise",
+      "from": "state.logo-delivery-tail-open",
+      "to": "state.end-to-end-promise-incomplete",
+      "relation": "BLOCKED",
+      "binding": true,
+      "explanation": "Brand delivery is a dependency of the complete promoted experience."
+    },
+    {
+      "id": "edge.pairing-tail-blocks-complete-promise",
+      "from": "state.pairing-catalog-tail-open",
+      "to": "state.end-to-end-promise-incomplete",
+      "relation": "BLOCKED",
+      "binding": true,
+      "explanation": "Catalog completeness is a dependency of the pairing-first customer journey."
+    }
+  ],
+  "phaseHistory": [
+    {
+      "phase": "CANDIDATE",
+      "enteredAt": "2026-07-04T21:52:37Z",
+      "triggerNodeId": "event.cta-scope-defined",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {
+          "name": "pairing entry route is explicitly defined",
+          "satisfied": true,
+          "evidenceNodeIds": ["event.cta-scope-defined"]
+        }
+      ]
+    },
+    {
+      "phase": "UNDER_REVIEW",
+      "enteredAt": "2026-07-04T22:43:00Z",
+      "triggerNodeId": "evidence.cta-contract-green",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {
+          "name": "local CTA routing contract is green",
+          "satisfied": true,
+          "evidenceNodeIds": ["evidence.cta-contract-green"]
+        }
+      ]
+    },
+    {
+      "phase": "MERGED",
+      "enteredAt": "2026-07-04T22:50:52Z",
+      "triggerNodeId": "event.cta-merged",
+      "transitionKind": "FORWARD",
+      "guards": [
+        {
+          "name": "PR-local merge requirements are satisfied",
+          "satisfied": true,
+          "evidenceNodeIds": ["evidence.cta-contract-green", "event.cta-merged"]
+        }
+      ]
+    },
+    {
+      "phase": "RISK_DISCOVERED",
+      "enteredAt": "2026-07-05T00:05:00Z",
+      "triggerNodeId": "evidence.customer-live-observation",
+      "transitionKind": "REGRESSION",
+      "guards": [
+        {
+          "name": "approved compact wordmark is present in deployed main",
+          "satisfied": false,
+          "evidenceNodeIds": ["evidence.logo-pr-remains-open", "evidence.main-retains-legacy-logo-css"]
+        },
+        {
+          "name": "pairing destination contains at least two active offers",
+          "satisfied": false,
+          "evidenceNodeIds": ["evidence.menu-pairing-singleton", "evidence.discover-has-two-active-pairings"]
+        },
+        {
+          "name": "promoted customer promise equals delivered end-to-end experience",
+          "satisfied": false,
+          "evidenceNodeIds": ["evidence.customer-live-observation"]
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "routeId": "route.accept-local-merge-as-complete",
+      "title": "Treat the merged CTA as a completed customer journey",
+      "selected": false,
+      "components": {
+        "riskReduction": 0,
+        "evidenceConfidence": 1,
+        "reversibility": 5,
+        "implementationCost": 0,
+        "scopeExpansion": 0,
+        "staleEvidenceCost": 5
+      },
+      "score": 1,
+      "explanation": "This route preserves the current deployment but leaves both customer-visible tails and produces biased pairing measurement.",
+      "rejectedReason": "Live evidence disproves end-to-end completeness."
+    },
+    {
+      "routeId": "route.close-tails-sequentially",
+      "title": "Promote the reviewed logo, synchronize pairing data, and add closure contracts",
+      "selected": true,
+      "components": {
+        "riskReduction": 5,
+        "evidenceConfidence": 5,
+        "reversibility": 4,
+        "implementationCost": 2,
+        "scopeExpansion": 1,
+        "staleEvidenceCost": 1
+      },
+      "score": 10,
+      "explanation": "First close the independent brand delivery tail, then add the second approved pairing to menu data and enforce source parity plus minimum cardinality. Each correction is small, independently reviewable, and directly tied to observed impact.",
+      "rejectedReason": null
+    },
+    {
+      "routeId": "route.replace-with-unified-pairing-platform",
+      "title": "Replace both pairing sources with a new unified recommendation platform",
+      "selected": false,
+      "components": {
+        "riskReduction": 5,
+        "evidenceConfidence": 4,
+        "reversibility": 3,
+        "implementationCost": 5,
+        "scopeExpansion": 5,
+        "staleEvidenceCost": 2
+      },
+      "score": 0,
+      "explanation": "A unified model is strategically attractive but unnecessarily expands scope before the two concrete delivery tails are closed.",
+      "rejectedReason": "Too broad for the immediate customer-visible regression."
+    }
+  ],
+  "decision": {
+    "currentPhase": "RISK_DISCOVERED",
+    "bestRouteId": "route.close-tails-sequentially",
+    "rootCauseNodeId": "cause.local-contract-without-end-to-end-closure",
+    "detectorNodeIds": [
+      "evidence.customer-live-observation",
+      "evidence.logo-pr-remains-open",
+      "evidence.menu-pairing-singleton",
+      "evidence.discover-has-two-active-pairings"
+    ],
+    "unresolvedBlockerNodeIds": [
+      "state.logo-delivery-tail-open",
+      "state.pairing-catalog-tail-open"
+    ],
+    "nextLegalTransitions": ["CORRECTED"],
+    "summary": "PR 165 is locally correct and merged, but the end-to-end customer promise is incomplete. The compact wordmark remains isolated in open PR 164, while the pairing CTA lands on a one-item menu category even though Discover has two active journeys. These tails degrade brand continuity, collapse meaningful choice, bias analytics, and weaken trust."
+  }
+}

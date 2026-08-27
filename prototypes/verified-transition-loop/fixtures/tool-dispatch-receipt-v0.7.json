@@ -1,0 +1,299 @@
+{
+  "base_transcript": {
+    "action_envelope": {
+      "action": "tool:ShellTool:fixture-command-v1",
+      "occurrence_id": "tool-call-001",
+      "payload": {
+        "agent_role": "release-agent",
+        "crew_id": "crew-fixture-001",
+        "task_description": "run the exact reviewed command",
+        "tool_input": {
+          "command": "echo verified"
+        },
+        "tool_name": "ShellTool"
+      },
+      "runtime_surface": "crewai",
+      "transition_id": "crew-transition-fixture-001"
+    },
+    "authorization": {
+      "approval_ref": "approval:fixture-001",
+      "approval_valid_until_ms": 1800000060000,
+      "decision_id": "auth_e25ddea8ab987b1d50bb3623",
+      "evidence_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "executor_id": "crew-runtime-executor",
+      "intent_id": "crew-intent-fixture-001",
+      "policy_ref": "crew-policy:v1",
+      "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+      "reason_codes": [],
+      "source_ref": "git:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "transition_id": "crew-transition-fixture-001",
+      "verdict": "AUTHORIZE",
+      "verifier_id": "vtl-crewai-pretool-verifier"
+    },
+    "dispatch_receipt": {
+      "action_envelope_digest": "5cd453fd34b97ce4e6b4c76c9ec865b43d8b2a0273b9b2773e7bafe215e08592",
+      "authorization_decision_id": "auth_e25ddea8ab987b1d50bb3623",
+      "authorized_action_id": "action_5cd453fd34b97ce4e6b4c76c",
+      "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "dispatch_ref": "dispatch:crew:001",
+      "dispatched_action_id": "action_5cd453fd34b97ce4e6b4c76c",
+      "dispatched_at_ms": 1800000000002,
+      "execution_nonce": "exec-nonce-001",
+      "executor_id": "crew-runtime-executor",
+      "grant_binding_id": "grant_1f99c3e46aed37133eaa8e0a",
+      "observed_at_ms": 1800000000003,
+      "observed_outcome_digest": "003750ea7cd9af908df3477d964311542207a5ac6b94528be1ba2c14c549ac71",
+      "observed_outcome_ref": "outcome:crew:001",
+      "occurrence_id": "tool-call-001",
+      "policy_ref": "crew-policy:v1",
+      "profile_id": "vtl-tool-dispatch-v0.7",
+      "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+      "receipt_id": "dispatch_a01de4cb48b8c799c52acd12",
+      "schema_version": "vtl.tool-dispatch-receipt/v0.7",
+      "transition_id": "crew-transition-fixture-001",
+      "use_id": "use_0873f1aa69421d2ef45507dd"
+    },
+    "grant_binding": {
+      "action_envelope_digest": "5cd453fd34b97ce4e6b4c76c9ec865b43d8b2a0273b9b2773e7bafe215e08592",
+      "action_id": "action_5cd453fd34b97ce4e6b4c76c",
+      "authorization_decision_id": "auth_e25ddea8ab987b1d50bb3623",
+      "binding_id": "grant_1f99c3e46aed37133eaa8e0a",
+      "bound_at_ms": 1800000000001,
+      "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "execution_nonce": "exec-nonce-001",
+      "executor_id": "crew-runtime-executor",
+      "occurrence_id": "tool-call-001",
+      "policy_ref": "crew-policy:v1",
+      "profile_id": "vtl-tool-dispatch-v0.7",
+      "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+      "schema_version": "vtl.tool-dispatch-receipt/v0.7",
+      "transition_id": "crew-transition-fixture-001",
+      "use_id": "use_0873f1aa69421d2ef45507dd"
+    },
+    "observed_outcome": {
+      "observed_state": "tool-complete",
+      "outcome_ref": "outcome:crew:001",
+      "status": "success",
+      "transition_id": "crew-transition-fixture-001"
+    },
+    "profile_id": "vtl-tool-dispatch-v0.7",
+    "proposal": {
+      "action": "tool:ShellTool:fixture-command-v1",
+      "expected_post_state": "tool-complete",
+      "intent_id": "crew-intent-fixture-001",
+      "invariants": [
+        "authorized",
+        "single_use",
+        "outcome_linked"
+      ],
+      "pre_state": "tool-pending",
+      "transition_id": "crew-transition-fixture-001"
+    },
+    "schema_version": "vtl.tool-dispatch-receipt/v0.7",
+    "use_time": {
+      "authorization_decision_id": "auth_e25ddea8ab987b1d50bb3623",
+      "checked_at_ms": 1800000000000,
+      "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "execution_nonce": "exec-nonce-001",
+      "executor_id": "crew-runtime-executor",
+      "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+      "reason_codes": [],
+      "transition_id": "crew-transition-fixture-001",
+      "use_id": "use_0873f1aa69421d2ef45507dd",
+      "verdict": "EXECUTE"
+    }
+  },
+  "cases": [
+    {
+      "expected": {
+        "reason_codes": [],
+        "valid": true
+      },
+      "id": "exact-authorized-dispatch"
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "DISPATCH_AUTHORIZATION_BINDING_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "wrong-authorization-decision",
+      "mutations": [
+        {
+          "path": "dispatch_receipt.authorization_decision_id",
+          "value": "auth_wrong"
+        }
+      ],
+      "recompute": [
+        "dispatch_receipt_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "DISPATCH_USE_BINDING_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "wrong-use-id",
+      "mutations": [
+        {
+          "path": "dispatch_receipt.use_id",
+          "value": "use_wrong"
+        }
+      ],
+      "recompute": [
+        "dispatch_receipt_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "GRANT_ACTION_ENVELOPE_DIGEST_MISMATCH",
+          "GRANT_ACTION_ID_MISMATCH",
+          "ACTION_ENVELOPE_DIGEST_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "action-envelope-drift",
+      "mutations": [
+        {
+          "path": "action_envelope.payload.tool_input.command",
+          "value": "echo drifted"
+        }
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "EXECUTOR_BINDING_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "executor-substitution",
+      "mutations": [
+        {
+          "path": "dispatch_receipt.executor_id",
+          "value": "other-executor"
+        }
+      ],
+      "recompute": [
+        "dispatch_receipt_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "EXECUTION_NONCE_MISMATCH",
+          "OCCURRENCE_BINDING_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "occurrence-nonce-substitution",
+      "mutations": [
+        {
+          "path": "dispatch_receipt.occurrence_id",
+          "value": "tool-call-999"
+        },
+        {
+          "path": "dispatch_receipt.execution_nonce",
+          "value": "exec-nonce-999"
+        }
+      ],
+      "recompute": [
+        "dispatch_receipt_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "CONTEXT_DIGEST_MISMATCH",
+          "POLICY_REF_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "context-policy-mismatch",
+      "mutations": [
+        {
+          "path": "dispatch_receipt.context_digest",
+          "value": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        {
+          "path": "dispatch_receipt.policy_ref",
+          "value": "crew-policy:v2"
+        }
+      ],
+      "recompute": [
+        "dispatch_receipt_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "GRANT_REPLAYED"
+        ],
+        "valid": false
+      },
+      "id": "same-grant-second-dispatch",
+      "preconsumed_use_ids": [
+        "@use_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "SIBLING_CAPABILITY_SUBSTITUTION"
+        ],
+        "valid": false
+      },
+      "id": "sibling-capability-substitution",
+      "mutations": [
+        {
+          "path": "dispatch_receipt.dispatched_action_id",
+          "value": "action_sibling_capability"
+        }
+      ],
+      "recompute": [
+        "dispatch_receipt_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "TRANSITION_BINDING_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "outcome-different-transition",
+      "mutations": [
+        {
+          "path": "observed_outcome.transition_id",
+          "value": "other-transition"
+        }
+      ],
+      "recompute": [
+        "outcome_digest",
+        "dispatch_receipt_id"
+      ]
+    },
+    {
+      "expected": {
+        "reason_codes": [
+          "OUTCOME_DIGEST_MISMATCH"
+        ],
+        "valid": false
+      },
+      "id": "tampered-observed-outcome",
+      "mutations": [
+        {
+          "path": "observed_outcome.observed_state",
+          "value": "tampered-state"
+        }
+      ]
+    }
+  ],
+  "description": "Detached ToolDispatchReceipt conformance vectors for exact grant consumption and outcome binding.",
+  "profile_id": "vtl-tool-dispatch-v0.7",
+  "schema_version": "vtl.tool-dispatch-fixture/v0.7"
+}

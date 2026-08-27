@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "robys-attribution-result.v0",
+  "runId": "ATTRRUN-ROBYS-BASELINE-001",
+  "mode": "BASELINE",
+  "productRef": "PROD-ROBYS-WEB",
+  "measurementPlanRef": "MPLAN-ROBYS-MENU-TO-VISIT-001",
+  "currency": "TRY",
+  "attributionWindowHours": 24,
+  "status": "ATTRIBUTION_CALCULATED",
+  "deduplication": {
+    "inputWebEvents": 3,
+    "uniqueWebEvents": 2,
+    "inputPosOrders": 3,
+    "uniquePosOrders": 3
+  },
+  "matchedOrders": [
+    {
+      "orderId": "ord_001",
+      "eventId": "wev_001",
+      "campaignToken": "rv_aaaaaaaaaaaaaaaaaaaa",
+      "lagSeconds": 7200,
+      "grossRevenue": "300.00",
+      "variableCost": "140.00",
+      "grossContributionBeforeAcquisitionAndExperimentCosts": "160.00"
+    }
+  ],
+  "unmatchedOrderRefs": ["ord_003"],
+  "expiredOrderRefs": ["ord_002"],
+  "ambiguousOrderRefs": [],
+  "totals": {
+    "attributableOrders": 1,
+    "attributableGrossRevenue": "300.00",
+    "attributableVariableCosts": "140.00",
+    "grossContributionBeforeAcquisitionAndExperimentCosts": "160.00"
+  },
+  "profitDecision": {
+    "ready": false,
+    "reason": "Acquisition and experiment costs are not part of this attribution runtime; a separate Profit Traceability decision is required."
+  }
+}
