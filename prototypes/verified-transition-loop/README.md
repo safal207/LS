@@ -41,7 +41,11 @@ The portable use-time oracle enforces:
 AUTHORIZE != EXECUTE
 ```
 
-Current proposal/source/policy/approval/evidence/executor state is revalidated at the point of use. The profile contains 10 executable vectors, including proposal/transition drift and single-use permit semantics.
+Current proposal/source/policy/approval/evidence/executor state is revalidated
+at the point of use. The profile contains 10 executable vectors, including
+proposal/transition drift and single-use permit semantics. The fixture loader
+rejects duplicate or escaped-collision JSON members, and approval expiry is
+exclusive: equality with `approval_valid_until_ms` is already expired.
 
 Artifacts:
 
@@ -81,6 +85,11 @@ The 11-vector dispatch profile covers wrong decision/use IDs, action-envelope dr
 
 The detached verifier performs schema/structure validation before digest comparisons so matching missing values cannot accidentally validate a malformed transcript.
 
+The later dispatch receipt must consume the same binding. Envelope drift,
+executor/occurrence substitution, replay, sibling capability substitution,
+ambiguous JSON, missing authority bindings, verifier/executor collision, an
+invalid execution nonce, or an expired approval fails detached verification.
+
 Artifacts:
 
 ```text
@@ -114,7 +123,9 @@ The reference v0.8 profile checks:
 - signer revocation;
 - trust-policy version binding;
 - Ed25519 signature validity;
-- v0.7 integrity as a prerequisite.
+- v0.7 integrity as a prerequisite;
+- strict JSON decoding and exact published envelope/trust-root fields;
+- non-negative verification and validity times.
 
 The 14-vector authenticity profile includes tamper, self-consistent replacement transcripts, wrong signature/key, unknown signer, issuer/root mismatch, expiry, not-yet-valid authority, revocation, trust-policy drift, algorithm substitution, and a valid signature over an invalid v0.7 transcript.
 

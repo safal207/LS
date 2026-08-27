@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
 class TrustViolation(ValueError):
@@ -40,6 +40,7 @@ class ApprovalReceipt:
     effect: str
     approver: str
     reason: str
+    request_digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,7 @@ class EffectDecision:
     reason: str
     dispatch_id: str
     effect: str
+    request_digest: str | None = None
 
 
 class TrustRuntime:
@@ -70,7 +72,11 @@ class TrustRuntime:
         }
     )
 
-    def __init__(self, protected_effects: Iterable[str] | None = None) -> None:
+    def __init__(
+        self,
+        protected_effects: Iterable[str] | None = None,
+        authority_resolver: Callable[[DispatchReceipt], Sequence[str]] | None = None,
+    ) -> None:
         configured_effects = (
             self.DEFAULT_PROTECTED_EFFECTS
             if protected_effects is None
@@ -80,10 +86,13 @@ class TrustRuntime:
             self._clean_identifier(effect, "protected_effect")
             for effect in configured_effects
         )
+        self._authority_resolver = authority_resolver
         self._dispatches: dict[str, DispatchReceipt] = {}
         self._results: dict[str, ResultReceipt] = {}
         self._result_by_dispatch: dict[str, str] = {}
-        self._approvals: dict[tuple[str, str, str], ApprovalReceipt] = {}
+        self._approvals: dict[
+            tuple[str, str, str, str | None], ApprovalReceipt
+        ] = {}
         self._superseded_by: dict[str, str] = {}
         self._ledger: list[dict[str, Any]] = []
 
@@ -128,6 +137,34 @@ class TrustRuntime:
             if value.strip():
                 normalized.add(cls._clean_identifier(value, field))
         return tuple(sorted(normalized))
+
+    @classmethod
+    def _effect_request_digest(
+        cls,
+        normalized_effect: str,
+        request: Mapping[str, Any] | None,
+    ) -> str | None:
+        """Bind approval to the exact policy-relevant effect request when supplied."""
+
+        if request is None:
+            return None
+        if not isinstance(request, Mapping):
+            raise TrustViolation("request must be a mapping")
+
+        normalized_request = dict(request)
+        if "effect" in normalized_request:
+            request_effect = cls._clean_identifier(
+                normalized_request["effect"],
+                "request.effect",
+            )
+            if request_effect != normalized_effect:
+                raise TrustViolation("request effect does not match effect")
+        normalized_request["effect"] = normalized_effect
+
+        try:
+            return cls._digest({"effect_request": normalized_request})
+        except (TypeError, ValueError) as exc:
+            raise TrustViolation("request must be canonically JSON-serializable") from exc
 
     def _append(self, event_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         previous_hash = self._ledger[-1]["record_hash"] if self._ledger else "GENESIS"
@@ -268,6 +305,7 @@ class TrustRuntime:
         effect: str,
         approver: str,
         reason: str,
+        request: Mapping[str, Any] | None = None,
     ) -> ApprovalReceipt:
         dispatch = self._dispatches.get(dispatch_id)
         if dispatch is None:
@@ -283,6 +321,7 @@ class TrustRuntime:
         normalized_effect = self._clean_identifier(effect, "effect")
         if normalized_effect not in dispatch.authority_scope:
             raise TrustViolation("approval effect is outside the delegated authority scope")
+        request_digest = self._effect_request_digest(normalized_effect, request)
 
         payload = {
             "dispatch_id": dispatch_id,
@@ -290,11 +329,12 @@ class TrustRuntime:
             "effect": normalized_effect,
             "approver": self._clean_text(approver, "approver"),
             "reason": self._clean_text(reason, "reason"),
+            "request_digest": request_digest,
         }
         receipt_id = self._digest(payload)
         receipt = ApprovalReceipt(receipt_id=receipt_id, **payload)
         self._approvals[
-            (dispatch_id, result.receipt_id, normalized_effect)
+            (dispatch_id, result.receipt_id, normalized_effect, request_digest)
         ] = receipt
         self._append("HUMAN_APPROVAL_RECORDED", asdict(receipt))
         return receipt
@@ -305,8 +345,10 @@ class TrustRuntime:
         dispatch_id: str,
         result_receipt_id: str,
         effect: str,
+        request: Mapping[str, Any] | None = None,
     ) -> EffectDecision:
         normalized_effect = self._clean_identifier(effect, "effect")
+        request_digest = self._effect_request_digest(normalized_effect, request)
         dispatch = self._dispatches.get(dispatch_id)
         result = self._results.get(result_receipt_id)
 
@@ -322,12 +364,24 @@ class TrustRuntime:
             allowed, reason = False, "result is not completed"
         elif normalized_effect not in dispatch.authority_scope:
             allowed, reason = False, "effect is outside the delegated authority scope"
-        elif (
-            normalized_effect in self.protected_effects
+        elif self._authority_resolver is not None:
+            current_scope = self._normalize_identifiers(
+                self._authority_resolver(dispatch),
+                "current_authority_scope",
+            )
+            if normalized_effect not in current_scope:
+                allowed, reason = (
+                    False,
+                    "effect is no longer authorized by current parent/policy state",
+                )
+        if (
+            allowed
+            and normalized_effect in self.protected_effects
             and (
                 dispatch_id,
                 result_receipt_id,
                 normalized_effect,
+                request_digest,
             )
             not in self._approvals
         ):
@@ -338,6 +392,7 @@ class TrustRuntime:
             reason=reason,
             dispatch_id=dispatch_id,
             effect=normalized_effect,
+            request_digest=request_digest,
         )
         self._append(
             "EFFECT_ALLOWED" if allowed else "EFFECT_BLOCKED",

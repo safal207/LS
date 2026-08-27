@@ -14,7 +14,6 @@ from .core import (
     TransitionProposal,
     TransitionVerdict,
     UseTimeReceipt,
-    UseTimeVerdict,
     UseTokenRegistry,
     evaluate_transition,
     revalidate_authorization_for_use,

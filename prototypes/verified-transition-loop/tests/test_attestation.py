@@ -1,5 +1,4 @@
 import copy
-import json
 from pathlib import Path
 
 from verified_transition_loop.attestation import (
