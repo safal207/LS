@@ -55,6 +55,9 @@ lone UTF-16 surrogates       -> INVALID_UNICODE_SCALAR
 invalid JSON                  -> INVALID_JSON
 ```
 
+Non-JSON constants such as `NaN` are classified as `INVALID_JSON` in both
+runtimes rather than being treated as a supported JSON number form.
+
 Duplicate-key rejection matters because ordinary JSON object parsers frequently keep only the last value, which would make the original byte-level ambiguity invisible after parsing.
 
 ## Cross-runtime proof
@@ -84,9 +87,19 @@ Node digest   == expected digest
 Python structured result == Node structured result
 ```
 
+Both runtimes also validate the fixture contract itself before evaluating any
+vector. Root and case objects have exact fields, all three case groups are
+non-empty, IDs are unique across groups, expected encodings/digests are shaped
+exactly, and a semantic-mutation case must require different digests. This
+prevents an empty or partially published fixture from reporting vacuous
+success.
+
 The positive profile covers key/whitespace changes, nested object order, alternate escape spelling, composed and decomposed Unicode, supplementary-plane key sorting, control escaping, arrays, safe-integer boundaries, and a VTL-shaped transition payload.
 
-Negative vectors cover floating-point values, exponent notation, unsafe integers, duplicate names, and lone surrogates. A semantic-mutation vector proves that changing an actual field changes the canonical digest.
+Negative vectors cover floating-point values, exponent notation, non-JSON
+constants, unsafe integers, duplicate names, and lone surrogates. A
+semantic-mutation vector proves that changing an actual field changes the
+canonical digest.
 
 ## Relationship to existing VTL proofs
 

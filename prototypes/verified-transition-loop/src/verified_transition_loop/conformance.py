@@ -21,6 +21,17 @@ SCHEMA_VERSION = "vtl.use-time-conformance/v0.4"
 PROFILE_ID = "vtl-use-time-v0.4"
 
 
+def _reject_duplicate_json_members(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON member name: {key}")
+        value[key] = item
+    return value
+
+
 def _require_mapping(value: Any, *, where: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{where} must be an object")
@@ -253,7 +264,7 @@ def validate_fixture_shape(fixture: dict[str, Any]) -> None:
 def load_fixture(path: str | Path) -> dict[str, Any]:
     fixture_path = Path(path)
     with fixture_path.open("r", encoding="utf-8") as handle:
-        fixture = json.load(handle)
+        fixture = json.load(handle, object_pairs_hook=_reject_duplicate_json_members)
     fixture = _require_mapping(fixture, where="fixture")
     validate_fixture_shape(fixture)
     return fixture

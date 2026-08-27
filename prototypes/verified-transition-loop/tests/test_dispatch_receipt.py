@@ -1,4 +1,5 @@
 from dataclasses import asdict
+import json
 from pathlib import Path
 
 from verified_transition_loop import (
@@ -262,6 +263,8 @@ def test_v07_static_fixture_runs_all_negative_vectors():
     fixture = load_fixture(ROOT / "fixtures" / "tool-dispatch-receipt-v0.7.json")
     result = run_fixture(fixture)
 
+    # Pin the published profile cardinality so dropping a vector is a reviewed
+    # contract change rather than an automatically accepted test update.
     assert result["summary"] == {
         "total": 11,
         "passed": 11,
@@ -273,3 +276,12 @@ def test_v07_static_fixture_runs_all_negative_vectors():
 def test_v07_cli_accepts_the_static_fixture():
     fixture_path = ROOT / "fixtures" / "tool-dispatch-receipt-v0.7.json"
     assert main([str(fixture_path)]) == 0
+
+
+def test_v07_cli_returns_nonzero_for_a_failing_transcript(tmp_path):
+    transcript = transcript_for_crewai()
+    transcript["action_envelope"]["payload"]["tool_input"]["command"] = "echo drifted"
+    path = tmp_path / "drifted-transcript.json"
+    path.write_text(json.dumps(transcript), encoding="utf-8")
+
+    assert main([str(path)]) == 1

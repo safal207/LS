@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import json
 from pathlib import Path
 
 import pytest
@@ -15,14 +17,15 @@ from verified_transition_loop.canonical import (
 )
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "canonical-proof-v0.10.json"
+SCHEMA = Path(__file__).parents[1] / "schemas" / "canonical-proof-v0.10.schema.json"
 
 
 def test_machine_readable_fixture_passes() -> None:
     result = verify_fixture(strict_loads(FIXTURE.read_text(encoding="utf-8")))
     assert result["canonical_profile"] == CANONICAL_PROFILE
     assert result["summary"] == {
-        "total": 18,
-        "passed": 18,
+        "total": 19,
+        "passed": 19,
         "failed": 0,
         "all_passed": True,
     }
@@ -88,3 +91,49 @@ def test_python_only_tuple_is_not_part_of_json_profile() -> None:
     with pytest.raises(CanonicalizationError) as excinfo:
         canonical_bytes((1, 2, 3))
     assert excinfo.value.code == "UNSUPPORTED_TYPE"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    (
+        ("extra_root_field", "FIXTURE_SCHEMA_INVALID"),
+        ("missing_case_group", "FIXTURE_SCHEMA_INVALID"),
+        ("empty_case_group", "FIXTURE_SCHEMA_INVALID"),
+        ("extra_case_field", "FIXTURE_SCHEMA_INVALID"),
+        ("duplicate_case_id", "FIXTURE_CASE_ID_DUPLICATE"),
+        ("invalid_expected_base64", "FIXTURE_SCHEMA_INVALID"),
+        ("non_string_error_code", "FIXTURE_SCHEMA_INVALID"),
+        ("mutation_may_match", "FIXTURE_SCHEMA_INVALID"),
+    ),
+)
+def test_fixture_contract_fails_closed(mutation: str, expected_code: str) -> None:
+    fixture = copy.deepcopy(strict_loads(FIXTURE.read_text(encoding="utf-8")))
+    if mutation == "extra_root_field":
+        fixture["claimed_profile"] = "different"
+    elif mutation == "missing_case_group":
+        del fixture["negative_cases"]
+    elif mutation == "empty_case_group":
+        fixture["cases"] = []
+    elif mutation == "extra_case_field":
+        fixture["cases"][0]["claimed_digest"] = "different"
+    elif mutation == "duplicate_case_id":
+        fixture["negative_cases"][0]["id"] = fixture["cases"][0]["id"]
+    elif mutation == "invalid_expected_base64":
+        fixture["cases"][0]["canonical_utf8_base64"] = "not base64"
+    elif mutation == "non_string_error_code":
+        fixture["negative_cases"][0]["error_code"] = []
+    else:
+        fixture["mutation_cases"][0]["digests_differ"] = False
+
+    with pytest.raises(CanonicalizationError) as excinfo:
+        verify_fixture(fixture)
+    assert excinfo.value.code == expected_code
+
+
+def test_schema_requires_semantic_mutation_to_change_digest() -> None:
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    positive = schema["properties"]["cases"]["items"]
+    mutation = schema["properties"]["mutation_cases"]["items"]
+    assert positive["properties"]["canonical_utf8_base64"]["minLength"] == 4
+    assert "pattern" in positive["properties"]["canonical_utf8_base64"]
+    assert mutation["properties"]["digests_differ"] == {"const": True}

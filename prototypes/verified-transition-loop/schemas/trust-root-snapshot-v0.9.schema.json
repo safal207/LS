@@ -25,18 +25,57 @@
       ]
     },
     "trust_root_digest": {"$ref": "#/$defs/hex64"},
-    "issued_at_ms": {"type": "integer"},
-    "not_before_ms": {"type": "integer"},
-    "not_after_ms": {"type": "integer"},
+    "issued_at_ms": {"type": "integer", "minimum": 0},
+    "not_before_ms": {"type": "integer", "minimum": 0},
+    "not_after_ms": {"type": "integer", "minimum": 0},
     "issuer_id": {"type": "string", "minLength": 1},
     "bootstrap_authority_id": {"type": "string", "minLength": 1},
     "bootstrap_key_id": {"type": "string", "minLength": 1},
     "signature_algorithm": {"const": "ED25519"},
     "signature": {"type": "string", "minLength": 1},
-    "trust_root": {"type": "object"}
+    "trust_root": {"$ref": "#/$defs/trustRoot"}
   },
   "$defs": {
     "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "trustRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id", "trust_root_id", "policy_version",
+        "allowed_algorithms", "keys"
+      ],
+      "properties": {
+        "profile_id": {"const": "vtl-trust-root/v0.8"},
+        "trust_root_id": {"type": "string", "minLength": 1},
+        "policy_version": {"type": "string", "minLength": 1},
+        "allowed_algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "signer_key_id", "issuer_id", "algorithm", "public_key_base64",
+              "not_before_ms", "not_after_ms", "revoked"
+            ],
+            "properties": {
+              "signer_key_id": {"type": "string", "minLength": 1},
+              "issuer_id": {"type": "string", "minLength": 1},
+              "algorithm": {"const": "ED25519"},
+              "public_key_base64": {"type": "string", "minLength": 1},
+              "not_before_ms": {"type": "integer", "minimum": 0},
+              "not_after_ms": {"type": "integer", "minimum": 0},
+              "revoked": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    },
     "bootstrapAuthority": {
       "type": "object",
       "additionalProperties": false,
@@ -64,8 +103,8 @@
               "issuer_id": {"type": "string", "minLength": 1},
               "algorithm": {"const": "ED25519"},
               "public_key_base64": {"type": "string", "minLength": 1},
-              "not_before_ms": {"type": "integer"},
-              "not_after_ms": {"type": "integer"},
+              "not_before_ms": {"type": "integer", "minimum": 0},
+              "not_after_ms": {"type": "integer", "minimum": 0},
               "revoked": {"type": "boolean"}
             }
           }
@@ -89,7 +128,7 @@
         "known_snapshot_digest": {
           "oneOf": [{"type": "null"}, {"$ref": "#/$defs/hex64"}]
         },
-        "checkpointed_at_ms": {"type": "integer"}
+        "checkpointed_at_ms": {"type": "integer", "minimum": 0}
       }
     }
   }

@@ -98,6 +98,12 @@ vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 
 A valid transcript can also be passed directly to the same CLI. Exit status is non-zero when verification fails.
 
+The CLI rejects ambiguous JSON member names, escaped-name collisions, and
+non-finite constants before schema or binding evaluation. Detached verification
+also rechecks the inherited authority boundary: verifier/executor separation,
+non-empty source/policy/approval bindings, exclusive approval expiry, and a
+non-empty whitespace-free execution nonce.
+
 ## Cross-runtime proof
 
 The same verifier accepts independently constructed reference transcripts from both existing adapter shapes:

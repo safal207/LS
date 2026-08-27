@@ -82,6 +82,11 @@
       "error_code": "UNSUPPORTED_NUMBER"
     },
     {
+      "id": "non-json-nan-rejected",
+      "raw_json": "{\"x\":NaN}",
+      "error_code": "INVALID_JSON"
+    },
+    {
       "id": "unsafe-integer-rejected",
       "raw_json": "{\"x\":9007199254740992}",
       "error_code": "INTEGER_OUT_OF_RANGE"

@@ -4,11 +4,10 @@ on:
   pull_request:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.9"
+      - "agent/verified-transition-loop-v0.10"
     paths:
       - "prototypes/verified-transition-loop/**"
       - ".github/workflows/verified-transition-loop-v0.10.yml"
-      - ".github/workflows/verified-transition-loop-v0.9.yml"
   push:
     branches:
       - main
@@ -16,7 +15,6 @@ on:
     paths:
       - "prototypes/verified-transition-loop/**"
       - ".github/workflows/verified-transition-loop-v0.10.yml"
-      - ".github/workflows/verified-transition-loop-v0.9.yml"
 
 permissions:
   contents: read
@@ -26,15 +24,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
 
@@ -87,12 +85,56 @@ jobs:
           node_result = json.loads(Path('/tmp/vtl-canonical-node.json').read_text())
           assert python_result == node_result
           assert python_result['summary'] == {
-              'total': 18,
-              'passed': 18,
+              'total': 19,
+              'passed': 19,
               'failed': 0,
               'all_passed': True,
           }
           PY
+
+      - name: Prove fixture contract fails closed across runtimes
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+
+          source = json.loads(Path('fixtures/canonical-proof-v0.10.json').read_text())
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_profile'] = 'different'
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['negative_cases'][0]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['mutation_cases'][0]['digests_differ'] = False
+          fixtures['mutation-may-match'] = candidate
+
+          for name, fixture in fixtures.items():
+              Path(f'/tmp/vtl-canonical-{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+          PY
+          for fixture in /tmp/vtl-canonical-*.json; do
+            if vtl-canonical-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/canonical-v0.10.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid fixture: $fixture" >&2
+              exit 1
+            fi
+          done
 
       - name: Run vendor-neutral use-time conformance
         working-directory: prototypes/verified-transition-loop
