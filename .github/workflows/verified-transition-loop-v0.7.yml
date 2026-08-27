@@ -1,20 +1,22 @@
-name: Verified Transition Loop v0.6
+name: Verified Transition Loop v0.7
 
 on:
   pull_request:
     branches:
       - main
+      - "agent/verified-transition-loop-v0.1"
     paths:
       - "prototypes/verified-transition-loop/**"
+      - ".github/workflows/verified-transition-loop-v0.7.yml"
       - ".github/workflows/verified-transition-loop-v0.6.yml"
-      - ".github/workflows/verified-transition-loop-v0.5.yml"
   push:
     branches:
       - main
+      - "agent/verified-transition-loop-v0.7"
     paths:
       - "prototypes/verified-transition-loop/**"
+      - ".github/workflows/verified-transition-loop-v0.7.yml"
       - ".github/workflows/verified-transition-loop-v0.6.yml"
-      - ".github/workflows/verified-transition-loop-v0.5.yml"
 
 permissions:
   contents: read
@@ -37,6 +39,8 @@ jobs:
         run: |
           python -m json.tool schemas/use-time-conformance-v0.4.schema.json > /dev/null
           python -m json.tool fixtures/use-time-conformance-v0.4.json > /dev/null
+          python -m json.tool schemas/tool-dispatch-receipt-v0.7.schema.json > /dev/null
+          python -m json.tool fixtures/tool-dispatch-receipt-v0.7.json > /dev/null
 
       - name: Install isolated VTL prototype
         working-directory: prototypes/verified-transition-loop
@@ -47,16 +51,20 @@ jobs:
         run: |
           python - <<'PY'
           from importlib.metadata import version
-          assert version('verified-transition-loop') == '0.6.0'
+          assert version('verified-transition-loop') == '0.7.0'
           PY
 
       - name: Run focused VTL suite
         working-directory: prototypes/verified-transition-loop
         run: python -m pytest -q
 
-      - name: Run vendor-neutral conformance vectors
+      - name: Run vendor-neutral use-time conformance
         working-directory: prototypes/verified-transition-loop
         run: vtl-conformance fixtures/use-time-conformance-v0.4.json
+
+      - name: Run detached dispatch receipt conformance
+        working-directory: prototypes/verified-transition-loop
+        run: vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 
       - name: Verify side-effect-free deployment demo
         working-directory: prototypes/verified-transition-loop
