@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.11
+# Verified Transition Loop (VTL) v0.12
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution and proof.
 
@@ -20,6 +20,7 @@ Intent
 -> rollback / fork / continuity verification
 -> cross-language canonical bytes
 -> cross-language canonical signed envelope
+-> cross-language fresh trust verification
 ```
 
 ## Proof layers stay separate
@@ -35,6 +36,7 @@ use-time authority
 -> trust-root freshness / continuity
 -> canonical-byte interoperability
 -> canonical-signature interoperability
+-> canonical fresh-trust interoperability
 ```
 
 A valid higher-layer proof never repairs an invalid lower-layer proof.
@@ -316,6 +318,86 @@ v0.7 replay/single-use behavior, verifier-controlled freshness, or the
 no-external-effect boundary. The v0.11 workflow supersedes the v0.10 workflow
 while retaining its 21-vector cross-runtime and malformed-fixture gates.
 
+## v0.12 — cross-runtime canonical fresh trust
+
+v0.12 moves trust-root freshness itself across the language boundary. The same signed snapshot and the same verifier-controlled checkpoint must produce the same complete result in Python and Node.
+
+```text
+canonical TrustRootSnapshot generation N
+-> Ed25519 bootstrap signature
+-> verifier-controlled BootstrapAuthority
+-> verifier-controlled TrustCheckpoint
+-> Python freshness verifier
+-> Node freshness verifier
+-> identical rollback / fork / continuity verdict
+```
+
+The signed snapshot explicitly binds `canonical_profile = rfc8785-safe-integer/v0.10`, its trust-root digest, generation, predecessor digest, time bounds, issuer, bootstrap authority/key, and signature algorithm.
+
+The embedded root uses its own exact
+`vtl-canonical-trust-root/v0.12` identity. The v0.11 root profile remains the
+unchanged four-field envelope-verification contract; v0.12 does not publish its
+additional `policy_version` field under that historical identifier.
+
+The result keeps these claims independent:
+
+```text
+snapshot_integrity_valid
+canonical_profile_valid
+bootstrap_signature_valid
+bootstrap_authority_valid
+freshness_valid
+continuity_valid
+valid
+```
+
+This makes several failure shapes mechanically distinct:
+
+```text
+historically signed old generation
+  signature = valid
+  continuity = invalid
+  -> SNAPSHOT_ROLLBACK
+
+validly signed same-generation fork
+  signature = valid
+  integrity = valid
+  continuity = invalid
+  -> SNAPSHOT_FORK_DETECTED
+
+embedded trust-root payload tamper
+  historical signature = valid
+  snapshot integrity = invalid
+  -> TRUST_ROOT_DIGEST_MISMATCH
+```
+
+The shared v0.12 fixture contains **20 deterministic vectors** covering fresh trust, bad/unknown/ambiguous/revoked bootstrap keys, malformed key material, expiry, future state, generation floors, rollback, forks, predecessor mismatch, continuity gaps, root/policy/profile mismatch, payload tamper, checkpoint errors, and algorithm substitution.
+
+Python and Node independently verify the same exact canonical signed bytes, Ed25519 signature, full snapshot digest, and complete structured result. Conformance comparison itself is canonical, so object insertion order cannot create a false disagreement.
+
+Both runtimes snapshot all caller inputs once before claim derivation, reject
+unpublished fields at snapshot/root/key/bootstrap/checkpoint boundaries, and
+require non-negative safe epoch times, boolean revocation state, canonical
+base64, and exact Ed25519 material lengths. The fixture runner rejects
+empty/duplicate/vacuous cases, dangling or unused references, unsafe, missing,
+or no-op mutations, and no-op/unknown variant fields. An invalid base snapshot
+cannot produce `all_passed=true`.
+
+```text
+schemas/canonical-trust-root-snapshot-v0.12.schema.json
+fixtures/canonical-trust-root-snapshot-v0.12.json
+docs/CANONICAL_TRUST_ROOT_SNAPSHOT_V0_12.md
+src/verified_transition_loop/canonical_trust_snapshot.py
+src/verified_transition_loop/canonical_trust_snapshot_conformance.py
+reference/canonical-runtime-v0.12.mjs
+reference/canonical-trust-root-snapshot-v0.12.mjs
+```
+
+v0.12 is opt-in and does not rewrite historical v0.9, v0.10, or v0.11
+identities, replay/single-use semantics, or current-authority claim boundaries.
+Its workflow supersedes v0.11 while retaining the v0.10/v0.11 parity and
+malformed-fixture gates.
+
 ## Run the full portable stack
 
 ```bash
@@ -325,6 +407,8 @@ vtl-canonical-verify fixtures/canonical-proof-v0.10.json
 node reference/canonical-v0.10.mjs fixtures/canonical-proof-v0.10.json
 vtl-canonical-envelope-verify fixtures/canonical-signed-envelope-v0.11.json
 node reference/canonical-signed-envelope-v0.11.mjs fixtures/canonical-signed-envelope-v0.11.json
+vtl-canonical-trust-root-verify fixtures/canonical-trust-root-snapshot-v0.12.json
+node reference/canonical-trust-root-snapshot-v0.12.mjs fixtures/canonical-trust-root-snapshot-v0.12.json
 vtl-conformance fixtures/use-time-conformance-v0.4.json
 vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
@@ -344,8 +428,8 @@ vtl-trust-root-verify snapshot.json \
 
 VTL remains a reference verification protocol. It does not execute framework tools, deploy software, merge code, call cloud IAM/KMS/HSM, send messages, make payments, or grant production authority.
 
-v0.11 proves cross-runtime signature verification only for the declared v0.10 safe-integer canonical JSON subset and a verifier-supplied trust root. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, a globally available source of latest trust-root generation, independent witness quorum, transparency-log inclusion, or hardware-backed checkpoint storage.
+v0.12 proves cross-runtime trust-root snapshot verification only relative to the same verifier-controlled bootstrap authority and checkpoint, using the declared v0.10 safe-integer canonical JSON subset. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, a globally available source of latest trust-root generation, independent witness quorum, transparency-log inclusion, hardware-backed checkpoint storage, or distributed consensus over freshness.
 
 The central rule is now:
 
-> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; a digest is portable only when runtimes agree on its exact bytes; and a signature is portable only when the canonicalization profile is itself bound into what was signed.**
+> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; a digest is portable only when runtimes agree on its exact bytes; a signature is portable only when the canonicalization profile is bound into what was signed; and freshness is portable only when independent runtimes reach the same checkpoint-relative continuity verdict.**

@@ -1,4 +1,4 @@
-name: Verified Transition Loop v0.11
+name: Verified Transition Loop v0.12
 
 on:
   pull_request:
@@ -6,14 +6,14 @@ on:
       - main
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.11.yml"
+      - ".github/workflows/verified-transition-loop-v0.12.yml"
   push:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.11"
+      - "agent/verified-transition-loop-v0.12"
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.11.yml"
+      - ".github/workflows/verified-transition-loop-v0.12.yml"
 
 permissions:
   contents: read
@@ -50,6 +50,8 @@ jobs:
           python -m json.tool fixtures/canonical-proof-v0.10.json > /dev/null
           python -m json.tool schemas/canonical-signed-envelope-v0.11.schema.json > /dev/null
           python -m json.tool fixtures/canonical-signed-envelope-v0.11.json > /dev/null
+          python -m json.tool schemas/canonical-trust-root-snapshot-v0.12.schema.json > /dev/null
+          python -m json.tool fixtures/canonical-trust-root-snapshot-v0.12.json > /dev/null
 
       - name: Install isolated VTL prototype
         working-directory: prototypes/verified-transition-loop
@@ -60,7 +62,7 @@ jobs:
         run: |
           python - <<'PY'
           from importlib.metadata import version
-          assert version('verified-transition-loop') == '0.11.0'
+          assert version('verified-transition-loop') == '0.12.0'
           PY
 
       - name: Run focused VTL suite
@@ -84,12 +86,7 @@ jobs:
           python_result = json.loads(Path('/tmp/vtl-canonical-python.json').read_text())
           node_result = json.loads(Path('/tmp/vtl-canonical-node.json').read_text())
           assert python_result == node_result
-          assert python_result['summary'] == {
-              'total': 21,
-              'passed': 21,
-              'failed': 0,
-              'all_passed': True,
-          }
+          assert python_result['summary'] == {'total': 21, 'passed': 21, 'failed': 0, 'all_passed': True}
           PY
 
       - name: Preserve v0.10 malformed-fixture parity
@@ -154,29 +151,19 @@ jobs:
         working-directory: prototypes/verified-transition-loop
         run: node reference/canonical-signed-envelope-v0.11.mjs fixtures/canonical-signed-envelope-v0.11.json > /tmp/vtl-envelope-node.json
 
-      - name: Prove one signature verifies identically in Python and Node
+      - name: Prove v0.11 signature parity
         working-directory: prototypes/verified-transition-loop
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          python_result = json.loads(Path('/tmp/vtl-envelope-python.json').read_text())
-          node_result = json.loads(Path('/tmp/vtl-envelope-node.json').read_text())
-          assert python_result == node_result
-          assert python_result['summary'] == {
-              'total': 12,
-              'passed': 12,
-              'failed': 0,
-              'all_passed': True,
-          }
-          assert python_result['parity']['signed_payload_matches_expected'] is True
-          assert python_result['parity']['signature_matches_expected'] is True
-          assert python_result['cases'][0]['id'] == 'valid'
-          assert python_result['cases'][0]['actual']['signature_valid'] is True
-          assert python_result['cases'][0]['actual']['valid'] is True
+          py = json.loads(Path('/tmp/vtl-envelope-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-envelope-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 12, 'passed': 12, 'failed': 0, 'all_passed': True}
           PY
 
-      - name: Prove v0.11 fixture contract fails closed across runtimes
+      - name: Preserve v0.11 malformed-fixture parity
         working-directory: prototypes/verified-transition-loop
         run: |
           python - <<'PY'
@@ -246,6 +233,107 @@ jobs:
             fi
           done
 
+      - name: Run Python canonical trust snapshot v0.12
+        working-directory: prototypes/verified-transition-loop
+        run: vtl-canonical-trust-root-verify fixtures/canonical-trust-root-snapshot-v0.12.json > /tmp/vtl-trust-python.json
+
+      - name: Run Node canonical trust snapshot v0.12
+        working-directory: prototypes/verified-transition-loop
+        run: node reference/canonical-trust-root-snapshot-v0.12.mjs fixtures/canonical-trust-root-snapshot-v0.12.json > /tmp/vtl-trust-node.json
+
+      - name: Prove fresh trust and rollback semantics match in Python and Node
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-trust-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-trust-node.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 20, 'passed': 20, 'failed': 0, 'all_passed': True}
+          assert py['parity']['signed_payload_matches_expected'] is True
+          assert py['parity']['signature_matches_expected'] is True
+          assert py['parity']['snapshot_digest_matches_expected'] is True
+          by_id = {case['id']: case for case in py['cases']}
+          assert by_id['valid-fresh']['actual']['valid'] is True
+          assert by_id['rollback-old-signed-generation']['actual']['bootstrap_signature_valid'] is True
+          assert by_id['rollback-old-signed-generation']['actual']['continuity_valid'] is False
+          assert by_id['same-generation-fork']['actual']['bootstrap_signature_valid'] is True
+          assert by_id['same-generation-fork']['actual']['continuity_valid'] is False
+          assert by_id['trust-root-payload-tamper']['actual']['bootstrap_signature_valid'] is True
+          assert by_id['trust-root-payload-tamper']['actual']['snapshot_integrity_valid'] is False
+          PY
+
+      - name: Prove v0.12 fixture contract fails closed across runtimes
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from pathlib import Path
+
+          source = json.loads(
+              Path('fixtures/canonical-trust-root-snapshot-v0.12.json').read_text()
+          )
+          output_dir = Path('/tmp/vtl-trust-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_valid'] = True
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][1]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['snapshot_mutations'] = [
+              {'path': '__proto__.polluted', 'value': True}
+          ]
+          fixtures['dangerous-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['snapshot_mutations'] = [
+              {'path': 'trust_root.missing', 'value': True}
+          ]
+          fixtures['missing-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['snapshot_mutations'] = [
+              {'path': 'generation', 'value': source['base_snapshot']['generation']}
+          ]
+          fixtures['no-op-mutation'] = candidate
+
+          for name, fixture in fixtures.items():
+              (output_dir / f'{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+          PY
+          fixtures=(/tmp/vtl-trust-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 6 ]]; then
+            echo "Expected six malformed v0.12 fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
+            if vtl-canonical-trust-root-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid v0.12 fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/canonical-trust-root-snapshot-v0.12.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid v0.12 fixture: $fixture" >&2
+              exit 1
+            fi
+          done
+
       - name: Run vendor-neutral use-time conformance
         working-directory: prototypes/verified-transition-loop
         run: vtl-conformance fixtures/use-time-conformance-v0.4.json
@@ -258,7 +346,7 @@ jobs:
         working-directory: prototypes/verified-transition-loop
         run: vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
 
-      - name: Run rollback-resistant trust-root conformance
+      - name: Run rollback-resistant trust-root conformance v0.9
         working-directory: prototypes/verified-transition-loop
         run: vtl-trust-root-verify fixtures/trust-root-snapshot-v0.9.json
 
