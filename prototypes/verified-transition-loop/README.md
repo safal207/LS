@@ -1,4 +1,4 @@
-# Verified Transition Loop (VTL) v0.9
+# Verified Transition Loop (VTL) v0.10
 
 VTL treats the **verified state transition**, not the agent, as the primary unit of execution and proof.
 
@@ -18,6 +18,7 @@ Intent
 -> signed TrustRootSnapshot
 -> verifier-controlled freshness checkpoint
 -> rollback / fork / continuity verification
+-> cross-language canonical bytes
 ```
 
 ## Proof layers stay separate
@@ -31,6 +32,7 @@ use-time authority
 -> current signer authority
 -> trust-root snapshot authenticity
 -> trust-root freshness / continuity
+-> canonical-byte interoperability
 ```
 
 A valid higher-layer proof never repairs an invalid lower-layer proof.
@@ -191,11 +193,68 @@ docs/TRUST_ROOT_SNAPSHOT_V0_9.md
 src/verified_transition_loop/trust_snapshot.py
 ```
 
+## v0.10 — cross-language canonical proof
+
+v0.10 closes the portability gap between semantic JSON and the exact bytes used for digests/signatures.
+
+```text
+same semantic VTL payload
+-> Python canonicalizer
+-> Node canonicalizer
+-> exact UTF-8 bytes
+-> SHA-256 digest
+-> byte-for-byte / digest-for-digest parity
+```
+
+The explicit profile is:
+
+```text
+rfc8785-safe-integer/v0.10
+```
+
+It is a deliberately restricted RFC 8785/JCS-compatible domain:
+
+```text
+null | boolean | string | safe integer | array | object
+```
+
+Key properties:
+
+- object names sort by UTF-16 code units;
+- insignificant whitespace and alternate escape spelling disappear;
+- Unicode scalar values are preserved without normalization;
+- valid escaped surrogate pairs normalize to the same Unicode scalar value;
+- lone surrogates fail closed;
+- duplicate names, including escaped-equivalent names such as `a` and `\u0061`, fail closed;
+- floats/exponent forms are outside this v0.10 profile;
+- integers outside the interoperable IEEE-754 safe range fail closed;
+- the conformance fixture itself is strict-parsed in both runtimes;
+- the fixture contract rejects missing/extra fields, empty vector groups,
+  duplicate IDs, malformed expected encodings, and no-op mutation claims;
+- Python-only values such as tuples are not accepted as JSON profile values.
+
+The machine-readable proof contains **21 vectors**: 11 positive canonical-byte
+cases, 9 fail-closed parser/domain cases, and one semantic-mutation digest
+case. Python and Node independently compute the same base64-encoded UTF-8 bytes
+and SHA-256 digest and CI then compares their complete structured results.
+
+```text
+schemas/canonical-proof-v0.10.schema.json
+fixtures/canonical-proof-v0.10.json
+docs/CANONICAL_PROOF_V0_10.md
+src/verified_transition_loop/canonical.py
+reference/canonical-v0.10.mjs
+```
+
+v0.10 does not silently re-hash v0.7/v0.8/v0.9 historical proofs. Existing versions keep their published identity rules. Future proof versions can opt into the v0.10 canonicalization profile explicitly.
+
 ## Run the full portable stack
 
 ```bash
 python -m pip install -e '.[dev]'
 pytest
+vtl-canonical-verify fixtures/canonical-proof-v0.10.json
+node reference/canonical-v0.10.mjs fixtures/canonical-proof-v0.10.json
 vtl-conformance fixtures/use-time-conformance-v0.4.json
 vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
 vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
@@ -215,8 +274,8 @@ vtl-trust-root-verify snapshot.json \
 
 VTL remains a reference verification protocol. It does not execute framework tools, deploy software, merge code, call cloud IAM/KMS/HSM, send messages, make payments, or grant production authority.
 
-v0.9 protects against rollback and same-generation forks **relative to verifier-controlled bootstrap and checkpoint state**. It does not yet provide a globally available source of the latest generation, independent witness quorum, transparency-log inclusion, hardware-backed checkpoint storage, or cross-language canonical-byte standardization.
+v0.10 proves cross-runtime canonical-byte agreement only for the declared safe-integer JSON subset. It does not claim full RFC 8785 floating-point coverage, Unicode normalization/confusable equivalence, a globally available source of latest trust-root generation, independent witness quorum, transparency-log inclusion, or hardware-backed checkpoint storage.
 
 The central rule is now:
 
-> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; and a trusted root is not automatically the freshest root the verifier may accept.**
+> **Historical authorization is not execution authority; integrity is not authenticity; a valid signature is not automatically current authority; a trusted root is not automatically the freshest root; and a digest is portable only when independent runtimes agree on the exact bytes being digested.**
