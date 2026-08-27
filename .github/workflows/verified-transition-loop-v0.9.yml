@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.8"
+      - "agent/verified-transition-loop-v0.9"
     paths:
       - "prototypes/verified-transition-loop/**"
       - ".github/workflows/verified-transition-loop-v0.9.yml"

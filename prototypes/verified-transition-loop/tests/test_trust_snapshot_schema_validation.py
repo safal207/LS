@@ -1,4 +1,5 @@
 import copy
+import json
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from verified_transition_loop.trust_snapshot import (
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "trust-root-snapshot-v0.9.json"
+SCHEMA = ROOT / "schemas" / "trust-root-snapshot-v0.9.schema.json"
 NOW = 1_800_000_001_000
 
 
@@ -20,6 +22,37 @@ def base_inputs():
         copy.deepcopy(fixture["bootstrap_authority"]),
         copy.deepcopy(fixture["base_checkpoint"]),
     )
+
+
+def test_standalone_schema_declares_exact_embedded_trust_root_shape():
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert schema["properties"]["trust_root"] == {"$ref": "#/$defs/trustRoot"}
+
+    trust_root = schema["$defs"]["trustRoot"]
+    trust_root_fields = {
+        "profile_id",
+        "trust_root_id",
+        "policy_version",
+        "allowed_algorithms",
+        "keys",
+    }
+    assert trust_root["additionalProperties"] is False
+    assert set(trust_root["properties"]) == trust_root_fields
+    assert set(trust_root["required"]) == trust_root_fields
+
+    trust_key = trust_root["properties"]["keys"]["items"]
+    trust_key_fields = {
+        "signer_key_id",
+        "issuer_id",
+        "algorithm",
+        "public_key_base64",
+        "not_before_ms",
+        "not_after_ms",
+        "revoked",
+    }
+    assert trust_key["additionalProperties"] is False
+    assert set(trust_key["properties"]) == trust_key_fields
+    assert set(trust_key["required"]) == trust_key_fields
 
 
 @pytest.mark.parametrize(
