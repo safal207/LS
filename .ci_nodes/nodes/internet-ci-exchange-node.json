@@ -1,0 +1,9 @@
+{
+  "schema_version": "ls.ci_node.v0.1",
+  "node_id": "ls.internet_ci.exchange",
+  "repo": "safal207/LS",
+  "type": "exchange_node",
+  "authority": "advisory_only",
+  "known_exports": [".ci_exchange/routes", ".ci_exchange/contexts", ".ci_exchange/anti_patterns"],
+  "epic_ref": "#846"
+}

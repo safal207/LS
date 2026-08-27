@@ -1,0 +1,10 @@
+{
+  "schema_version": "ls.ci_node.v0.1",
+  "node_id": "ls.grok_review.command_bus",
+  "repo": "safal207/LS",
+  "type": "review_node",
+  "authority": "advisory_only",
+  "route_export": ".ci_exchange/routes/grok-review-command-bus.route.json",
+  "context_export": ".ci_exchange/contexts/connector-safe-command-bus.context.json",
+  "evidence_refs": ["#847", "#848", "workflow_run:29027359506"]
+}

@@ -1,0 +1,370 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/vtl/witnessed-freshness-v0.13.schema.json",
+  "title": "VTL v0.13 witnessed freshness conformance fixture",
+  "type": "object",
+  "required": [
+    "profile_id",
+    "schema_version",
+    "canonical_profile",
+    "base_now_ms",
+    "snapshot_view",
+    "local_snapshot_valid",
+    "witness_authority",
+    "statements",
+    "cases"
+  ],
+  "properties": {
+    "profile_id": {
+      "const": "vtl-witnessed-freshness-fixture/v0.13"
+    },
+    "schema_version": {
+      "const": "vtl.witnessed-freshness-fixture/v0.13"
+    },
+    "canonical_profile": {
+      "const": "rfc8785-safe-integer/v0.10"
+    },
+    "base_now_ms": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "local_snapshot_valid": {
+      "type": "boolean"
+    },
+    "snapshot_view": {
+      "$ref": "#/$defs/view"
+    },
+    "witness_authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "statements": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/statement"
+      },
+      "minProperties": 1
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case"
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "hex64": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "publicKeyBase64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$"
+    },
+    "signatureBase64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$"
+    },
+    "mutationPath": {
+      "type": "string",
+      "pattern": "^(?!(?:.*\\.)?(?:__proto__|prototype|constructor)(?:\\.|$))(?:[A-Za-z_][A-Za-z0-9_-]*|0|[1-9][0-9]*)(?:\\.(?:[A-Za-z_][A-Za-z0-9_-]*|0|[1-9][0-9]*))*$"
+    },
+    "view": {
+      "type": "object",
+      "required": [
+        "trust_root_id",
+        "generation",
+        "snapshot_digest"
+      ],
+      "properties": {
+        "trust_root_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "generation": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/hex64"
+        }
+      },
+      "additionalProperties": false
+    },
+    "key": {
+      "type": "object",
+      "required": [
+        "witness_id",
+        "witness_key_id",
+        "algorithm",
+        "public_key_base64",
+        "not_before_ms",
+        "not_after_ms",
+        "revoked"
+      ],
+      "properties": {
+        "witness_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "witness_key_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "algorithm": {
+          "const": "ED25519"
+        },
+        "public_key_base64": {
+          "$ref": "#/$defs/publicKeyBase64"
+        },
+        "not_before_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "not_after_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "quorum",
+        "max_statement_age_ms",
+        "allowed_algorithms",
+        "keys"
+      ],
+      "properties": {
+        "profile_id": {
+          "const": "vtl-witness-authority/v0.13"
+        },
+        "quorum": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "max_statement_age_ms": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "allowed_algorithms": {
+          "const": [
+            "ED25519"
+          ]
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "statement": {
+      "type": "object",
+      "required": [
+        "statement_id",
+        "profile_id",
+        "schema_version",
+        "canonical_profile",
+        "trust_root_id",
+        "generation",
+        "snapshot_digest",
+        "observed_at_ms",
+        "witness_id",
+        "witness_key_id",
+        "signature_algorithm",
+        "signature"
+      ],
+      "properties": {
+        "statement_id": {
+          "type": "string",
+          "pattern": "^witness_[0-9a-f]{24}$"
+        },
+        "profile_id": {
+          "const": "vtl-witness-statement/v0.13"
+        },
+        "schema_version": {
+          "const": "vtl.witness-statement/v0.13"
+        },
+        "canonical_profile": {
+          "const": "rfc8785-safe-integer/v0.10"
+        },
+        "trust_root_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "generation": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/hex64"
+        },
+        "observed_at_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "witness_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "witness_key_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "signature_algorithm": {
+          "const": "ED25519"
+        },
+        "signature": {
+          "$ref": "#/$defs/signatureBase64"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mutation": {
+      "type": "object",
+      "required": [
+        "path",
+        "value"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/mutationPath"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
+    "statementMutation": {
+      "type": "object",
+      "required": [
+        "index",
+        "path",
+        "value"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "path": {
+          "$ref": "#/$defs/mutationPath"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
+    "expected": {
+      "type": "object",
+      "required": [
+        "valid",
+        "local_snapshot_valid",
+        "witness_statement_integrity_valid",
+        "witness_signature_valid",
+        "witness_authority_valid",
+        "witness_freshness_valid",
+        "witness_quorum_valid",
+        "view_consistency_valid",
+        "equivocation_detected",
+        "accepted_witness_ids",
+        "reason_codes"
+      ],
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "local_snapshot_valid": {
+          "type": "boolean"
+        },
+        "witness_statement_integrity_valid": {
+          "type": "boolean"
+        },
+        "witness_signature_valid": {
+          "type": "boolean"
+        },
+        "witness_authority_valid": {
+          "type": "boolean"
+        },
+        "witness_freshness_valid": {
+          "type": "boolean"
+        },
+        "witness_quorum_valid": {
+          "type": "boolean"
+        },
+        "view_consistency_valid": {
+          "type": "boolean"
+        },
+        "equivocation_detected": {
+          "type": "boolean"
+        },
+        "accepted_witness_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "uniqueItems": true
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "case": {
+      "type": "object",
+      "required": [
+        "id",
+        "statement_refs",
+        "expected"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "statement_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "minItems": 1
+        },
+        "local_snapshot_valid": {
+          "type": "boolean"
+        },
+        "authority_mutations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mutation"
+          }
+        },
+        "statement_mutations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/statementMutation"
+          }
+        },
+        "expected": {
+          "$ref": "#/$defs/expected"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

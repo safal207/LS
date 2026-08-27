@@ -1,0 +1,575 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/vtl/transparency-log-v0.14.schema.json",
+  "title": "VTL v0.14 transparency-log conformance fixture",
+  "type": "object",
+  "required": [
+    "profile_id",
+    "schema_version",
+    "canonical_profile",
+    "base_now_ms",
+    "base_bundle",
+    "checkpoint_variants",
+    "verifier_checkpoint_variants",
+    "inclusion_path_variants",
+    "consistency_path_variants",
+    "expected_base_entry_canonical_base64",
+    "expected_base_leaf_hash",
+    "expected_base_checkpoint_signed_payload_base64",
+    "expected_base_checkpoint_signature_base64",
+    "expected_base_checkpoint_digest",
+    "expected_base_root_hash",
+    "cases"
+  ],
+  "properties": {
+    "profile_id": {
+      "const": "vtl-transparency-log-v0.14"
+    },
+    "schema_version": {
+      "const": "vtl.transparency-log-fixture/v0.14"
+    },
+    "canonical_profile": {
+      "const": "rfc8785-safe-integer/v0.10"
+    },
+    "base_now_ms": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "base_bundle": {
+      "$ref": "#/$defs/bundle"
+    },
+    "checkpoint_variants": {
+      "$ref": "#/$defs/checkpointVariants"
+    },
+    "verifier_checkpoint_variants": {
+      "$ref": "#/$defs/verifierCheckpointVariants"
+    },
+    "inclusion_path_variants": {
+      "$ref": "#/$defs/hashPathVariants"
+    },
+    "consistency_path_variants": {
+      "$ref": "#/$defs/hashPathVariants"
+    },
+    "expected_base_entry_canonical_base64": {
+      "$ref": "#/$defs/base64"
+    },
+    "expected_base_leaf_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "expected_base_checkpoint_signed_payload_base64": {
+      "$ref": "#/$defs/base64"
+    },
+    "expected_base_checkpoint_signature_base64": {
+      "$ref": "#/$defs/signature"
+    },
+    "expected_base_checkpoint_digest": {
+      "$ref": "#/$defs/hash"
+    },
+    "expected_base_root_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "safeInteger": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "base64": {
+      "type": "string",
+      "minLength": 4,
+      "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+    },
+    "publicKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{43}=$"
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "log_id",
+        "trust_root_id",
+        "snapshot_generation",
+        "snapshot_digest"
+      ],
+      "properties": {
+        "log_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "trust_root_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "snapshot_generation": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/hash"
+        }
+      },
+      "additionalProperties": false
+    },
+    "entry": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "canonical_profile",
+        "entry_type",
+        "log_id",
+        "trust_root_id",
+        "snapshot_generation",
+        "snapshot_digest"
+      ],
+      "properties": {
+        "profile_id": {
+          "const": "vtl-transparency-log-entry/v0.14"
+        },
+        "canonical_profile": {
+          "const": "rfc8785-safe-integer/v0.10"
+        },
+        "entry_type": {
+          "const": "trust-root-snapshot"
+        },
+        "log_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "trust_root_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "snapshot_generation": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/hash"
+        }
+      },
+      "additionalProperties": false
+    },
+    "checkpoint": {
+      "type": "object",
+      "required": [
+        "checkpoint_id",
+        "profile_id",
+        "schema_version",
+        "canonical_profile",
+        "log_id",
+        "tree_size",
+        "root_hash",
+        "issued_at_ms",
+        "not_before_ms",
+        "not_after_ms",
+        "issuer_id",
+        "log_authority_id",
+        "log_key_id",
+        "signature_algorithm",
+        "signature"
+      ],
+      "properties": {
+        "checkpoint_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "schema_version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "canonical_profile": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "log_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "tree_size": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "root_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "issued_at_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "not_before_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "not_after_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "issuer_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "log_authority_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "log_key_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "signature_algorithm": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "signature": {
+          "$ref": "#/$defs/signature"
+        }
+      },
+      "additionalProperties": false
+    },
+    "logKey": {
+      "type": "object",
+      "required": [
+        "log_key_id",
+        "issuer_id",
+        "algorithm",
+        "public_key_base64",
+        "not_before_ms",
+        "not_after_ms",
+        "revoked"
+      ],
+      "properties": {
+        "log_key_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "issuer_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "algorithm": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "public_key_base64": {
+          "$ref": "#/$defs/publicKey"
+        },
+        "not_before_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "not_after_ms": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "logAuthority": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "log_authority_id",
+        "allowed_algorithms",
+        "keys"
+      ],
+      "properties": {
+        "profile_id": {
+          "const": "vtl-transparency-log-authority/v0.14"
+        },
+        "log_authority_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "allowed_algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/logKey"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "verifierCheckpoint": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "log_id",
+        "known_tree_size",
+        "known_root_hash",
+        "minimum_tree_size",
+        "checkpointed_at_ms"
+      ],
+      "properties": {
+        "profile_id": {
+          "const": "vtl-transparency-log-verifier-checkpoint/v0.14"
+        },
+        "log_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "known_tree_size": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "known_root_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "minimum_tree_size": {
+          "$ref": "#/$defs/positiveInteger"
+        },
+        "checkpointed_at_ms": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "additionalProperties": false
+    },
+    "hashPath": {
+      "type": "array",
+      "maxItems": 54,
+      "items": {
+        "$ref": "#/$defs/hash"
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "required": [
+        "local_witnessed_freshness_valid",
+        "target",
+        "entry",
+        "leaf_index",
+        "inclusion_path",
+        "checkpoint",
+        "log_authority",
+        "verifier_checkpoint",
+        "consistency_path",
+        "peer_checkpoints"
+      ],
+      "properties": {
+        "local_witnessed_freshness_valid": {
+          "type": "boolean"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "entry": {
+          "$ref": "#/$defs/entry"
+        },
+        "leaf_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "inclusion_path": {
+          "$ref": "#/$defs/hashPath"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/checkpoint"
+        },
+        "log_authority": {
+          "$ref": "#/$defs/logAuthority"
+        },
+        "verifier_checkpoint": {
+          "$ref": "#/$defs/verifierCheckpoint"
+        },
+        "consistency_path": {
+          "$ref": "#/$defs/hashPath"
+        },
+        "peer_checkpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/checkpoint"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "checkpointVariants": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/checkpoint"
+      }
+    },
+    "verifierCheckpointVariants": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/verifierCheckpoint"
+      }
+    },
+    "hashPathVariants": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/hashPath"
+      }
+    },
+    "expected": {
+      "type": "object",
+      "required": [
+        "valid",
+        "local_witnessed_freshness_valid",
+        "entry_integrity_valid",
+        "log_checkpoint_integrity_valid",
+        "log_checkpoint_signature_valid",
+        "log_checkpoint_authority_valid",
+        "log_checkpoint_freshness_valid",
+        "inclusion_valid",
+        "consistency_valid",
+        "view_consistency_valid",
+        "log_equivocation_detected",
+        "accepted_tree_size",
+        "accepted_root_hash",
+        "reason_codes"
+      ],
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "local_witnessed_freshness_valid": {
+          "type": "boolean"
+        },
+        "entry_integrity_valid": {
+          "type": "boolean"
+        },
+        "log_checkpoint_integrity_valid": {
+          "type": "boolean"
+        },
+        "log_checkpoint_signature_valid": {
+          "type": "boolean"
+        },
+        "log_checkpoint_authority_valid": {
+          "type": "boolean"
+        },
+        "log_checkpoint_freshness_valid": {
+          "type": "boolean"
+        },
+        "inclusion_valid": {
+          "type": "boolean"
+        },
+        "consistency_valid": {
+          "type": "boolean"
+        },
+        "view_consistency_valid": {
+          "type": "boolean"
+        },
+        "log_equivocation_detected": {
+          "type": "boolean"
+        },
+        "accepted_tree_size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positiveInteger"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accepted_root_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/hash"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "mutation": {
+      "type": "object",
+      "required": [
+        "path",
+        "value"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!(?:.*\\.)?(?:__proto__|prototype|constructor)(?:\\.|$))(?:[A-Za-z_][A-Za-z0-9_-]*|0|[1-9][0-9]*)(?:\\.(?:[A-Za-z_][A-Za-z0-9_-]*|0|[1-9][0-9]*))*$"
+        },
+        "value": true
+      },
+      "additionalProperties": false
+    },
+    "case": {
+      "type": "object",
+      "required": [
+        "id",
+        "expected"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "expected": {
+          "$ref": "#/$defs/expected"
+        },
+        "checkpoint_ref": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "verifier_checkpoint_ref": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "inclusion_path_ref": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "consistency_path_ref": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "peer_checkpoint_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "mutations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mutation"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.example/schemas/envelope.schema.json",
+  "title": "LS Continuity Envelope",
+  "type": "object",
+  "required": ["schema", "object_type", "subject_id", "created_at", "payload"],
+  "properties": {
+    "schema": { "const": "ls.continuity.v1" },
+    "object_type": {
+      "enum": [
+        "intent",
+        "governance_decision",
+        "governance_outcome",
+        "continuation_checkpoint",
+        "verification_receipt",
+        "remediation_receipt"
+      ]
+    },
+    "object_id": { "$ref": "#/$defs/objectRef" },
+    "subject_id": { "type": "string", "minLength": 1 },
+    "previous_ref": {
+      "anyOf": [
+        { "$ref": "#/$defs/objectRef" },
+        { "type": "null" }
+      ]
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object" },
+    "extensions": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "object_type": { "const": "intent" } }, "required": ["object_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/intentPayload" } } }
+    },
+    {
+      "if": { "properties": { "object_type": { "const": "governance_decision" } }, "required": ["object_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/governanceDecisionPayload" } } }
+    },
+    {
+      "if": { "properties": { "object_type": { "const": "governance_outcome" } }, "required": ["object_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/governanceOutcomePayload" } } }
+    },
+    {
+      "if": { "properties": { "object_type": { "const": "continuation_checkpoint" } }, "required": ["object_type"] },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/continuationCheckpointPayload" } } }
+    }
+  ],
+  "$defs": {
+    "objectRef": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "validityState": {
+      "enum": ["active", "expired", "superseded", "invalidated"]
+    },
+    "resumePosture": {
+      "enum": ["retryable", "requires_revalidation", "consumed", "non_retryable", "pending_approval"]
+    },
+    "intentPayload": {
+      "type": "object",
+      "required": ["action", "params_digest"],
+      "properties": {
+        "action": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "params_digest": { "$ref": "#/$defs/objectRef" }
+      },
+      "additionalProperties": false
+    },
+    "governanceDecisionPayload": {
+      "type": "object",
+      "required": ["intent_ref", "decision", "validity_state", "resume_posture"],
+      "properties": {
+        "intent_ref": { "$ref": "#/$defs/objectRef" },
+        "decision": { "enum": ["allow", "deny", "require_approval", "revise"] },
+        "validity_state": { "$ref": "#/$defs/validityState" },
+        "resume_posture": { "$ref": "#/$defs/resumePosture" },
+        "expires_at": { "type": ["string", "null"], "format": "date-time" },
+        "revalidate_if": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "continuation_id": { "type": ["string", "null"], "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "decision": { "const": "deny" } }, "required": ["decision"] },
+          "then": { "properties": { "resume_posture": { "const": "non_retryable" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "require_approval" } }, "required": ["decision"] },
+          "then": { "properties": { "resume_posture": { "const": "pending_approval" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "revise" } }, "required": ["decision"] },
+          "then": { "properties": { "resume_posture": { "const": "requires_revalidation" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "allow" } }, "required": ["decision"] },
+          "then": {
+            "not": {
+              "properties": { "resume_posture": { "const": "pending_approval" } },
+              "required": ["resume_posture"]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "governanceOutcomePayload": {
+      "type": "object",
+      "required": ["decision_ref", "status", "side_effect_committed"],
+      "properties": {
+        "decision_ref": { "$ref": "#/$defs/objectRef" },
+        "status": { "enum": ["executed", "blocked", "errored", "refused"] },
+        "result_digest": {
+          "anyOf": [
+            { "$ref": "#/$defs/objectRef" },
+            { "type": "null" }
+          ]
+        },
+        "side_effect_committed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "continuationCheckpointPayload": {
+      "type": "object",
+      "required": ["validity_state", "resume_posture"],
+      "properties": {
+        "latest_decision_ref": {
+          "anyOf": [
+            { "$ref": "#/$defs/objectRef" },
+            { "type": "null" }
+          ]
+        },
+        "latest_outcome_ref": {
+          "anyOf": [
+            { "$ref": "#/$defs/objectRef" },
+            { "type": "null" }
+          ]
+        },
+        "pending_approval_ref": {
+          "anyOf": [
+            { "$ref": "#/$defs/objectRef" },
+            { "type": "null" }
+          ]
+        },
+        "validity_state": { "$ref": "#/$defs/validityState" },
+        "resume_posture": { "$ref": "#/$defs/resumePosture" },
+        "required_checks": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

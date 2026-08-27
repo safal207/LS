@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/fixtures/trusted-runtime/durable-approval/envelope.schema.json",
+  "title": "LS Durable Approval Envelope v0.1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "approval_id",
+    "trajectory_id",
+    "continuation_id",
+    "requester_id",
+    "tool_call_id",
+    "action_digest",
+    "scope_digest",
+    "policy_digest",
+    "workspace_identity",
+    "target_state_digest",
+    "created_at",
+    "expiry_policy",
+    "single_use"
+  ],
+  "properties": {
+    "schema_version": {"const": "ls-durable-approval-envelope-v0.1"},
+    "approval_id": {"type": "string", "minLength": 1},
+    "trajectory_id": {"type": "string", "minLength": 1},
+    "continuation_id": {"type": "string", "minLength": 1},
+    "requester_id": {"type": "string", "minLength": 1},
+    "tool_call_id": {"type": "string", "minLength": 1},
+    "action_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+    "scope_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+    "policy_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+    "workspace_identity": {"type": "string", "minLength": 1},
+    "target_state_digest": {"type": "string", "pattern": "^sha256:[A-Za-z0-9._-]+$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "expiry_policy": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["policy_id", "expires_at"],
+          "properties": {
+            "policy_id": {"type": "string", "minLength": 1},
+            "expires_at": {"type": "string", "format": "date-time"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "single_use": {"const": true}
+  },
+  "additionalProperties": false
+}

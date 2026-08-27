@@ -1,0 +1,57 @@
+{
+  "schema_version": "ls.ai_review_model_roster.v0.1",
+  "defaults": {
+    "mode": "advisory",
+    "max_diff_chars": 45000,
+    "max_output_tokens": 2500,
+    "request_timeout_seconds": 90,
+    "max_attempts": 3,
+    "confirmation_threshold": 2
+  },
+  "models": [
+    {
+      "key": "fast_diff",
+      "role": "fast_diff_reviewer",
+      "activation": "always",
+      "model": "north-mini-code",
+      "fallbacks": [
+        "hy3",
+        "laguna-xs-2.1"
+      ]
+    },
+    {
+      "key": "deep_code",
+      "role": "deep_implementation_reviewer",
+      "activation": "always",
+      "model": "laguna-xs-2.1",
+      "fallbacks": [
+        "north-mini-code",
+        "hy3"
+      ]
+    },
+    {
+      "key": "independent_challenger",
+      "role": "independent_challenger",
+      "activation": "always",
+      "model": "hy3",
+      "fallbacks": [
+        "laguna-xs-2.1",
+        "north-mini-code"
+      ]
+    },
+    {
+      "key": "architecture",
+      "role": "architecture_and_governance_reviewer",
+      "activation": "high_risk",
+      "model": "nemotron-3-ultra-550b-a55b",
+      "fallbacks": []
+    },
+    {
+      "key": "tie_breaker",
+      "role": "evidence_tie_breaker",
+      "activation": "conflict",
+      "model": "gpt-oss-120b",
+      "fallbacks": []
+    }
+  ]
+}

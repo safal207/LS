@@ -1,0 +1,34 @@
+{
+  "schema_version": "ls.ci_exchange.context.v0.1",
+  "context_id": "ls.context.connector_safe_command_bus.v0.1",
+  "summary": "For this LS setup, the reliable connector-safe review route is a same-repository command PR handled by a pull_request workflow.",
+  "claims": [
+    {
+      "claim": "The pull_request command PR route produced a visible source diagnostic, target acknowledgement, Grok review, and target result.",
+      "confidence": "medium_high",
+      "route": "ls.route.grok_review.command_pr_pull_request"
+    },
+    {
+      "claim": "Earlier comment-based and branch-push command routes did not provide a reliable visible acknowledgement in this connector setup.",
+      "confidence": "medium_high"
+    }
+  ],
+  "evidence": [
+    {"kind": "pull_request", "ref": "#847", "description": "Validation-only command PR."},
+    {"kind": "pull_request", "ref": "#848", "description": "Merged pull_request route."},
+    {"kind": "workflow_run", "ref": "29027359506", "description": "Successful command-bus run."},
+    {"kind": "issue", "ref": "#846", "description": "Internet CI / CI Node Mesh epic."}
+  ],
+  "valid_for": [
+    "GitHub connector",
+    "same-repository command PRs",
+    "advisory AI review",
+    "CI evidence collection"
+  ],
+  "not_validated_for": [
+    "forked PR command submissions",
+    "GitLab",
+    "Bitbucket",
+    "deploy automation"
+  ]
+}

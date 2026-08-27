@@ -1,0 +1,134 @@
+name: DeepSeek PR Review
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/deepseek-pr-review.yml"
+      - "scripts/deepseek_pr_review.py"
+      - "tests/test_deepseek_pr_review.py"
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deepseek-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Test DeepSeek review contract
+        run: python -m unittest -v tests.test_deepseek_pr_review
+
+  review:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      DEEPSEEK_MODEL: deepseek-v4-pro
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out exact trusted base revision only
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Fetch untrusted PR diff through GitHub API
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github.v3.diff" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+            > "$RUNNER_TEMP/pr.diff"
+          test -s "$RUNNER_TEMP/pr.diff"
+      - name: Run DeepSeek review
+        id: deepseek
+        run: |
+          set +e
+          if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+            cat > "$RUNNER_TEMP/deepseek-review.md" <<EOF
+          <!-- deepseek-pr-review -->
+          ## DeepSeek PR review
+
+          **Head:** \`$PR_HEAD_SHA\`
+
+          🚫 **Reviewer is not configured:** add the repository Actions secret \`DEEPSEEK_API_KEY\`.
+
+          The gate fails closed until the key is configured. PR code was not checked out or executed.
+          EOF
+            RC=2
+          else
+            python scripts/deepseek_pr_review.py \
+              --diff "$RUNNER_TEMP/pr.diff" \
+              --output "$RUNNER_TEMP/deepseek-review.md" \
+              --repository "$GITHUB_REPOSITORY" \
+              --pr-number "$PR_NUMBER" \
+              --head-sha "$PR_HEAD_SHA" \
+              --title "$PR_TITLE" \
+              --body "${PR_BODY:-}" \
+              --model "$DEEPSEEK_MODEL"
+            RC=$?
+          fi
+          set -e
+          if [[ ! -s "$RUNNER_TEMP/deepseek-review.md" ]]; then
+            cat > "$RUNNER_TEMP/deepseek-review.md" <<EOF
+          <!-- deepseek-pr-review -->
+          ## DeepSeek PR review
+
+          **Head:** \`$PR_HEAD_SHA\`
+
+          🚫 DeepSeek review failed before producing a validated report. See the check logs.
+          EOF
+          fi
+          echo "exit-code=$RC" >> "$GITHUB_OUTPUT"
+      - name: Upsert authenticated DeepSeek review comment
+        run: |
+          set -euo pipefail
+          COMMENT_ID="$(gh api --paginate \
+            "/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- deepseek-pr-review -->"))) | .id' \
+            | tail -n 1)"
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api --method PATCH \
+              "/repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" \
+              -F body=@"$RUNNER_TEMP/deepseek-review.md" >/dev/null
+          else
+            gh api --method POST \
+              "/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              -F body=@"$RUNNER_TEMP/deepseek-review.md" >/dev/null
+          fi
+      - name: Enforce DeepSeek verdict
+        env:
+          REVIEW_EXIT_CODE: ${{ steps.deepseek.outputs.exit-code }}
+        run: |
+          set -euo pipefail
+          if [[ "$REVIEW_EXIT_CODE" != "0" ]]; then
+            echo "DeepSeek review gate failed with exit code $REVIEW_EXIT_CODE" >&2
+            exit "$REVIEW_EXIT_CODE"
+          fi

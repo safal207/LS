@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: python -m pip install jsonschema pytest ruff
+      - run: python -m pip install jsonschema pytest ruff==0.15.5
       - name: Ruff
         run: |
           ruff check \

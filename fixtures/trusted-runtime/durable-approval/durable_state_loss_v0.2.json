@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "previous_fixture_version": "ls-durable-approval-conformance-v0.1",
+    "wire_contracts": [
+      "ls-durable-approval-envelope-v0.1",
+      "ls-approval-lifecycle-event-v0.1"
+    ],
+    "role": "LS durable approval v0.2 conformance vector."
+  },
+  "fixture_id": "durable_state_loss",
+  "fixture_version": "ls-durable-approval-conformance-v0.2",
+  "envelope": {
+    "schema_version": "ls-durable-approval-envelope-v0.1",
+    "approval_id": "approval-ls-full-lifecycle-002",
+    "trajectory_id": "ls:durable-approval:full-lifecycle",
+    "continuation_id": "cont-durable-approval-002",
+    "requester_id": "agent-root",
+    "tool_call_id": "tool-call-protected-write-002",
+    "action_digest": "sha256:PROTECTED_WRITE_ACTION_V2",
+    "scope_digest": "sha256:PROTECTED_WRITE_SCOPE_V2",
+    "policy_digest": "sha256:MANUAL_APPROVAL_POLICY_V2",
+    "workspace_identity": "safal207/LS@exact-revision",
+    "target_state_digest": "sha256:LS_TARGET_STATE_B",
+    "created_at": "2026-07-06T18:45:00Z",
+    "expiry_policy": {
+      "policy_id": "manual-approval-10m",
+      "expires_at": "2026-07-06T18:55:00Z"
+    },
+    "single_use": true
+  },
+  "events": [
+    {
+      "schema_version": "ls-approval-lifecycle-event-v0.1",
+      "event_id": "evt-approvalrequested-01",
+      "approval_id": "approval-ls-full-lifecycle-002",
+      "sequence": 1,
+      "event_type": "ApprovalRequested",
+      "occurred_at": "2026-07-06T18:45:00Z",
+      "actor": {"type": "SYSTEM", "id": "ls-runtime"},
+      "reason": "manual approval required"
+    },
+    {
+      "schema_version": "ls-approval-lifecycle-event-v0.1",
+      "event_id": "evt-approvalpresented-02",
+      "approval_id": "approval-ls-full-lifecycle-002",
+      "sequence": 2,
+      "event_type": "ApprovalPresented",
+      "occurred_at": "2026-07-06T18:45:01Z",
+      "actor": {"type": "RUNTIME", "id": "approval-ui"},
+      "reason": "approval visible"
+    },
+    {
+      "schema_version": "ls-approval-lifecycle-event-v0.1",
+      "event_id": "evt-loststatedetected-03",
+      "approval_id": "approval-ls-full-lifecycle-002",
+      "sequence": 3,
+      "event_type": "LostStateDetected",
+      "occurred_at": "2026-07-06T18:48:00Z",
+      "actor": {"type": "RUNTIME", "id": "durable-event-store"},
+      "reason": "approval event segment failed integrity verification",
+      "evidence_ref": "evidence:event-segment-integrity-failure"
+    }
+  ],
+  "expected_snapshot": {
+    "authority_state": "LOST",
+    "requester_state": "ATTACHED",
+    "presentation_state": "VISIBLE",
+    "execution_state": "UNUSED",
+    "resolution": {
+      "event_type": "LostStateDetected",
+      "actor_type": "RUNTIME",
+      "actor_id": "durable-event-store",
+      "reason": "approval event segment failed integrity verification",
+      "evidence_ref": "evidence:event-segment-integrity-failure"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/command.schema.json",
+  "title": "LS CI Node Command",
+  "type": "object",
+  "required": ["command", "target", "requested_by", "nonce"],
+  "additionalProperties": true,
+  "properties": {
+    "command": {"type": "string", "minLength": 1},
+    "target": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {"type": "integer", "minimum": 1},
+        {"type": "object"}
+      ]
+    },
+    "requested_by": {"type": "string", "minLength": 1},
+    "nonce": {"type": "string", "minLength": 1},
+    "scope": {"type": "string"},
+    "max_runtime_minutes": {"type": "integer", "minimum": 1, "maximum": 120},
+    "idempotency_key": {"type": "string"}
+  }
+}

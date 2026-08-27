@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/experiments/multi-session-coordination/route-profile.schema.json",
+  "title": "LS Coordination Route Profile v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "route_id",
+    "transport",
+    "durable_history",
+    "per_session_offsets",
+    "invalidates_cached_plans",
+    "validates_producer",
+    "validates_generation",
+    "deduplicates_event_ids",
+    "requires_verified_receipt",
+    "replays_on_recovery",
+    "human_relay",
+    "recovery_time_ms",
+    "event_to_replan_latency_ms",
+    "implementation_complexity_units"
+  ],
+  "properties": {
+    "schema": {"const": "ls.multi-session.route-profile.v0.1"},
+    "route_id": {"type": "string", "minLength": 1},
+    "transport": {
+      "enum": ["manual", "shared_mutable_state", "append_only_log"]
+    },
+    "durable_history": {"type": "boolean"},
+    "per_session_offsets": {"type": "boolean"},
+    "invalidates_cached_plans": {"type": "boolean"},
+    "validates_producer": {"type": "boolean"},
+    "validates_generation": {"type": "boolean"},
+    "deduplicates_event_ids": {"type": "boolean"},
+    "requires_verified_receipt": {"type": "boolean"},
+    "replays_on_recovery": {"type": "boolean"},
+    "human_relay": {"type": "boolean"},
+    "recovery_time_ms": {"type": "integer", "minimum": 0},
+    "event_to_replan_latency_ms": {"type": "integer", "minimum": 0},
+    "implementation_complexity_units": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

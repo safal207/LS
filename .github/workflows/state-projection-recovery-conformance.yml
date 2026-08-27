@@ -1,0 +1,48 @@
+name: State projection recovery conformance
+
+on:
+  pull_request:
+    paths:
+      - "ls-conformance/state_projection_recovery/**"
+      - ".github/workflows/state-projection-recovery-conformance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ls-conformance/state_projection_recovery/**"
+      - ".github/workflows/state-projection-recovery-conformance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run deterministic fixture tests
+        run: python -m unittest discover -s ls-conformance/state_projection_recovery -p "test_*.py"
+      - name: Render redacted recovery fixture report
+        run: |
+          python ls-conformance/state_projection_recovery/run_fixture.py \
+            ls-conformance/state_projection_recovery/fixtures/cases.json \
+            > state-projection-recovery-report.json
+          python -m json.tool state-projection-recovery-report.json > /dev/null
+      - name: Render redacted update/reopen transition report
+        run: |
+          python ls-conformance/state_projection_recovery/run_update_reopen_fixture.py \
+            ls-conformance/state_projection_recovery/fixtures/update_reopen_cases.json \
+            > update-reopen-projection-report.json
+          python -m json.tool update-reopen-projection-report.json > /dev/null
+      - name: Upload conformance reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-projection-recovery-report
+          path: |
+            state-projection-recovery-report.json
+            update-reopen-projection-report.json
+          if-no-files-found: error

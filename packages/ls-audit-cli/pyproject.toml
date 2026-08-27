@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ls-exact-head-audit"
+version = "0.2.0"
+description = "Lightweight exact-head evidence bundler for pull request risk audits."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "LS maintainers"}]
+dependencies = []
+
+[project.scripts]
+ls-audit = "ls_audit_cml_cli:main"
+
+[tool.setuptools]
+py-modules = ["ls_audit", "ls_audit_cli", "ls_audit_cml_cli", "cml_git_internet"]

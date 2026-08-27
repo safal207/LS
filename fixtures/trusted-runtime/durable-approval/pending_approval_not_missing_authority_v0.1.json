@@ -1,0 +1,325 @@
+{
+  "_meta": {
+    "role": "Canonical LS durable-approval conformance fixture for openai/codex#29627.",
+    "external_validation": "https://github.com/openai/codex/issues/29627",
+    "boundary_invariants": [
+      "Requester cancellation does not resolve user-owned authority.",
+      "Transport loss and UI state do not imply rejection or expiry.",
+      "Only explicit user/reviewer rejection produces REJECTED.",
+      "Execution claims bind exact digests and are single-use.",
+      "Restart after claim without effect observation produces IN_DOUBT."
+    ]
+  },
+  "fixture_id": "pending_approval_not_missing_authority_v0.1",
+  "fixture_version": "ls-durable-approval-conformance-v0.1",
+  "description": "Independent approval dimensions remain distinguishable across cancellation, disconnection, UI dismissal, waiting, explicit resolution, and restart.",
+  "envelope": {
+    "schema_version": "ls-durable-approval-envelope-v0.1",
+    "approval_id": "approval-codex-29627-001",
+    "trajectory_id": "codex:29627:manual-approval",
+    "continuation_id": "cont-codex-29627-001",
+    "requester_id": "agent-root",
+    "tool_call_id": "tool-call-write-skill-001",
+    "action_digest": "sha256:WRITE_SKILL_PATCH_V1",
+    "scope_digest": "sha256:WORKSPACE_WRITE_SKILL_SCOPE_V1",
+    "policy_digest": "sha256:ON_REQUEST_POLICY_V1",
+    "workspace_identity": "openai/codex@exact-revision",
+    "target_state_digest": "sha256:CODEX_WORKSPACE_STATE_A",
+    "created_at": "2026-07-06T18:30:00Z",
+    "expiry_policy": null,
+    "single_use": true
+  },
+  "cases": [
+    {
+      "case_id": "agent_cancels_requester",
+      "events": [
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-requested-01",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 1,
+          "event_type": "ApprovalRequested",
+          "occurred_at": "2026-07-06T18:30:00Z",
+          "actor": {"type": "SYSTEM", "id": "codex-runtime"},
+          "reason": "manual approval required"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-presented-02",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 2,
+          "event_type": "ApprovalPresented",
+          "occurred_at": "2026-07-06T18:30:01Z",
+          "actor": {"type": "RUNTIME", "id": "codex-tui"},
+          "reason": "approval dialog visible"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-agent-cancel-03",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 3,
+          "event_type": "RequesterCancelled",
+          "occurred_at": "2026-07-06T18:31:00Z",
+          "actor": {"type": "AGENT", "id": "agent-root"},
+          "reason": "requesting tool future cancelled"
+        }
+      ],
+      "expected_snapshot": {
+        "authority_state": "PENDING",
+        "requester_state": "CANCELLED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "transport_disconnects",
+      "events": [
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-requested-01",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 1,
+          "event_type": "ApprovalRequested",
+          "occurred_at": "2026-07-06T18:30:00Z",
+          "actor": {"type": "SYSTEM", "id": "codex-runtime"},
+          "reason": "manual approval required"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-presented-02",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 2,
+          "event_type": "ApprovalPresented",
+          "occurred_at": "2026-07-06T18:30:01Z",
+          "actor": {"type": "RUNTIME", "id": "codex-tui"},
+          "reason": "approval dialog visible"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-transport-lost-03",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 3,
+          "event_type": "TransportDisconnected",
+          "occurred_at": "2026-07-06T18:31:00Z",
+          "actor": {"type": "TRANSPORT", "id": "app-server-websocket"},
+          "reason": "connection lost"
+        }
+      ],
+      "expected_snapshot": {
+        "authority_state": "PENDING",
+        "requester_state": "ATTACHED",
+        "presentation_state": "DISCONNECTED",
+        "execution_state": "UNUSED",
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "ui_dismissed_without_rejection",
+      "events": [
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-requested-01",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 1,
+          "event_type": "ApprovalRequested",
+          "occurred_at": "2026-07-06T18:30:00Z",
+          "actor": {"type": "SYSTEM", "id": "codex-runtime"},
+          "reason": "manual approval required"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-presented-02",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 2,
+          "event_type": "ApprovalPresented",
+          "occurred_at": "2026-07-06T18:30:01Z",
+          "actor": {"type": "RUNTIME", "id": "codex-tui"},
+          "reason": "approval dialog visible"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-ui-dismissed-03",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 3,
+          "event_type": "UiDismissed",
+          "occurred_at": "2026-07-06T18:31:00Z",
+          "actor": {"type": "USER", "id": "local-operator"},
+          "reason": "user closed the approval surface without choosing reject"
+        }
+      ],
+      "expected_snapshot": {
+        "authority_state": "PENDING",
+        "requester_state": "ATTACHED",
+        "presentation_state": "NOT_PRESENTED",
+        "execution_state": "UNUSED",
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "elapsed_wait_without_expiry",
+      "events": [
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-requested-01",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 1,
+          "event_type": "ApprovalRequested",
+          "occurred_at": "2026-07-06T18:30:00Z",
+          "actor": {"type": "SYSTEM", "id": "codex-runtime"},
+          "reason": "manual approval required"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-presented-02",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 2,
+          "event_type": "ApprovalPresented",
+          "occurred_at": "2026-07-06T18:30:01Z",
+          "actor": {"type": "RUNTIME", "id": "codex-tui"},
+          "reason": "approval dialog visible"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-wait-window-03",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 3,
+          "event_type": "WaitWindowElapsed",
+          "occurred_at": "2026-07-06T18:35:00Z",
+          "actor": {"type": "RUNTIME", "id": "approval-waiter"},
+          "reason": "local wait window elapsed without expiry policy"
+        }
+      ],
+      "expected_snapshot": {
+        "authority_state": "PENDING",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "resolution": null
+      }
+    },
+    {
+      "case_id": "explicit_user_rejection",
+      "events": [
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-requested-01",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 1,
+          "event_type": "ApprovalRequested",
+          "occurred_at": "2026-07-06T18:30:00Z",
+          "actor": {"type": "SYSTEM", "id": "codex-runtime"},
+          "reason": "manual approval required"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-presented-02",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 2,
+          "event_type": "ApprovalPresented",
+          "occurred_at": "2026-07-06T18:30:01Z",
+          "actor": {"type": "RUNTIME", "id": "codex-tui"},
+          "reason": "approval dialog visible"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-user-reject-03",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 3,
+          "event_type": "UserRejected",
+          "occurred_at": "2026-07-06T18:32:00Z",
+          "actor": {"type": "USER", "id": "local-operator"},
+          "reason": "user explicitly selected reject"
+        }
+      ],
+      "expected_snapshot": {
+        "authority_state": "REJECTED",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "UNUSED",
+        "resolution": {
+          "event_type": "UserRejected",
+          "actor_type": "USER",
+          "actor_id": "local-operator",
+          "reason": "user explicitly selected reject",
+          "evidence_ref": null
+        }
+      }
+    },
+    {
+      "case_id": "restart_after_execution_claim",
+      "events": [
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-requested-01",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 1,
+          "event_type": "ApprovalRequested",
+          "occurred_at": "2026-07-06T18:30:00Z",
+          "actor": {"type": "SYSTEM", "id": "codex-runtime"},
+          "reason": "manual approval required"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-presented-02",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 2,
+          "event_type": "ApprovalPresented",
+          "occurred_at": "2026-07-06T18:30:01Z",
+          "actor": {"type": "RUNTIME", "id": "codex-tui"},
+          "reason": "approval dialog visible"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-user-approve-03",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 3,
+          "event_type": "UserApproved",
+          "occurred_at": "2026-07-06T18:32:00Z",
+          "actor": {"type": "USER", "id": "local-operator"},
+          "reason": "user explicitly selected approve"
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-execution-claim-04",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 4,
+          "event_type": "ExecutionClaimed",
+          "occurred_at": "2026-07-06T18:32:01Z",
+          "actor": {"type": "RUNTIME", "id": "execution-gate"},
+          "reason": "single-use authority claimed",
+          "bindings": {
+            "action_digest": "sha256:WRITE_SKILL_PATCH_V1",
+            "scope_digest": "sha256:WORKSPACE_WRITE_SKILL_SCOPE_V1",
+            "policy_digest": "sha256:ON_REQUEST_POLICY_V1",
+            "workspace_identity": "openai/codex@exact-revision",
+            "target_state_digest": "sha256:CODEX_WORKSPACE_STATE_A"
+          }
+        },
+        {
+          "schema_version": "ls-approval-lifecycle-event-v0.1",
+          "event_id": "evt-restart-05",
+          "approval_id": "approval-codex-29627-001",
+          "sequence": 5,
+          "event_type": "RuntimeRestarted",
+          "occurred_at": "2026-07-06T18:32:02Z",
+          "actor": {"type": "RUNTIME", "id": "codex-runtime"},
+          "reason": "process restarted before effect observation"
+        }
+      ],
+      "expected_snapshot": {
+        "authority_state": "APPROVED",
+        "requester_state": "ATTACHED",
+        "presentation_state": "VISIBLE",
+        "execution_state": "IN_DOUBT",
+        "resolution": {
+          "event_type": "UserApproved",
+          "actor_type": "USER",
+          "actor_id": "local-operator",
+          "reason": "user explicitly selected approve",
+          "evidence_ref": null
+        }
+      }
+    }
+  ]
+}

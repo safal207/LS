@@ -1,0 +1,24 @@
+{
+  "name": "ls-continuity-store",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A minimal content-addressed continuity store for trustworthy agent runtimes.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --import tsx tests/**/*.test.ts",
+    "demo": "tsx src/demo.ts"
+  },
+  "dependencies": {
+    "json-canonicalize": "^1.0.6",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}

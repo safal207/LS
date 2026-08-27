@@ -1,0 +1,200 @@
+{
+  "schemaVersion": "ls.visual-benchmark-axis.v0",
+  "axisId": "VBA-ROBYS-WORDMARK-2026-07",
+  "trailId": "CPT-ROBYS-WORDMARK-001",
+  "authority": "ADVISORY_ONLY",
+  "subject": {
+    "repository": "safal207/robys-coffee-house-demo",
+    "pullRequest": 164,
+    "head": "3063729d7290b47116cdf56d81eae8e2b060a5bf",
+    "surfaceEvidenceIds": [
+      "visual.hero.phone-360-short",
+      "visual.hero.phone-390",
+      "visual.hero.laptop-1366",
+      "visual.discover-pairing.phone-360-short",
+      "visual.discover-pairing.tablet-768",
+      "visual.visit-map.phone-390"
+    ]
+  },
+  "benchmarkWindow": {
+    "periodKey": "2026-07",
+    "observedAt": "2026-07-04T20:45:00Z",
+    "validUntil": "2026-08-01T00:00:00Z",
+    "refreshCadence": "MONTHLY"
+  },
+  "sources": [
+    {
+      "id": "source.w3c-wcag-2-2",
+      "class": "NORMATIVE",
+      "title": "W3C WCAG 2.2 Quick Reference",
+      "url": "https://www.w3.org/WAI/WCAG22/quickref/",
+      "capturedAt": "2026-07-04T20:30:00Z",
+      "validUntil": "2027-07-04T00:00:00Z",
+      "evidenceLevel": "E5",
+      "claims": [
+        "Normative criteria cover reflow, focus appearance, target size, contrast, and animation from interactions.",
+        "Trend adoption cannot weaken perceivable, operable, understandable, or robust behavior."
+      ]
+    },
+    {
+      "id": "source.material-3-expressive",
+      "class": "DESIGN_SYSTEM",
+      "title": "Material 3 Expressive: Engaging UX Design",
+      "url": "https://m3.material.io/blog/building-with-m3-expressive",
+      "capturedAt": "2026-07-04T20:30:00Z",
+      "validUntil": "2027-01-01T00:00:00Z",
+      "evidenceLevel": "E4",
+      "claims": [
+        "Current design-system guidance treats color, shape, hierarchy, and motion as coordinated expressive tools.",
+        "Expression must remain usable rather than becoming decoration without task value."
+      ]
+    },
+    {
+      "id": "source.apple-hig",
+      "class": "DESIGN_SYSTEM",
+      "title": "Apple Human Interface Guidelines",
+      "url": "https://developer.apple.com/design/human-interface-guidelines/",
+      "capturedAt": "2026-07-04T20:30:00Z",
+      "validUntil": "2027-01-01T00:00:00Z",
+      "evidenceLevel": "E4",
+      "claims": [
+        "Current platform guidance is a reference for hierarchy, consistency, legibility, and interaction clarity.",
+        "Distinctive branding should not displace familiar navigation and control behavior."
+      ]
+    },
+    {
+      "id": "source.awwwards-sotd-2026-07",
+      "class": "TREND_FEED",
+      "title": "Awwwards Sites of the Day, July 2026",
+      "url": "https://www.awwwards.com/websites/sites_of_the_day/",
+      "capturedAt": "2026-07-04T20:30:00Z",
+      "validUntil": "2026-08-01T00:00:00Z",
+      "evidenceLevel": "E3",
+      "claims": [
+        "The July 1-4 feed includes Wembi, Units, Bucks Sauce, and Radian as current visual exemplars.",
+        "The feed is inspiration evidence, not a normative usability authority."
+      ]
+    }
+  ],
+  "criteria": [
+    {"id": "criterion.hierarchy", "label": "Visual hierarchy and scanability", "normative": false, "weight": 4},
+    {"id": "criterion.brand-expression", "label": "Distinctive brand expression", "normative": false, "weight": 4},
+    {"id": "criterion.responsive", "label": "Responsive composition and reflow", "normative": true, "weight": 5},
+    {"id": "criterion.accessibility", "label": "Accessible perception and operation", "normative": true, "weight": 5},
+    {"id": "criterion.motion", "label": "Purposeful and bounded motion", "normative": true, "weight": 3},
+    {"id": "criterion.storytelling", "label": "Editorial product storytelling", "normative": false, "weight": 3}
+  ],
+  "assessments": [
+    {
+      "criterionId": "criterion.hierarchy",
+      "currentScore": 4.0,
+      "targetScore": 4.5,
+      "gap": 0.5,
+      "interfaceEvidenceIds": ["visual.hero.phone-390", "visual.hero.laptop-1366"],
+      "sourceIds": ["source.apple-hig", "source.material-3-expressive"],
+      "observation": "The hero and chrome establish a clear primary brand signal, but the relationship between brand, navigation, and secondary actions can be made more deliberate.",
+      "recommendation": "Preserve the strong wordmark while tightening spacing, action priority, and cross-page hierarchy tokens."
+    },
+    {
+      "criterionId": "criterion.brand-expression",
+      "currentScore": 4.2,
+      "targetScore": 4.6,
+      "gap": 0.4,
+      "interfaceEvidenceIds": ["visual.hero.phone-360-short", "visual.hero.laptop-1366"],
+      "sourceIds": ["source.material-3-expressive", "source.awwwards-sotd-2026-07"],
+      "observation": "The red-ring wordmark is distinctive and memorable, but the same visual signature is not yet expressed as a broader component language.",
+      "recommendation": "Extend the ring, typography, and warm coffee palette into a small reusable brand-token family instead of adding unrelated decoration."
+    },
+    {
+      "criterionId": "criterion.responsive",
+      "currentScore": 4.0,
+      "targetScore": 4.8,
+      "gap": 0.8,
+      "interfaceEvidenceIds": ["visual.hero.phone-360-short", "visual.hero.phone-390", "visual.discover-pairing.tablet-768"],
+      "sourceIds": ["source.w3c-wcag-2-2", "source.apple-hig"],
+      "observation": "The reviewed widths are controlled, but the narrow breakpoint behavior required corrective overrides and should be treated as a first-class layout contract.",
+      "recommendation": "Promote 320-340px composition, text reflow, and chrome collision checks into permanent visual evidence."
+    },
+    {
+      "criterionId": "criterion.accessibility",
+      "currentScore": 4.1,
+      "targetScore": 4.8,
+      "gap": 0.7,
+      "interfaceEvidenceIds": ["visual.hero.phone-360-short", "visual.discover-pairing.phone-360-short", "visual.visit-map.phone-390"],
+      "sourceIds": ["source.w3c-wcag-2-2"],
+      "observation": "Accessible text remains in the DOM and browser gates are strong, but future visual experiments must preserve focus, contrast, target size, and reduced-motion behavior.",
+      "recommendation": "Make WCAG-backed constraints hard guards for every visual trend experiment."
+    },
+    {
+      "criterionId": "criterion.motion",
+      "currentScore": 3.3,
+      "targetScore": 4.2,
+      "gap": 0.9,
+      "interfaceEvidenceIds": ["visual.hero.laptop-1366", "visual.discover-pairing.tablet-768"],
+      "sourceIds": ["source.w3c-wcag-2-2", "source.material-3-expressive", "source.awwwards-sotd-2026-07"],
+      "observation": "Motion is restrained and safe, but it does not yet reinforce the coffee journey, product transitions, or spatial hierarchy.",
+      "recommendation": "Test one small expressive transition at a time with reduced-motion and performance guards."
+    },
+    {
+      "criterionId": "criterion.storytelling",
+      "currentScore": 3.2,
+      "targetScore": 4.3,
+      "gap": 1.1,
+      "interfaceEvidenceIds": ["visual.hero.laptop-1366", "visual.discover-pairing.phone-360-short", "visual.visit-map.phone-390"],
+      "sourceIds": ["source.material-3-expressive", "source.awwwards-sotd-2026-07"],
+      "observation": "The site has a strong hero and useful discovery surface, but the visual journey between coffee, food, place, and social context is still fragmented.",
+      "recommendation": "Build a coherent editorial sequence using product close-ups, human moments, and one clear visit narrative rather than a collection of isolated sections."
+    }
+  ],
+  "patternDecisions": [
+    {
+      "patternId": "pattern.distinctive-wordmark-system",
+      "label": "Extend the distinctive wordmark into reusable brand tokens",
+      "status": "ADOPT",
+      "sourceIds": ["source.apple-hig", "source.material-3-expressive"],
+      "criterionIds": ["criterion.hierarchy", "criterion.brand-expression"],
+      "rationale": "The existing mark is already recognizable; systematizing it improves consistency without chasing a temporary style.",
+      "riskNotes": ["Avoid repeating the ring motif so often that it becomes visual noise."],
+      "experimentGuard": null
+    },
+    {
+      "patternId": "pattern.expressive-micro-motion",
+      "label": "Expressive micro-motion for product and journey transitions",
+      "status": "EXPERIMENT",
+      "sourceIds": ["source.w3c-wcag-2-2", "source.material-3-expressive", "source.awwwards-sotd-2026-07"],
+      "criterionIds": ["criterion.motion", "criterion.storytelling"],
+      "rationale": "Current exemplars use motion to create emotion, but Roby's should test motion only where it explains state or advances the story.",
+      "riskNotes": ["Motion may increase cognitive load or regress low-end mobile performance."],
+      "experimentGuard": "Require prefers-reduced-motion coverage, no layout shift, a bounded animation budget, and exact-head visual evidence."
+    },
+    {
+      "patternId": "pattern.tactile-editorial-texture",
+      "label": "Tactile editorial texture and close-up product imagery",
+      "status": "EXPERIMENT",
+      "sourceIds": ["source.awwwards-sotd-2026-07", "source.material-3-expressive"],
+      "criterionIds": ["criterion.brand-expression", "criterion.storytelling"],
+      "rationale": "A warmer, more tactile layer fits the coffee-house identity better than generic polished gradients.",
+      "riskNotes": ["Heavy imagery can reduce text contrast and increase page weight."],
+      "experimentGuard": "Keep text contrast at WCAG AA, preserve a fixed media budget, and compare conversion and scroll completion against the current surface."
+    },
+    {
+      "patternId": "pattern.novelty-navigation",
+      "label": "Experimental novelty navigation",
+      "status": "REJECT",
+      "sourceIds": ["source.w3c-wcag-2-2", "source.awwwards-sotd-2026-07"],
+      "criterionIds": ["criterion.hierarchy", "criterion.accessibility"],
+      "rationale": "Award-site novelty is not sufficient reason to reduce predictable navigation for a local cafe customer journey.",
+      "riskNotes": ["Hidden or unconventional navigation can reduce discoverability and keyboard clarity."],
+      "experimentGuard": null
+    }
+  ],
+  "summary": {
+    "weightedCurrentScore": 3.87,
+    "weightedTargetScore": 4.58,
+    "largestGapCriterionIds": ["criterion.storytelling"],
+    "adoptedPatternIds": ["pattern.distinctive-wordmark-system"],
+    "experimentalPatternIds": ["pattern.expressive-micro-motion", "pattern.tactile-editorial-texture"],
+    "refreshRequiredAfter": "2026-08-01T00:00:00Z",
+    "mergeAuthority": false
+  }
+}

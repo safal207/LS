@@ -1,0 +1,185 @@
+name: Causal Review Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/grok-causal-pr-review.yml"
+      - ".github/workflows/causal-review-pilot.yml"
+      - ".github/workflows/causal-review-collect.yml"
+      - ".github/workflows/trusted-causal-review-label.yml"
+      - ".github/workflows/trusted-causal-review-queue.yml"
+      - ".github/workflows/causal-review-contract.yml"
+      - ".github/prompts/causal-review-v0.1.md"
+      - "schemas/causal-review-v0.1.schema.json"
+      - "schemas/deepseek-causal-lane-v0.1.schema.json"
+      - "schemas/historical-causal-replay-v0.1.schema.json"
+      - "tools/causal_review.py"
+      - "tools/grok_causal_review.py"
+      - "tools/deepseek_causal_review.py"
+      - "tools/codex_causal_review.py"
+      - "tools/gonka_causal_review.py"
+      - "tools/causal_review_adapters.py"
+      - "tools/github_causal_review_collector.py"
+      - "tools/retrying_causal_review_github.py"
+      - "tools/causal_review_request.py"
+      - "tools/causal_review_queue.py"
+      - "tools/deepseek_causal_review_adapter.py"
+      - "tools/causal_review_pilot.py"
+      - "tools/historical_causal_replay.py"
+      - "tools/run_native_causal_reviewers.sh"
+      - "tests/test_causal_review*.py"
+      - "tests/test_same_repo_causal_workflow.py"
+      - "tests/test_native_causal_runner.py"
+      - "tests/test_retrying_causal_review_github.py"
+      - "tests/test_codex_causal_review.py"
+      - "tests/test_gonka_causal_review.py"
+      - "tests/test_github_causal_review_collector.py"
+      - "tests/test_deepseek_causal_review*.py"
+      - "tests/test_historical_causal_replay.py"
+      - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
+      - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
+      - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
+      - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
+      - "docs/TRUSTED_CAUSAL_ENSEMBLE_AND_REPLAY_V0_1.md"
+      - "docs/CODEX_CAUSAL_REVIEWER_V0_1.md"
+      - "docs/GONKA_SHADOW_CAUSAL_REVIEW_V0_1.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/grok-causal-pr-review.yml"
+      - ".github/workflows/causal-review-pilot.yml"
+      - ".github/workflows/causal-review-collect.yml"
+      - ".github/workflows/trusted-causal-review-label.yml"
+      - ".github/workflows/trusted-causal-review-queue.yml"
+      - ".github/workflows/causal-review-contract.yml"
+      - ".github/prompts/causal-review-v0.1.md"
+      - "schemas/causal-review-v0.1.schema.json"
+      - "schemas/deepseek-causal-lane-v0.1.schema.json"
+      - "schemas/historical-causal-replay-v0.1.schema.json"
+      - "tools/causal_review.py"
+      - "tools/grok_causal_review.py"
+      - "tools/deepseek_causal_review.py"
+      - "tools/codex_causal_review.py"
+      - "tools/gonka_causal_review.py"
+      - "tools/causal_review_adapters.py"
+      - "tools/github_causal_review_collector.py"
+      - "tools/retrying_causal_review_github.py"
+      - "tools/causal_review_request.py"
+      - "tools/causal_review_queue.py"
+      - "tools/deepseek_causal_review_adapter.py"
+      - "tools/causal_review_pilot.py"
+      - "tools/historical_causal_replay.py"
+      - "tools/run_native_causal_reviewers.sh"
+      - "tests/test_causal_review*.py"
+      - "tests/test_same_repo_causal_workflow.py"
+      - "tests/test_native_causal_runner.py"
+      - "tests/test_retrying_causal_review_github.py"
+      - "tests/test_codex_causal_review.py"
+      - "tests/test_gonka_causal_review.py"
+      - "tests/test_github_causal_review_collector.py"
+      - "tests/test_deepseek_causal_review*.py"
+      - "tests/test_historical_causal_replay.py"
+      - "docs/CAUSAL_REVIEW_CONTRACT_V0_1.md"
+      - "docs/CAUSAL_REVIEW_ADAPTERS_V0_1.md"
+      - "docs/CAUSAL_REVIEW_COLLECTION_AND_DEEPSEEK_V0_1.md"
+      - "docs/CAUSAL_REVIEW_PILOT_V0_1.md"
+      - "docs/TRUSTED_CAUSAL_ENSEMBLE_AND_REPLAY_V0_1.md"
+      - "docs/CODEX_CAUSAL_REVIEWER_V0_1.md"
+      - "docs/GONKA_SHADOW_CAUSAL_REVIEW_V0_1.md"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Validate causal review contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test runner
+        run: python -m pip install pytest
+
+      - name: Parse causal-review schemas
+        run: |
+          python -m json.tool schemas/causal-review-v0.1.schema.json >/dev/null
+          python -m json.tool schemas/deepseek-causal-lane-v0.1.schema.json >/dev/null
+          python -m json.tool schemas/historical-causal-replay-v0.1.schema.json >/dev/null
+
+      - name: Parse trusted workflow YAML
+        run: >-
+          ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path) }'
+          .github/workflows/causal-review-collect.yml
+          .github/workflows/trusted-causal-review-label.yml
+          .github/workflows/trusted-causal-review-queue.yml
+          .github/workflows/causal-review-contract.yml
+
+      - name: Parse trusted shell runner
+        run: bash -n tools/run_native_causal_reviewers.sh
+
+      - name: Compile causal-review tooling
+        run: >-
+          python -m py_compile
+          tools/causal_review.py
+          tools/grok_causal_review.py
+          tools/deepseek_causal_review.py
+          tools/codex_causal_review.py
+          tools/gonka_causal_review.py
+          tools/causal_review_adapters.py
+          tools/github_causal_review_collector.py
+          tools/retrying_causal_review_github.py
+          tools/causal_review_request.py
+          tools/causal_review_queue.py
+          tools/deepseek_causal_review_adapter.py
+          tools/causal_review_pilot.py
+          tools/historical_causal_replay.py
+
+      - name: Run deterministic contract tests
+        run: >-
+          PYTHONPATH=.
+          python -m pytest
+          tests/test_causal_review_contract.py
+          tests/test_causal_review_patch_bytes.py
+          tests/test_causal_review_env_safety.py
+          tests/test_causal_review_adapters.py
+          tests/test_causal_review_adapter_integrity.py
+          tests/test_github_causal_review_collector.py
+          tests/test_retrying_causal_review_github.py
+          tests/test_causal_review_request.py
+          tests/test_causal_review_queue.py
+          tests/test_causal_review_queue_workflow.py
+          tests/test_deepseek_causal_review_adapter.py
+          tests/test_deepseek_causal_review_integrity.py
+          tests/test_deepseek_causal_review_runner.py
+          tests/test_codex_causal_review.py
+          tests/test_gonka_causal_review.py
+          tests/test_causal_review_pilot.py
+          tests/test_causal_review_pilot_integrity.py
+          tests/test_causal_review_pilot_native.py
+          tests/test_historical_causal_replay.py
+          tests/test_same_repo_causal_workflow.py
+          tests/test_native_causal_runner.py
+          -q
+
+      - name: Check command-line interfaces
+        run: |
+          python tools/causal_review.py --help
+          python tools/grok_causal_review.py --help
+          python tools/deepseek_causal_review.py --help
+          python tools/codex_causal_review.py --help
+          python tools/gonka_causal_review.py --help
+          python tools/causal_review_adapters.py --help
+          python tools/github_causal_review_collector.py --help
+          python tools/retrying_causal_review_github.py --help
+          python tools/causal_review_request.py --help
+          python tools/causal_review_queue.py --help
+          python tools/deepseek_causal_review_adapter.py --help
+          python tools/causal_review_pilot.py --help
+          python tools/historical_causal_replay.py --help

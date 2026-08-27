@@ -54,6 +54,10 @@ def execute_action(service: ReflectionDashboardService, payload: Dict[str, Any])
     raise ValueError(f"unsupported action: {action}")
 
 
+class ContentTooLargeError(ValueError):
+    """Raised when the request body exceeds the maximum allowed size."""
+
+
 class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
     """Minimal JSON API handler for Reflection Dashboard workflows.
 
@@ -102,6 +106,10 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json_body()
             result = execute_action(service, payload)
+        except ContentTooLargeError as error:
+            logger.warning("reflection_api 413 POST %s: %s", parsed.path, error)
+            self._send_json(413, {"error": str(error)})
+            return
         except ValueError as error:
             logger.warning("reflection_api 400 POST %s: %s", parsed.path, error)
             self._send_json(400, {"error": str(error)})
@@ -126,7 +134,7 @@ class ReflectionDashboardApiHandler(BaseHTTPRequestHandler):
         # BUG-API-01: Reject oversized bodies before reading
         if content_length > self._MAX_BODY:
             logger.warning("reflection_api request body too large: %d > %d", content_length, self._MAX_BODY)
-            raise ValueError(f"request body too large ({content_length} > {self._MAX_BODY})")
+            raise ContentTooLargeError(f"request body too large ({content_length} > {self._MAX_BODY})")
         raw = self.rfile.read(min(content_length, self._MAX_BODY))
         if not raw:
             return {}

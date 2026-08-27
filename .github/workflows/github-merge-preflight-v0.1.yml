@@ -1,0 +1,54 @@
+name: GitHub Merge Preflight
+
+on:
+  pull_request:
+    paths:
+      - "docs/product/github-merge-preflight-v0.1.md"
+      - "fixtures/github-merge-preflight/**"
+      - "tools/github_merge_binding_v0_1.py"
+      - "tools/github_merge_projection_v0_1.py"
+      - "tools/merge_preflight_adapter_v0_1.py"
+      - "tools/test_merge_binding_v0_1.py"
+      - "tools/test_merge_projection_v0_1.py"
+      - "tools/test_merge_preflight_integration_v0_1.py"
+      - "tools/review_decision_adapter_v0_1.py"
+      - "tools/review_decision_gateway_v0_1.py"
+      - ".github/workflows/github-merge-preflight-v0.1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/product/github-merge-preflight-v0.1.md"
+      - "fixtures/github-merge-preflight/**"
+      - "tools/github_merge_binding_v0_1.py"
+      - "tools/github_merge_projection_v0_1.py"
+      - "tools/merge_preflight_adapter_v0_1.py"
+      - "tools/test_merge_binding_v0_1.py"
+      - "tools/test_merge_projection_v0_1.py"
+      - "tools/test_merge_preflight_integration_v0_1.py"
+      - "tools/review_decision_adapter_v0_1.py"
+      - "tools/review_decision_gateway_v0_1.py"
+      - ".github/workflows/github-merge-preflight-v0.1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile preflight modules
+        run: python -m py_compile tools/github_merge_binding_v0_1.py tools/github_merge_projection_v0_1.py tools/merge_preflight_adapter_v0_1.py
+      - name: Run binding controls
+        run: python tools/test_merge_binding_v0_1.py
+      - name: Run projection controls
+        run: python tools/test_merge_projection_v0_1.py
+      - name: Run local Gateway integration
+        run: python tools/test_merge_preflight_integration_v0_1.py

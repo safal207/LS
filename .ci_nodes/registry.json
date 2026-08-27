@@ -1,0 +1,30 @@
+{
+  "schema_version": "ls.ci_nodes.v0.1",
+  "description": "Initial CI Node Mesh registry for LS-controlled CI memory, review, and exchange nodes.",
+  "nodes": [
+    {
+      "node_id": "ls.grok_review.command_bus",
+      "manifest": ".ci_nodes/nodes/grok-review-command-bus-node.json",
+      "type": "review_node",
+      "authority": "advisory_only"
+    },
+    {
+      "node_id": "ls.ci_memory",
+      "manifest": ".ci_nodes/nodes/ci-memory-node.json",
+      "type": "memory_node",
+      "authority": "evidence_only"
+    },
+    {
+      "node_id": "ls.internet_ci.exchange",
+      "manifest": ".ci_nodes/nodes/internet-ci-exchange-node.json",
+      "type": "exchange_node",
+      "authority": "advisory_only"
+    }
+  ],
+  "safety": {
+    "memory_node_is_merge_authority": false,
+    "review_node_is_merge_authority": false,
+    "experiment_node_can_deploy_production": false,
+    "imported_context_is_truth": false
+  }
+}

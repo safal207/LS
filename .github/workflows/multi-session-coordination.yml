@@ -1,0 +1,75 @@
+name: Multi-Session Coordination
+
+on:
+  pull_request:
+    paths:
+      - "ls/coordination_benchmark/**"
+      - "experiments/multi-session-coordination/**"
+      - "scripts/run_multi_session_coordination_*.py"
+      - "scripts/run_observed_coordination_pilot.py"
+      - "tests/test_multi_session_coordination_*.py"
+      - "tests/test_observed_coordination_pilot_runtime.py"
+      - ".github/workflows/multi-session-coordination.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multi-session-coordination-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts-simulator-pilot:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install focused test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Compile coordination runtime and CLIs
+        run: PYTHONPATH=. python -m compileall -q ls scripts
+
+      - name: Run coordination contract, simulator, and pilot tests
+        run: |
+          PYTHONPATH=. python -m pytest -q \
+            tests/test_multi_session_coordination_contracts.py \
+            tests/test_multi_session_coordination_simulator.py \
+            tests/test_multi_session_coordination_pilot.py \
+            tests/test_multi_session_coordination_pilot_cli.py \
+            tests/test_observed_coordination_pilot_runtime.py
+
+      - name: Run deterministic pilot CLI smoke
+        run: |
+          rm -rf /tmp/ls-pilot-ci
+          PYTHONPATH=. python scripts/run_multi_session_coordination_pilot.py dry-run \
+            --run-dir /tmp/ls-pilot-ci \
+            --run-id ci-${{ matrix.python-version }}
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(
+              Path("/tmp/ls-pilot-ci/pilot-result.json").read_text()
+          )
+          assert result["verdict"] == "PASS_SAFE_ROUTE_CONFIRMED"
+          assert (
+              result["evidence_mode"]
+              == "DETERMINISTIC_DRY_RUN_NOT_OBSERVED"
+          )
+          PY

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ls.local/schemas/ci_node.schema.json",
+  "title": "LS CI Node Manifest",
+  "type": "object",
+  "required": ["schema_version", "node_id", "repo", "type", "authority"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "node_id": {"type": "string", "minLength": 1},
+    "repo": {"type": "string", "pattern": "^[^/]+/[^/]+$"},
+    "type": {
+      "type": "string",
+      "enum": ["memory_node", "review_node", "experiment_node", "product_node", "verification_node", "exchange_node"]
+    },
+    "authority": {
+      "type": "string",
+      "enum": ["evidence_only", "advisory_only", "write_proposal", "maintainer_gate"]
+    },
+    "command_surface": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "inputs": {"type": "object"},
+    "outputs": {"type": "object"},
+    "safety": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "merge_authority": {"type": "boolean"},
+        "advisory_only": {"type": "boolean"}
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "known_exports": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

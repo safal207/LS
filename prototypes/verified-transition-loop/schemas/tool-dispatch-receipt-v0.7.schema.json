@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/safal207/LS/prototypes/verified-transition-loop/schemas/tool-dispatch-receipt-v0.7.schema.json",
+  "title": "Verified Transition Loop ToolDispatchReceipt v0.7",
+  "description": "Portable transcript and fixture for proving exact grant consumption by one dispatch occurrence and linking it to an observed outcome.",
+  "oneOf": [
+    {"$ref": "#/$defs/transcript"},
+    {"$ref": "#/$defs/fixture"}
+  ],
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "hex64": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "proposal": {
+      "type": "object",
+      "required": ["transition_id", "intent_id", "pre_state", "action", "expected_post_state", "invariants"],
+      "properties": {
+        "transition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "intent_id": {"$ref": "#/$defs/nonEmptyString"},
+        "pre_state": {"type": "string"},
+        "action": {"$ref": "#/$defs/nonEmptyString"},
+        "expected_post_state": {"type": "string"},
+        "invariants": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "required": ["decision_id", "transition_id", "intent_id", "verdict", "reason_codes", "verifier_id", "executor_id", "proposal_digest", "evidence_digest", "source_ref", "policy_ref", "approval_ref", "approval_valid_until_ms"],
+      "properties": {
+        "decision_id": {"$ref": "#/$defs/nonEmptyString"},
+        "transition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "intent_id": {"$ref": "#/$defs/nonEmptyString"},
+        "verdict": {"enum": ["AUTHORIZE", "HOLD", "BLOCK"]},
+        "reason_codes": {"type": "array", "items": {"type": "string"}},
+        "verifier_id": {"$ref": "#/$defs/nonEmptyString"},
+        "executor_id": {"$ref": "#/$defs/nonEmptyString"},
+        "proposal_digest": {"$ref": "#/$defs/hex64"},
+        "evidence_digest": {"$ref": "#/$defs/hex64"},
+        "source_ref": {"type": ["string", "null"]},
+        "policy_ref": {"type": ["string", "null"]},
+        "approval_ref": {"type": ["string", "null"]},
+        "approval_valid_until_ms": {"type": ["integer", "null"]}
+      }
+    },
+    "useTime": {
+      "type": "object",
+      "required": ["use_id", "authorization_decision_id", "transition_id", "verdict", "reason_codes", "executor_id", "proposal_digest", "context_digest", "execution_nonce", "checked_at_ms"],
+      "properties": {
+        "use_id": {"$ref": "#/$defs/nonEmptyString"},
+        "authorization_decision_id": {"$ref": "#/$defs/nonEmptyString"},
+        "transition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "verdict": {"enum": ["EXECUTE", "HOLD", "BLOCK"]},
+        "reason_codes": {"type": "array", "items": {"type": "string"}},
+        "executor_id": {"$ref": "#/$defs/nonEmptyString"},
+        "proposal_digest": {"$ref": "#/$defs/hex64"},
+        "context_digest": {"$ref": "#/$defs/hex64"},
+        "execution_nonce": {"type": "string"},
+        "checked_at_ms": {"type": "integer"}
+      }
+    },
+    "actionEnvelope": {
+      "type": "object",
+      "required": ["runtime_surface", "transition_id", "occurrence_id", "action", "payload"],
+      "properties": {
+        "runtime_surface": {"$ref": "#/$defs/nonEmptyString"},
+        "transition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "occurrence_id": {"$ref": "#/$defs/nonEmptyString"},
+        "action": {"$ref": "#/$defs/nonEmptyString"},
+        "payload": {"type": "object"}
+      }
+    },
+    "grantBinding": {
+      "type": "object",
+      "required": ["binding_id", "profile_id", "schema_version", "authorization_decision_id", "use_id", "transition_id", "proposal_digest", "action_id", "action_envelope_digest", "executor_id", "execution_nonce", "occurrence_id", "context_digest", "policy_ref", "bound_at_ms"],
+      "properties": {
+        "binding_id": {"$ref": "#/$defs/nonEmptyString"},
+        "profile_id": {"const": "vtl-tool-dispatch-v0.7"},
+        "schema_version": {"const": "vtl.tool-dispatch-receipt/v0.7"},
+        "authorization_decision_id": {"$ref": "#/$defs/nonEmptyString"},
+        "use_id": {"$ref": "#/$defs/nonEmptyString"},
+        "transition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "proposal_digest": {"$ref": "#/$defs/hex64"},
+        "action_id": {"$ref": "#/$defs/nonEmptyString"},
+        "action_envelope_digest": {"$ref": "#/$defs/hex64"},
+        "executor_id": {"$ref": "#/$defs/nonEmptyString"},
+        "execution_nonce": {"type": "string"},
+        "occurrence_id": {"$ref": "#/$defs/nonEmptyString"},
+        "context_digest": {"$ref": "#/$defs/hex64"},
+        "policy_ref": {"type": ["string", "null"]},
+        "bound_at_ms": {"type": "integer"}
+      }
+    },
+    "dispatchReceipt": {
+      "type": "object",
+      "required": ["receipt_id", "profile_id", "schema_version", "authorization_decision_id", "use_id", "grant_binding_id", "transition_id", "proposal_digest", "authorized_action_id", "dispatched_action_id", "action_envelope_digest", "executor_id", "execution_nonce", "occurrence_id", "context_digest", "policy_ref", "dispatch_ref", "observed_outcome_ref", "observed_outcome_digest", "dispatched_at_ms", "observed_at_ms"],
+      "properties": {
+        "receipt_id": {"$ref": "#/$defs/nonEmptyString"},
+        "profile_id": {"const": "vtl-tool-dispatch-v0.7"},
+        "schema_version": {"const": "vtl.tool-dispatch-receipt/v0.7"},
+        "authorization_decision_id": {"$ref": "#/$defs/nonEmptyString"},
+        "use_id": {"$ref": "#/$defs/nonEmptyString"},
+        "grant_binding_id": {"$ref": "#/$defs/nonEmptyString"},
+        "transition_id": {"$ref": "#/$defs/nonEmptyString"},
+        "proposal_digest": {"$ref": "#/$defs/hex64"},
+        "authorized_action_id": {"$ref": "#/$defs/nonEmptyString"},
+        "dispatched_action_id": {"$ref": "#/$defs/nonEmptyString"},
+        "action_envelope_digest": {"$ref": "#/$defs/hex64"},
+        "executor_id": {"$ref": "#/$defs/nonEmptyString"},
+        "execution_nonce": {"type": "string"},
+        "occurrence_id": {"$ref": "#/$defs/nonEmptyString"},
+        "context_digest": {"$ref": "#/$defs/hex64"},
+        "policy_ref": {"type": ["string", "null"]},
+        "dispatch_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "observed_outcome_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "observed_outcome_digest": {"$ref": "#/$defs/hex64"},
+        "dispatched_at_ms": {"type": "integer"},
+        "observed_at_ms": {"type": "integer"}
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "required": ["outcome_ref", "transition_id"],
+      "properties": {
+        "outcome_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "transition_id": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "transcript": {
+      "type": "object",
+      "required": ["profile_id", "schema_version", "proposal", "authorization", "use_time", "action_envelope", "grant_binding", "dispatch_receipt", "observed_outcome"],
+      "properties": {
+        "profile_id": {"const": "vtl-tool-dispatch-v0.7"},
+        "schema_version": {"const": "vtl.tool-dispatch-receipt/v0.7"},
+        "proposal": {"$ref": "#/$defs/proposal"},
+        "authorization": {"$ref": "#/$defs/authorization"},
+        "use_time": {"$ref": "#/$defs/useTime"},
+        "action_envelope": {"$ref": "#/$defs/actionEnvelope"},
+        "grant_binding": {"$ref": "#/$defs/grantBinding"},
+        "dispatch_receipt": {"$ref": "#/$defs/dispatchReceipt"},
+        "observed_outcome": {"$ref": "#/$defs/outcome"}
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "required": ["path", "value"],
+      "properties": {
+        "path": {"$ref": "#/$defs/nonEmptyString"},
+        "value": {}
+      }
+    },
+    "case": {
+      "type": "object",
+      "required": ["id", "expected"],
+      "properties": {
+        "id": {"$ref": "#/$defs/nonEmptyString"},
+        "mutations": {"type": "array", "items": {"$ref": "#/$defs/mutation"}},
+        "recompute": {"type": "array", "items": {"enum": ["outcome_digest", "grant_binding_id", "dispatch_receipt_id"]}},
+        "preconsumed_use_ids": {"type": "array", "items": {"type": "string"}},
+        "expected": {
+          "type": "object",
+          "required": ["valid", "reason_codes"],
+          "properties": {
+            "valid": {"type": "boolean"},
+            "reason_codes": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "required": ["schema_version", "profile_id", "description", "base_transcript", "cases"],
+      "properties": {
+        "schema_version": {"const": "vtl.tool-dispatch-fixture/v0.7"},
+        "profile_id": {"const": "vtl-tool-dispatch-v0.7"},
+        "description": {"type": "string"},
+        "base_transcript": {"$ref": "#/$defs/transcript"},
+        "cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/case"}}
+      }
+    }
+  }
+}

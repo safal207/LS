@@ -15,6 +15,12 @@ The goal is not to require adoption of LS as a full framework. The goal is to pr
 3. [`credential_bound_tool_authority`](./credential_bound_tool_authority/README.md)
    - constrained tool calls must not reach upstream execution without a valid credential bound to the exact call.
 
+4. [`product_traceability`](./product_traceability/README.md)
+   - implementation and verification do not become active product state without an exact hypothesis binding and confirmed outcome evidence.
+
+5. [`profit_traceability`](./profit_traceability/README.md)
+   - product activity and attributable revenue do not become a scale decision without confirmed unit economics and positive net contribution.
+
 ## Shared invariants
 
 - Truth is not authority.
@@ -23,9 +29,12 @@ The goal is not to require adoption of LS as a full framework. The goal is to pr
 - Resume is not replay.
 - Completeness is phase-relative.
 - Verification is not success.
+- Implementation is not outcome.
+- Revenue is not profit.
+- Attribution is not causation.
 - Pending approval is not missing approval.
 - Credential is not receipt.
-- Fail closed on missing authority, terminal proof, credential, approval resolution, or revalidation.
+- Fail closed on missing authority, terminal proof, credential, approval resolution, outcome evidence, economic evidence, or revalidation.
 
 ## Relationship to LS Conformance Pack v0.1
 

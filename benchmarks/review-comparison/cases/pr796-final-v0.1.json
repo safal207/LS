@@ -1,0 +1,37 @@
+{
+  "schema_version": "ls.review_benchmark_case.v0.1",
+  "case_id": "pr796-final-v0.1",
+  "status": "FROZEN",
+  "evidence_manifest_path": "benchmarks/exact-head/pr796-final-calibration-v0.1.json",
+  "evidence_sha256": "fb9fdeafdb418485e988e7d0973309e35b4a46c5a0efca30b8082801fb501b79",
+  "coordinates": {
+    "repository": "safal207/LS",
+    "pr_number": 796,
+    "base_sha": "66353d32cafe9a7e2e4b62ee98575859eca9f531",
+    "head_sha": "c482e19d829c39bdffa1352e8579c2362e7699c4",
+    "changed_file_count": 19
+  },
+  "prompt_path": "benchmarks/review-comparison/prompts/blind-review-v0.1.md",
+  "lanes": [
+    {
+      "lane": "CLAUDE",
+      "visibility": "FROZEN_BUNDLE_ONLY",
+      "must_not_receive": [
+        "LS report",
+        "PR review comments",
+        "expected findings",
+        "human adjudication"
+      ]
+    },
+    {
+      "lane": "LS",
+      "visibility": "FROZEN_BUNDLE_ONLY",
+      "must_not_receive": [
+        "Claude report",
+        "PR review comments",
+        "expected findings",
+        "human adjudication"
+      ]
+    }
+  ]
+}

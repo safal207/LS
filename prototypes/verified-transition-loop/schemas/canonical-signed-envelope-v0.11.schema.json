@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VTL Canonical Signed Envelope v0.11 Fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile_id", "schema_version", "canonical_profile", "base_now_ms", "base_envelope", "trust_root", "expected_signed_payload_base64", "expected_signature_base64", "cases"],
+  "properties": {
+    "profile_id": {"const": "vtl-canonical-signed-envelope-v0.11"},
+    "schema_version": {"const": "vtl.canonical-signed-envelope-fixture/v0.11"},
+    "canonical_profile": {"const": "rfc8785-safe-integer/v0.10"},
+    "base_now_ms": {"$ref": "#/$defs/safeTime"},
+    "base_envelope": {"$ref": "#/$defs/envelope"},
+    "trust_root": {"$ref": "#/$defs/trustRoot"},
+    "expected_signed_payload_base64": {"$ref": "#/$defs/canonicalBase64"},
+    "expected_signature_base64": {"$ref": "#/$defs/signatureBase64"},
+    "cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/case"}}
+  },
+  "$defs": {
+    "safeTime": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "canonicalBase64": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+    },
+    "signatureBase64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    },
+    "envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "schema_version", "canonical_profile", "payload", "attestation"],
+      "properties": {
+        "profile_id": {"const": "vtl-canonical-signed-envelope-v0.11"},
+        "schema_version": {"const": "vtl.canonical-signed-envelope/v0.11"},
+        "canonical_profile": {"const": "rfc8785-safe-integer/v0.10"},
+        "payload": {"type": ["object", "array"]},
+        "attestation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["attestation_id", "payload_digest", "issuer_id", "signer_key_id", "trust_root_id", "issued_at_ms", "not_before_ms", "not_after_ms", "signature_algorithm", "signature"],
+          "properties": {
+            "attestation_id": {"type": "string", "pattern": "^attest_[0-9a-f]{24}$"},
+            "payload_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "issuer_id": {"type": "string", "minLength": 1},
+            "signer_key_id": {"type": "string", "minLength": 1},
+            "trust_root_id": {"type": "string", "minLength": 1},
+            "issued_at_ms": {"$ref": "#/$defs/safeTime"},
+            "not_before_ms": {"$ref": "#/$defs/safeTime"},
+            "not_after_ms": {"$ref": "#/$defs/safeTime"},
+            "signature_algorithm": {"const": "ED25519"},
+            "signature": {"$ref": "#/$defs/signatureBase64"}
+          }
+        }
+      }
+    },
+    "trustRoot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "trust_root_id", "allowed_algorithms", "keys"],
+      "properties": {
+        "profile_id": {"const": "vtl-canonical-trust-root/v0.11"},
+        "trust_root_id": {"type": "string", "minLength": 1},
+        "allowed_algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"const": "ED25519"}
+        },
+        "keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["signer_key_id", "issuer_id", "algorithm", "public_key_base64", "not_before_ms", "not_after_ms", "revoked"],
+            "properties": {
+              "signer_key_id": {"type": "string", "minLength": 1},
+              "issuer_id": {"type": "string", "minLength": 1},
+              "algorithm": {"const": "ED25519"},
+              "public_key_base64": {"type": "string", "pattern": "^[A-Za-z0-9+/]{43}=$"},
+              "not_before_ms": {"$ref": "#/$defs/safeTime"},
+              "not_after_ms": {"$ref": "#/$defs/safeTime"},
+              "revoked": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    },
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "value"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(?:\\.(?:[A-Za-z_][A-Za-z0-9_-]*|0|[1-9][0-9]*))*$",
+          "not": {"pattern": "(^|\\.)(__proto__|prototype|constructor)(\\.|$)"}
+        },
+        "value": {}
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "payload_digest_matches", "attestation_id_valid", "canonical_profile_valid", "signature_valid", "trusted_current_authority", "reason_codes"],
+      "properties": {
+        "valid": {"type": "boolean"},
+        "payload_digest_matches": {"type": "boolean"},
+        "attestation_id_valid": {"type": "boolean"},
+        "canonical_profile_valid": {"type": "boolean"},
+        "signature_valid": {"type": "boolean"},
+        "trusted_current_authority": {"type": "boolean"},
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "now_ms", "envelope_mutations", "trust_root_mutations", "expected"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "now_ms": {"$ref": "#/$defs/safeTime"},
+        "envelope_mutations": {"type": "array", "items": {"$ref": "#/$defs/mutation"}},
+        "trust_root_mutations": {"type": "array", "items": {"$ref": "#/$defs/mutation"}},
+        "expected": {"$ref": "#/$defs/expected"}
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+name: LS Continuity Store
+
+on:
+  pull_request:
+    paths:
+      - "packages/ls-continuity-store/**"
+      - ".github/workflows/ls-continuity-store.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/ls-continuity-store/**"
+      - ".github/workflows/ls-continuity-store.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-demo:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/ls-continuity-store
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/ls-continuity-store/package.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: Unit and restart tests
+        run: npm test
+
+      - name: Base continuity demo
+        run: npm run demo
+
+      - name: Trustworthy-transition continuity demo
+        if: hashFiles('packages/ls-continuity-store/src/transition-demo.ts') != ''
+        run: npm run demo:transition
