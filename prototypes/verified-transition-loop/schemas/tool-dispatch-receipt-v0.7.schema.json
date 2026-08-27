@@ -24,7 +24,7 @@
     },
     "authorization": {
       "type": "object",
-      "required": ["decision_id", "transition_id", "intent_id", "verdict", "reason_codes", "verifier_id", "executor_id", "proposal_digest", "evidence_digest", "policy_ref"],
+      "required": ["decision_id", "transition_id", "intent_id", "verdict", "reason_codes", "verifier_id", "executor_id", "proposal_digest", "evidence_digest", "source_ref", "policy_ref", "approval_ref", "approval_valid_until_ms"],
       "properties": {
         "decision_id": {"$ref": "#/$defs/nonEmptyString"},
         "transition_id": {"$ref": "#/$defs/nonEmptyString"},

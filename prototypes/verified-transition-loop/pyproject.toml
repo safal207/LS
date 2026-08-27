@@ -13,7 +13,7 @@ authors = [{name = "LS contributors"}]
 dependencies = ["cryptography>=42"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["jsonschema>=4.23", "pytest>=8"]
 
 [project.scripts]
 vtl-deployment-demo = "verified_transition_loop.deployment_demo:main"

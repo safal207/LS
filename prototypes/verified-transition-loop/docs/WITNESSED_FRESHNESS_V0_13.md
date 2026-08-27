@@ -61,6 +61,17 @@ revocation state
 
 The producer cannot declare its own witnesses trusted.
 
+Before evaluating any claim, each reference verifier takes one deep snapshot of
+the target view, witness statements, and verifier-controlled authority. Caller
+mutation after that boundary cannot mix evidence from two moments into one
+verdict. Snapshot, authority, key, and statement objects use exact published
+field sets; unpublished fields fail closed instead of becoming unsigned claims.
+
+All generations and epoch-millisecond values are non-negative safe integers.
+Witness signatures must be canonical base64 encodings of exactly 64 Ed25519
+signature bytes, and trusted public keys must decode canonically to exactly 32
+bytes before they can support a signature or authority claim.
+
 ## Separate claims
 
 The verifier does not collapse all trust into one boolean:
@@ -93,7 +104,7 @@ A witness counts toward the target view only when all of these are true:
 
 ## Equivocation
 
-If a current trusted witness presents a valid signature for the same `trust_root_id` and `generation` but a different `snapshot_digest`, the verifier emits:
+If a conforming, current trusted witness presents a valid signature for the same `trust_root_id` and `generation` but a different `snapshot_digest`, the verifier emits:
 
 ```text
 WITNESS_SNAPSHOT_DIGEST_MISMATCH
@@ -113,6 +124,11 @@ v0.12 local canonical trust snapshot
 ```
 
 A valid witness quorum cannot rescue `local_snapshot_valid=false`.
+
+The deterministic v0.13 fixture binds its `snapshot_view.snapshot_digest` to
+the exact `expected_fresh_snapshot_digest` published by the current v0.12
+fixture. v0.13 consumes the already-established lower-layer boolean; it does not
+rerun v0.12, infer a newer checkpoint, or widen any v0.12 claim.
 
 ## Reference implementations
 
@@ -137,6 +153,13 @@ fixtures/witnessed-freshness-v0.13.json
 ```
 
 The fixture contains 20 deterministic vectors covering quorum, duplicates, key trust/revocation/expiry, signature failure, stale/future statements, root/generation/digest mismatch, split-view equivocation, malformed/ambiguous keys, canonical-profile substitution, local v0.12 failure, and quorum configuration.
+
+Both conformance runners use strict duplicate-key-aware JSON parsing, snapshot
+the complete fixture before validation, require exact root/case/expected fields,
+and compare every independent result claim. Case identifiers must be unique,
+all named statements must be referenced, and mutation paths must exist, change
+their target, stay within bounds, and exclude prototype-control names. A suite
+whose vectors all describe invalid results can never report `all_passed=true`.
 
 ## Trust ceiling
 

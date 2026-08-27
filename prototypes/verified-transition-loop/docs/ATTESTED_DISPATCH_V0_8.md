@@ -66,6 +66,18 @@ signature_algorithm
 
 A valid signature never overrides an invalid v0.7 transcript.
 
+## Canonical input boundary
+
+The fixture and CLI loaders reject duplicate JSON member names, escaped-name
+collisions, and non-finite constants before verification. Direct in-memory
+inputs must also be JSON-compatible.
+
+The verifier enforces the published `additionalProperties: false` boundary for
+the envelope, attestation, trust root, and every trust key. This matters because
+unpublished attestation fields are not part of the signed statement and must
+not be presented downstream as signed claims. Epoch-millisecond validity fields
+and verifier time must be non-negative integers.
+
 ## Executable negative profile
 
 The v0.8 fixture covers:

@@ -52,7 +52,11 @@ The portable use-time oracle enforces:
 AUTHORIZE != EXECUTE
 ```
 
-Current proposal/source/policy/approval/evidence/executor state is revalidated at the point of use. The profile contains 10 executable vectors, including proposal/transition drift and single-use permit semantics.
+Current proposal/source/policy/approval/evidence/executor state is revalidated
+at the point of use. The profile contains 10 executable vectors, including
+proposal/transition drift and single-use permit semantics. The fixture loader
+rejects duplicate or escaped-collision JSON members, and approval expiry is
+exclusive: equality with `approval_valid_until_ms` is already expired.
 
 ```text
 schemas/use-time-conformance-v0.4.schema.json
@@ -86,7 +90,14 @@ AuthorizationReceipt
 
 The 11-vector dispatch profile covers wrong decision/use IDs, action-envelope drift, executor/occurrence substitution, context/policy mismatch, replay, sibling-capability substitution, cross-transition outcome binding, and outcome tamper.
 
-The verifier performs schema/structure validation before digest comparisons, so a self-consistent malformed transcript cannot pass through matching missing values.
+The detached verifier performs schema/structure validation before digest comparisons so matching missing values cannot accidentally validate a malformed transcript.
+
+The later dispatch receipt must consume the same binding. Envelope drift,
+executor/occurrence substitution, replay, sibling capability substitution,
+ambiguous JSON, missing authority bindings, verifier/executor collision, an
+invalid execution nonce, or an expired approval fails detached verification.
+
+Artifacts:
 
 ```text
 schemas/tool-dispatch-receipt-v0.7.schema.json
@@ -115,6 +126,21 @@ integrity_valid
 signature_valid
 trusted_current_authority
 ```
+
+The reference v0.8 profile checks:
+
+- exact transcript digest binding;
+- deterministic attestation id;
+- trusted signer lookup from external trust-root input;
+- issuer/key identity binding;
+- allowed signature algorithm;
+- key and attestation validity intervals;
+- signer revocation;
+- trust-policy version binding;
+- Ed25519 signature validity;
+- v0.7 integrity as a prerequisite;
+- strict JSON decoding and exact published envelope/trust-root fields;
+- non-negative verification and validity times.
 
 A self-consistent replacement transcript fails exact attested-digest binding; a valid signature over an invalid v0.7 transcript still fails; revoked or expired signer authority remains separate from mathematical signature validity. Ambiguous signer IDs and malformed trust-root key material fail closed.
 
@@ -163,7 +189,7 @@ next generation / wrong predecessor -> PREVIOUS_SNAPSHOT_DIGEST_MISMATCH
 skipped unseen generations           -> SNAPSHOT_CONTINUITY_GAP
 ```
 
-The 14-vector v0.9 profile additionally covers bad snapshot signatures, unknown bootstrap keys, root-payload tamper, expiry/not-yet-valid state, generation floors, root/policy mismatch, and algorithm substitution. Direct regressions cover ambiguous bootstrap key IDs, malformed/wrong-length bootstrap key material, invalid key validity intervals, future checkpoints, and incomplete checkpoint state.
+The 14-vector v0.9 profile additionally covers bad snapshot signatures, unknown bootstrap keys, root-payload tamper, expiry/not-yet-valid state, generation floors, root/policy mismatch, and algorithm substitution. Direct regressions cover ambiguous bootstrap key IDs, malformed/wrong-length bootstrap key material, invalid key validity intervals, future checkpoints, and incomplete checkpoint state. Strict input regressions also reject duplicate or escaped-collision JSON member names, non-finite values, unpublished fields at every v0.9 authority boundary, negative epoch times, and invalid verifier time before cryptographic or continuity decisions.
 
 A fresh valid snapshot still cannot rescue an invalid v0.8 attestation.
 
@@ -210,9 +236,14 @@ Key properties:
 - floats/exponent forms are outside this v0.10 profile;
 - integers outside the interoperable IEEE-754 safe range fail closed;
 - the conformance fixture itself is strict-parsed in both runtimes;
+- the fixture contract rejects missing/extra fields, empty vector groups,
+  duplicate IDs, malformed expected encodings, and no-op mutation claims;
 - Python-only values such as tuples are not accepted as JSON profile values.
 
-The machine-readable proof contains **18 vectors**: 11 positive canonical-byte cases, 6 fail-closed parser/domain cases, and one semantic-mutation digest case. Python and Node independently compute the same base64-encoded UTF-8 bytes and SHA-256 digest and CI then compares their complete structured results.
+The machine-readable proof contains **21 vectors**: 11 positive canonical-byte
+cases, 9 fail-closed parser/domain cases, and one semantic-mutation digest
+case. Python and Node independently compute the same base64-encoded UTF-8 bytes
+and SHA-256 digest and CI then compares their complete structured results.
 
 ```text
 schemas/canonical-proof-v0.10.schema.json
@@ -269,6 +300,14 @@ A payload mutation can leave the old signature mathematically valid while the en
 
 The shared v0.11 fixture contains **12 deterministic vectors** and uses exactly one public key, one signed byte sequence, and one Ed25519 signature in both runtimes. CI requires complete Python/Node result equality.
 
+Both runtimes snapshot the caller inputs once, reject unpublished fields at the
+envelope/attestation/trust-root/key boundaries, require non-negative safe epoch
+times and boolean revocation state, and pin canonical base64 Ed25519 material to
+32-byte public keys and 64-byte signatures. The fixture contract itself rejects
+duplicate IDs, empty cases, unsafe/missing mutation paths, prototype-polluting
+path segments, and canonical no-op mutations; an invalid base envelope cannot
+produce `all_passed=true`.
+
 ```text
 schemas/canonical-signed-envelope-v0.11.schema.json
 fixtures/canonical-signed-envelope-v0.11.json
@@ -277,7 +316,10 @@ src/verified_transition_loop/canonical_signed_envelope.py
 reference/canonical-signed-envelope-v0.11.mjs
 ```
 
-v0.11 is opt-in and does not change historical v0.8/v0.9 signature identities.
+v0.11 is opt-in and does not change historical v0.8/v0.9 signature identities,
+v0.7 replay/single-use behavior, verifier-controlled freshness, or the
+no-external-effect boundary. The v0.11 workflow supersedes the v0.10 workflow
+while retaining its 21-vector cross-runtime and malformed-fixture gates.
 
 ## v0.12 — cross-runtime canonical fresh trust
 
@@ -294,6 +336,11 @@ canonical TrustRootSnapshot generation N
 ```
 
 The signed snapshot explicitly binds `canonical_profile = rfc8785-safe-integer/v0.10`, its trust-root digest, generation, predecessor digest, time bounds, issuer, bootstrap authority/key, and signature algorithm.
+
+The embedded root uses its own exact
+`vtl-canonical-trust-root/v0.12` identity. The v0.11 root profile remains the
+unchanged four-field envelope-verification contract; v0.12 does not publish its
+additional `policy_version` field under that historical identifier.
 
 The result keeps these claims independent:
 
@@ -331,6 +378,14 @@ The shared v0.12 fixture contains **20 deterministic vectors** covering fresh tr
 
 Python and Node independently verify the same exact canonical signed bytes, Ed25519 signature, full snapshot digest, and complete structured result. Conformance comparison itself is canonical, so object insertion order cannot create a false disagreement.
 
+Both runtimes snapshot all caller inputs once before claim derivation, reject
+unpublished fields at snapshot/root/key/bootstrap/checkpoint boundaries, and
+require non-negative safe epoch times, boolean revocation state, canonical
+base64, and exact Ed25519 material lengths. The fixture runner rejects
+empty/duplicate/vacuous cases, dangling or unused references, unsafe, missing,
+or no-op mutations, and no-op/unknown variant fields. An invalid base snapshot
+cannot produce `all_passed=true`.
+
 ```text
 schemas/canonical-trust-root-snapshot-v0.12.schema.json
 fixtures/canonical-trust-root-snapshot-v0.12.json
@@ -341,7 +396,10 @@ reference/canonical-runtime-v0.12.mjs
 reference/canonical-trust-root-snapshot-v0.12.mjs
 ```
 
-v0.12 is opt-in and does not rewrite historical v0.9 snapshot identities.
+v0.12 is opt-in and does not rewrite historical v0.9, v0.10, or v0.11
+identities, replay/single-use semantics, or current-authority claim boundaries.
+Its workflow supersedes v0.11 while retaining the v0.10/v0.11 parity and
+malformed-fixture gates.
 
 ## v0.13 — witnessed freshness and equivocation detection
 
@@ -366,6 +424,11 @@ locally fresh + correctly signed != globally non-equivocated
 
 Each witness statement binds the observed `trust_root_id`, `generation`, `snapshot_digest`, observation time, witness identity/key, canonical profile, and signature algorithm. Quorum counts **unique trusted witness identities only**; replaying one witness never increases quorum.
 
+Each verifier deep-snapshots the supplied view, statements, and
+verifier-controlled authority once before deriving claims. Exact published
+field sets, non-negative safe-integer times, canonical 32-byte public keys, and
+canonical 64-byte Ed25519 signatures are enforced across Python and Node.
+
 The result keeps these claims independent:
 
 ```text
@@ -383,6 +446,14 @@ valid
 The critical negative control is a split view where two witnesses still satisfy the target quorum while a third current trusted witness presents a valid signature for the same root and generation but a different snapshot digest. The proof remains invalid and emits `EQUIVOCATION_DETECTED`.
 
 The shared profile contains **20 deterministic vectors** covering quorum, duplicate identities, witness trust/revocation/key freshness, signature failure, stale/future statements, root/generation/digest mismatch, split-view equivocation, malformed/ambiguous keys, canonical-profile substitution, inherited v0.12 failure, and quorum configuration. Python and Node must return the same complete structured result.
+
+The fixture's target digest equals the exact digest published by the current
+v0.12 fixture. Strict conformance replay rejects duplicate JSON keys, unknown or
+missing fields, dangling/unused vectors, unsafe/missing/no-op mutations, and
+partial expected results. Every independent claim is compared, and an
+all-negative suite cannot report success. The v0.13 workflow supersedes the
+v0.12 workflow while retaining all v0.10-v0.12 parity and malformed-fixture
+gates.
 
 ```text
 schemas/witnessed-freshness-v0.13.schema.json

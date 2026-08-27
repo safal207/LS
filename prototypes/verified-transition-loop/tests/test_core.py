@@ -143,6 +143,20 @@ def test_expired_approval_blocks():
     assert "APPROVAL_EXPIRED" in receipt.reason_codes
 
 
+def test_approval_expires_at_exact_valid_until_boundary():
+    intent, proposal, evidence = fixtures()
+    receipt = evaluate_transition(
+        intent=intent,
+        proposal=proposal,
+        evidence=replace(evidence, approval_valid_until_ms=NOW),
+        verifier_id="verifier",
+        executor_id="executor",
+        now_ms=NOW,
+    )
+    assert receipt.verdict is TransitionVerdict.BLOCK
+    assert "APPROVAL_EXPIRED" in receipt.reason_codes
+
+
 def test_verifier_cannot_be_executor():
     intent, proposal, evidence = fixtures()
     receipt = evaluate_transition(
@@ -244,6 +258,20 @@ def test_approval_expiry_blocks_at_use_time():
         current_evidence=evidence,
         executor_id="executor",
         now_ms=NOW + 501,
+        execution_nonce="occurrence-1",
+    )
+    assert use.verdict is UseTimeVerdict.BLOCK
+    assert "APPROVAL_EXPIRED_AT_USE" in use.reason_codes
+
+
+def test_approval_expiry_blocks_at_exact_use_time_boundary():
+    proposal, evidence, auth = authorization()
+    use = revalidate_authorization_for_use(
+        proposal=proposal,
+        authorization=auth,
+        current_evidence=evidence,
+        executor_id="executor",
+        now_ms=evidence.approval_valid_until_ms,
         execution_nonce="occurrence-1",
     )
     assert use.verdict is UseTimeVerdict.BLOCK

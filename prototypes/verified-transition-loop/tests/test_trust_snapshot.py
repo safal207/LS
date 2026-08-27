@@ -2,6 +2,7 @@ import copy
 import json
 from pathlib import Path
 
+import verified_transition_loop.trust_snapshot as trust_snapshot_module
 from verified_transition_loop.trust_snapshot import (
     load_fixture,
     run_fixture,
@@ -180,6 +181,39 @@ def test_fresh_snapshot_and_valid_v08_attestation_compose_successfully():
         now_ms=NOW,
     )
 
+    assert result.snapshot.valid is True
+    assert result.attested_dispatch is not None
+    assert result.attested_dispatch.valid is True
+    assert result.valid is True
+
+
+def test_layered_verification_binds_dispatch_to_verified_snapshot_copy(monkeypatch):
+    fixture = fixture_data()
+    snapshot = copy.deepcopy(fixture["base_snapshot"])
+    attestation_fixture = json.loads(
+        ATTESTATION_FIXTURE.read_text(encoding="utf-8")
+    )
+    original_verify = verify_trust_root_snapshot
+
+    def verify_then_mutate_external_snapshot(*args, **kwargs):
+        result = original_verify(*args, **kwargs)
+        snapshot["trust_root"]["keys"][0]["revoked"] = True
+        return result
+
+    monkeypatch.setattr(
+        trust_snapshot_module,
+        "verify_trust_root_snapshot",
+        verify_then_mutate_external_snapshot,
+    )
+    result = verify_attested_dispatch_with_snapshot(
+        snapshot,
+        copy.deepcopy(fixture["bootstrap_authority"]),
+        copy.deepcopy(fixture["base_checkpoint"]),
+        copy.deepcopy(attestation_fixture["base_envelope"]),
+        now_ms=NOW,
+    )
+
+    assert snapshot["trust_root"]["keys"][0]["revoked"] is True
     assert result.snapshot.valid is True
     assert result.attested_dispatch is not None
     assert result.attested_dispatch.valid is True
