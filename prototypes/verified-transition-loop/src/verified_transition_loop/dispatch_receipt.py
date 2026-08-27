@@ -5,12 +5,36 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping, MutableSet
 
 PROFILE_ID = "vtl-tool-dispatch-v0.7"
 SCHEMA_VERSION = "vtl.tool-dispatch-receipt/v0.7"
 FIXTURE_SCHEMA_VERSION = "vtl.tool-dispatch-fixture/v0.7"
+
+
+def _reject_duplicate_json_members(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON member name: {key}")
+        value[key] = item
+    return value
+
+
+def _reject_nonfinite_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant: {value}")
+
+
+def _load_json(path: str | Path) -> Any:
+    return json.loads(
+        Path(path).read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_json_members,
+        parse_constant=_reject_nonfinite_json_constant,
+    )
 
 
 @dataclass(frozen=True)
@@ -74,7 +98,11 @@ class VerificationResult:
 
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -297,6 +325,21 @@ def _object(value: Any) -> bool:
     return isinstance(value, Mapping)
 
 
+def _json_compatible(value: Any) -> bool:
+    if value is None or isinstance(value, (bool, int, str)):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, (list, tuple)):
+        return all(_json_compatible(item) for item in value)
+    if isinstance(value, Mapping):
+        return all(
+            isinstance(key, str) and _json_compatible(item)
+            for key, item in value.items()
+        )
+    return False
+
+
 def _enum(*allowed: str):
     return lambda value: isinstance(value, str) and value in allowed
 
@@ -320,7 +363,10 @@ _TRANSCRIPT_REQUIRED_FIELDS: dict[str, dict[str, Any]] = {
         "executor_id": _non_empty_string,
         "proposal_digest": _hex64,
         "evidence_digest": _hex64,
+        "source_ref": _nullable_string,
         "policy_ref": _nullable_string,
+        "approval_ref": _nullable_string,
+        "approval_valid_until_ms": _nullable_integer,
     },
     "use_time": {
         "use_id": _non_empty_string,
@@ -387,13 +433,6 @@ _TRANSCRIPT_REQUIRED_FIELDS: dict[str, dict[str, Any]] = {
     },
 }
 
-_AUTHORIZATION_OPTIONAL_FIELDS = {
-    "source_ref": _nullable_string,
-    "approval_ref": _nullable_string,
-    "approval_valid_until_ms": _nullable_integer,
-}
-
-
 def validate_transcript_shape(transcript: Any) -> tuple[str, ...]:
     """Mirror the published transcript schema before any binding comparison.
 
@@ -403,6 +442,8 @@ def validate_transcript_shape(transcript: Any) -> tuple[str, ...]:
 
     if not isinstance(transcript, Mapping):
         return ("TRANSCRIPT_ROOT_INVALID",)
+    if not _json_compatible(transcript):
+        return ("TRANSCRIPT_CANONICALIZATION_INVALID",)
 
     reasons: list[str] = []
     _add(reasons, "PROFILE_ID_MISMATCH", transcript.get("profile_id") != PROFILE_ID)
@@ -422,16 +463,6 @@ def validate_transcript_shape(transcript: Any) -> tuple[str, ...]:
                 _add(
                     reasons,
                     f"TRANSCRIPT_SCHEMA_INVALID:{section_name}.{field_name}",
-                    True,
-                )
-
-    authorization = transcript.get("authorization")
-    if isinstance(authorization, Mapping):
-        for field_name, predicate in _AUTHORIZATION_OPTIONAL_FIELDS.items():
-            if field_name in authorization and not predicate(authorization[field_name]):
-                _add(
-                    reasons,
-                    f"TRANSCRIPT_SCHEMA_INVALID:authorization.{field_name}",
                     True,
                 )
 
@@ -457,8 +488,36 @@ def verify_dispatch_transcript(
 
     _add(reasons, "AUTHORIZATION_RECEIPT_INVALID", not verify_serialized_authorization_receipt(auth))
     _add(reasons, "AUTHORIZATION_NOT_GRANTED", auth.get("verdict") != "AUTHORIZE")
+    _add(
+        reasons,
+        "VERIFIER_EXECUTOR_COLLISION",
+        auth.get("verifier_id") == auth.get("executor_id"),
+    )
+    for field_name, reason in (
+        ("source_ref", "SOURCE_REF_MISSING"),
+        ("policy_ref", "POLICY_REF_MISSING"),
+        ("approval_ref", "APPROVAL_REF_MISSING"),
+    ):
+        _add(reasons, reason, not _non_empty_string(auth.get(field_name)))
     _add(reasons, "USE_TIME_RECEIPT_INVALID", not verify_serialized_use_time_receipt(use))
     _add(reasons, "USE_TIME_NOT_EXECUTABLE", use.get("verdict") != "EXECUTE")
+    execution_nonce = use.get("execution_nonce")
+    _add(
+        reasons,
+        "EXECUTION_NONCE_INVALID",
+        not _non_empty_string(execution_nonce)
+        or any(character.isspace() for character in execution_nonce),
+    )
+
+    approval_expiry = auth.get("approval_valid_until_ms")
+    checked_at = use.get("checked_at_ms")
+    _add(reasons, "APPROVAL_EXPIRY_MISSING", approval_expiry is None)
+    if _integer(approval_expiry) and _integer(checked_at):
+        _add(
+            reasons,
+            "APPROVAL_EXPIRED_AT_USE",
+            checked_at >= approval_expiry,
+        )
 
     proposal_digest = _digest(proposal)
     _add(reasons, "AUTHORIZATION_PROPOSAL_DIGEST_MISMATCH", auth.get("proposal_digest") != proposal_digest)
@@ -619,7 +678,7 @@ def validate_fixture_shape(fixture: Any) -> None:
 
 
 def load_fixture(path: str | Path) -> dict[str, Any]:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    data = _load_json(path)
     validate_fixture_shape(data)
     return data
 
@@ -663,7 +722,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("path", help="JSON transcript or v0.7 fixture file")
     args = parser.parse_args(argv)
-    data = json.loads(Path(args.path).read_text(encoding="utf-8"))
+    data = _load_json(args.path)
     if isinstance(data, Mapping) and data.get("schema_version") == FIXTURE_SCHEMA_VERSION:
         result = run_fixture(data)
         print(json.dumps(result, indent=2, sort_keys=True))

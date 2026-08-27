@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import hashlib
 import json
 from pathlib import Path
@@ -11,6 +12,39 @@ PROFILE_ID = "vtl-canonical-proof-v0.10"
 SCHEMA_VERSION = "vtl.canonical-proof/v0.10"
 CANONICAL_PROFILE = "rfc8785-safe-integer/v0.10"
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
+_FIXTURE_FIELDS = frozenset(
+    (
+        "profile_id",
+        "schema_version",
+        "canonical_profile",
+        "cases",
+        "negative_cases",
+        "mutation_cases",
+    )
+)
+_CASE_FIELDS = frozenset(
+    ("id", "raw_json", "canonical_utf8_base64", "sha256")
+)
+_NEGATIVE_CASE_FIELDS = frozenset(("id", "raw_json", "error_code"))
+_MUTATION_CASE_FIELDS = frozenset(
+    (
+        "id",
+        "base_raw_json",
+        "mutated_raw_json",
+        "base_sha256",
+        "mutated_sha256",
+        "digests_differ",
+    )
+)
+_NEGATIVE_ERROR_CODES = frozenset(
+    (
+        "UNSUPPORTED_NUMBER",
+        "INTEGER_OUT_OF_RANGE",
+        "DUPLICATE_KEY",
+        "INVALID_UNICODE_SCALAR",
+        "INVALID_JSON",
+    )
+)
 
 
 class CanonicalizationError(ValueError):
@@ -100,7 +134,7 @@ def _reject_float(_: str) -> Any:
 
 
 def _reject_constant(_: str) -> Any:
-    raise CanonicalizationError("UNSUPPORTED_NUMBER")
+    raise CanonicalizationError("INVALID_JSON")
 
 
 def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -130,6 +164,97 @@ def strict_loads(raw: str) -> Any:
 
     canonical_bytes(value)
     return value
+
+
+def _is_non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _is_hex64(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(ch in "0123456789abcdef" for ch in value)
+    )
+
+
+def _is_canonical_base64(value: Any) -> bool:
+    if not _is_non_empty_string(value):
+        return False
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError):
+        return False
+    return base64.b64encode(decoded).decode("ascii") == value
+
+
+def _has_exact_fields(value: Any, fields: frozenset[str]) -> bool:
+    return isinstance(value, dict) and set(value) == fields
+
+
+def _validate_fixture_shape(fixture: Any) -> None:
+    if not isinstance(fixture, dict):
+        raise CanonicalizationError("FIXTURE_ROOT_INVALID")
+    if set(fixture) != _FIXTURE_FIELDS:
+        raise CanonicalizationError("FIXTURE_SCHEMA_INVALID", "fixture fields")
+
+    case_groups = (
+        ("cases", _CASE_FIELDS),
+        ("negative_cases", _NEGATIVE_CASE_FIELDS),
+        ("mutation_cases", _MUTATION_CASE_FIELDS),
+    )
+    identifiers: set[str] = set()
+    for group_name, fields in case_groups:
+        group = fixture[group_name]
+        if not isinstance(group, list) or not group:
+            raise CanonicalizationError(
+                "FIXTURE_SCHEMA_INVALID", f"{group_name} must be non-empty"
+            )
+        for index, case in enumerate(group):
+            if not _has_exact_fields(case, fields):
+                raise CanonicalizationError(
+                    "FIXTURE_SCHEMA_INVALID", f"{group_name}[{index}] fields"
+                )
+            case_id = case["id"]
+            if not _is_non_empty_string(case_id):
+                raise CanonicalizationError(
+                    "FIXTURE_SCHEMA_INVALID", f"{group_name}[{index}].id"
+                )
+            if case_id in identifiers:
+                raise CanonicalizationError("FIXTURE_CASE_ID_DUPLICATE", case_id)
+            identifiers.add(case_id)
+
+    for index, case in enumerate(fixture["cases"]):
+        if (
+            not isinstance(case["raw_json"], str)
+            or not _is_canonical_base64(case["canonical_utf8_base64"])
+            or not _is_hex64(case["sha256"])
+        ):
+            raise CanonicalizationError(
+                "FIXTURE_SCHEMA_INVALID", f"cases[{index}] values"
+            )
+
+    for index, case in enumerate(fixture["negative_cases"]):
+        if (
+            not isinstance(case["raw_json"], str)
+            or not isinstance(case["error_code"], str)
+            or case["error_code"] not in _NEGATIVE_ERROR_CODES
+        ):
+            raise CanonicalizationError(
+                "FIXTURE_SCHEMA_INVALID", f"negative_cases[{index}] values"
+            )
+
+    for index, case in enumerate(fixture["mutation_cases"]):
+        if (
+            not isinstance(case["base_raw_json"], str)
+            or not isinstance(case["mutated_raw_json"], str)
+            or not _is_hex64(case["base_sha256"])
+            or not _is_hex64(case["mutated_sha256"])
+            or case["digests_differ"] is not True
+        ):
+            raise CanonicalizationError(
+                "FIXTURE_SCHEMA_INVALID", f"mutation_cases[{index}] values"
+            )
 
 
 def _result_for_case(case: dict[str, Any]) -> dict[str, Any]:
@@ -183,21 +308,20 @@ def _result_for_mutation(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def verify_fixture(fixture: Any) -> dict[str, Any]:
-    if not isinstance(fixture, dict):
-        raise CanonicalizationError("FIXTURE_ROOT_INVALID")
-    if fixture.get("profile_id") != PROFILE_ID:
+    _validate_fixture_shape(fixture)
+    if fixture["profile_id"] != PROFILE_ID:
         raise CanonicalizationError("PROFILE_ID_MISMATCH")
-    if fixture.get("schema_version") != SCHEMA_VERSION:
+    if fixture["schema_version"] != SCHEMA_VERSION:
         raise CanonicalizationError("SCHEMA_VERSION_MISMATCH")
-    if fixture.get("canonical_profile") != CANONICAL_PROFILE:
+    if fixture["canonical_profile"] != CANONICAL_PROFILE:
         raise CanonicalizationError("CANONICAL_PROFILE_MISMATCH")
 
-    cases = [_result_for_case(case) for case in fixture.get("cases", [])]
+    cases = [_result_for_case(case) for case in fixture["cases"]]
     negative_cases = [
-        _result_for_negative(case) for case in fixture.get("negative_cases", [])
+        _result_for_negative(case) for case in fixture["negative_cases"]
     ]
     mutation_cases = [
-        _result_for_mutation(case) for case in fixture.get("mutation_cases", [])
+        _result_for_mutation(case) for case in fixture["mutation_cases"]
     ]
     all_results = [*cases, *negative_cases, *mutation_cases]
     passed = sum(1 for result in all_results if result["passed"])

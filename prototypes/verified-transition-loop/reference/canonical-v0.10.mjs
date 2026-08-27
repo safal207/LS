@@ -7,6 +7,31 @@ const PROFILE_ID = 'vtl-canonical-proof-v0.10';
 const SCHEMA_VERSION = 'vtl.canonical-proof/v0.10';
 const CANONICAL_PROFILE = 'rfc8785-safe-integer/v0.10';
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
+const FIXTURE_FIELDS = [
+  'profile_id',
+  'schema_version',
+  'canonical_profile',
+  'cases',
+  'negative_cases',
+  'mutation_cases',
+];
+const CASE_FIELDS = ['id', 'raw_json', 'canonical_utf8_base64', 'sha256'];
+const NEGATIVE_CASE_FIELDS = ['id', 'raw_json', 'error_code'];
+const MUTATION_CASE_FIELDS = [
+  'id',
+  'base_raw_json',
+  'mutated_raw_json',
+  'base_sha256',
+  'mutated_sha256',
+  'digests_differ',
+];
+const NEGATIVE_ERROR_CODES = new Set([
+  'UNSUPPORTED_NUMBER',
+  'INTEGER_OUT_OF_RANGE',
+  'DUPLICATE_KEY',
+  'INVALID_UNICODE_SCALAR',
+  'INVALID_JSON',
+]);
 
 class CanonicalizationError extends Error {
   constructor(code, detail = '') {
@@ -230,10 +255,95 @@ function strictParse(raw) {
   return value;
 }
 
-function verifyFixture(fixture) {
-  if (!fixture || typeof fixture !== 'object' || Array.isArray(fixture)) {
-    throw new CanonicalizationError('FIXTURE_ROOT_INVALID');
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasExactFields(value, fields) {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length === fields.length && fields.every((field) => keys.includes(field));
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function isHex64(value) {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+}
+
+function isCanonicalBase64(value) {
+  if (!isNonEmptyString(value)) return false;
+  return Buffer.from(value, 'base64').toString('base64') === value;
+}
+
+function validateFixtureShape(fixture) {
+  if (!isRecord(fixture)) throw new CanonicalizationError('FIXTURE_ROOT_INVALID');
+  if (!hasExactFields(fixture, FIXTURE_FIELDS)) {
+    throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID', 'fixture fields');
   }
+
+  const groups = [
+    ['cases', CASE_FIELDS],
+    ['negative_cases', NEGATIVE_CASE_FIELDS],
+    ['mutation_cases', MUTATION_CASE_FIELDS],
+  ];
+  const identifiers = new Set();
+  for (const [groupName, fields] of groups) {
+    const group = fixture[groupName];
+    if (!Array.isArray(group) || group.length === 0) {
+      throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID', `${groupName} must be non-empty`);
+    }
+    for (let index = 0; index < group.length; index += 1) {
+      const testCase = group[index];
+      if (!hasExactFields(testCase, fields)) {
+        throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID', `${groupName}[${index}] fields`);
+      }
+      if (!isNonEmptyString(testCase.id)) {
+        throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID', `${groupName}[${index}].id`);
+      }
+      if (identifiers.has(testCase.id)) {
+        throw new CanonicalizationError('FIXTURE_CASE_ID_DUPLICATE', testCase.id);
+      }
+      identifiers.add(testCase.id);
+    }
+  }
+
+  fixture.cases.forEach((testCase, index) => {
+    if (
+      typeof testCase.raw_json !== 'string'
+      || !isCanonicalBase64(testCase.canonical_utf8_base64)
+      || !isHex64(testCase.sha256)
+    ) {
+      throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID', `cases[${index}] values`);
+    }
+  });
+
+  fixture.negative_cases.forEach((testCase, index) => {
+    if (
+      typeof testCase.raw_json !== 'string'
+      || !NEGATIVE_ERROR_CODES.has(testCase.error_code)
+    ) {
+      throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID', `negative_cases[${index}] values`);
+    }
+  });
+
+  fixture.mutation_cases.forEach((testCase, index) => {
+    if (
+      typeof testCase.base_raw_json !== 'string'
+      || typeof testCase.mutated_raw_json !== 'string'
+      || !isHex64(testCase.base_sha256)
+      || !isHex64(testCase.mutated_sha256)
+      || testCase.digests_differ !== true
+    ) {
+      throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID', `mutation_cases[${index}] values`);
+    }
+  });
+}
+
+function verifyFixture(fixture) {
+  validateFixtureShape(fixture);
   if (fixture.profile_id !== PROFILE_ID) throw new CanonicalizationError('PROFILE_ID_MISMATCH');
   if (fixture.schema_version !== SCHEMA_VERSION) throw new CanonicalizationError('SCHEMA_VERSION_MISMATCH');
   if (fixture.canonical_profile !== CANONICAL_PROFILE) throw new CanonicalizationError('CANONICAL_PROFILE_MISMATCH');

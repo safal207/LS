@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.11"
     paths:
       - "prototypes/verified-transition-loop/**"
       - ".github/workflows/verified-transition-loop-v0.12.yml"
@@ -24,15 +23,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
 
@@ -87,8 +86,62 @@ jobs:
           python_result = json.loads(Path('/tmp/vtl-canonical-python.json').read_text())
           node_result = json.loads(Path('/tmp/vtl-canonical-node.json').read_text())
           assert python_result == node_result
-          assert python_result['summary'] == {'total': 18, 'passed': 18, 'failed': 0, 'all_passed': True}
+          assert python_result['summary'] == {'total': 21, 'passed': 21, 'failed': 0, 'all_passed': True}
           PY
+
+      - name: Preserve v0.10 malformed-fixture parity
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from pathlib import Path
+
+          source = json.loads(Path('fixtures/canonical-proof-v0.10.json').read_text())
+          output_dir = Path('/tmp/vtl-canonical-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_profile'] = 'different'
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['negative_cases'][0]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['mutation_cases'][0]['digests_differ'] = False
+          fixtures['mutation-may-match'] = candidate
+
+          for name, fixture in fixtures.items():
+              (output_dir / f'{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+          PY
+          fixtures=(/tmp/vtl-canonical-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 4 ]]; then
+            echo "Expected four malformed v0.10 fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
+            if vtl-canonical-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid v0.10 fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/canonical-v0.10.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid v0.10 fixture: $fixture" >&2
+              exit 1
+            fi
+          done
 
       - name: Run Python canonical signed envelope v0.11
         working-directory: prototypes/verified-transition-loop
@@ -109,6 +162,76 @@ jobs:
           assert py == js
           assert py['summary'] == {'total': 12, 'passed': 12, 'failed': 0, 'all_passed': True}
           PY
+
+      - name: Preserve v0.11 malformed-fixture parity
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from pathlib import Path
+
+          source = json.loads(
+              Path('fixtures/canonical-signed-envelope-v0.11.json').read_text()
+          )
+          output_dir = Path('/tmp/vtl-envelope-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_valid'] = True
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][1]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['envelope_mutations'] = [
+              {'path': '__proto__.polluted', 'value': True}
+          ]
+          fixtures['dangerous-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['envelope_mutations'] = [
+              {'path': 'payload.missing', 'value': True}
+          ]
+          fixtures['missing-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['envelope_mutations'] = [
+              {'path': 'payload.attempt', 'value': 1}
+          ]
+          fixtures['no-op-mutation'] = candidate
+
+          for name, fixture in fixtures.items():
+              (output_dir / f'{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+          PY
+          fixtures=(/tmp/vtl-envelope-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 6 ]]; then
+            echo "Expected six malformed v0.11 fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
+            if vtl-canonical-envelope-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid v0.11 fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/canonical-signed-envelope-v0.11.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid v0.11 fixture: $fixture" >&2
+              exit 1
+            fi
+          done
 
       - name: Run Python canonical trust snapshot v0.12
         working-directory: prototypes/verified-transition-loop
@@ -140,6 +263,76 @@ jobs:
           assert by_id['trust-root-payload-tamper']['actual']['bootstrap_signature_valid'] is True
           assert by_id['trust-root-payload-tamper']['actual']['snapshot_integrity_valid'] is False
           PY
+
+      - name: Prove v0.12 fixture contract fails closed across runtimes
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from pathlib import Path
+
+          source = json.loads(
+              Path('fixtures/canonical-trust-root-snapshot-v0.12.json').read_text()
+          )
+          output_dir = Path('/tmp/vtl-trust-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_valid'] = True
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][1]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['snapshot_mutations'] = [
+              {'path': '__proto__.polluted', 'value': True}
+          ]
+          fixtures['dangerous-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['snapshot_mutations'] = [
+              {'path': 'trust_root.missing', 'value': True}
+          ]
+          fixtures['missing-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['snapshot_mutations'] = [
+              {'path': 'generation', 'value': source['base_snapshot']['generation']}
+          ]
+          fixtures['no-op-mutation'] = candidate
+
+          for name, fixture in fixtures.items():
+              (output_dir / f'{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+          PY
+          fixtures=(/tmp/vtl-trust-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 6 ]]; then
+            echo "Expected six malformed v0.12 fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
+            if vtl-canonical-trust-root-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid v0.12 fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/canonical-trust-root-snapshot-v0.12.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid v0.12 fixture: $fixture" >&2
+              exit 1
+            fi
+          done
 
       - name: Run vendor-neutral use-time conformance
         working-directory: prototypes/verified-transition-loop

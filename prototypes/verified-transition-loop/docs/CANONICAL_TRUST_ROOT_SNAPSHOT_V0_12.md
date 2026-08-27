@@ -59,6 +59,11 @@ The snapshot ID is derived from the canonical statement without `snapshot_id`; t
 
 The embedded trust root is bound through `trust_root_digest`. Mutating root contents can therefore leave the historical Ed25519 signature mathematically valid while `snapshot_integrity_valid` becomes false.
 
+The embedded root is an exact `vtl-canonical-trust-root/v0.12` object. It has a
+separate identity because it adds `policy_version`; the historical
+`vtl-canonical-trust-root/v0.11` four-field contract is not reinterpreted or
+rewritten.
+
 ## Independent claims
 
 The result deliberately exposes separate claims:
@@ -154,6 +159,18 @@ Python result == Node result
 
 and independently checks the exact canonical signed bytes, Ed25519 signature, and full signed-snapshot digest for the fresh reference case.
 
+Before deriving any claim, each runtime takes one deep snapshot of the caller's
+snapshot, bootstrap authority, and checkpoint. Exact field sets are enforced at
+every published boundary, epoch times must be non-negative safe integers,
+revocation is boolean, and Ed25519 keys/signatures must be canonical base64 with
+exact 32/64-byte decoded lengths.
+
+The conformance contract also fails closed for empty or duplicate cases,
+dangling and unused variant/checkpoint references, unknown/no-op variants, and
+unsafe, missing, or no-op mutation paths. Passing case expectations is
+insufficient: the unmodified base snapshot must itself verify as valid before
+`all_passed=true`.
+
 ## Shared vectors
 
 The v0.12 profile contains 20 cases covering:
@@ -181,7 +198,11 @@ The v0.12 profile contains 20 cases covering:
 
 ## Compatibility
 
-v0.12 is opt-in. It does **not** rewrite v0.9 snapshot identities or historical v0.8/v0.11 signatures. Earlier profiles remain independently executable.
+v0.12 is opt-in. It does **not** rewrite v0.9 snapshot identities, the v0.10
+canonical-proof identity, historical v0.8/v0.11 signatures, replay/single-use
+decisions, or current-authority claims. Earlier profiles remain independently executable. The v0.12 workflow
+supersedes v0.11 but carries forward its v0.10/v0.11 cross-runtime and malformed
+fixture gates.
 
 ## Trust ceiling
 

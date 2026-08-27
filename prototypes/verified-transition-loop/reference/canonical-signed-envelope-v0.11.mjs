@@ -10,6 +10,31 @@ const TRUST_ROOT_PROFILE_ID = 'vtl-canonical-trust-root/v0.11';
 const CANONICAL_PROFILE = 'rfc8785-safe-integer/v0.10';
 const ED25519 = 'ED25519';
 const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
+const PUBLIC_KEY_BYTES = 32;
+const SIGNATURE_BYTES = 64;
+const ENVELOPE_FIELDS = new Set(['profile_id', 'schema_version', 'canonical_profile', 'payload', 'attestation']);
+const ATTESTATION_FIELDS = new Set([
+  'attestation_id', 'payload_digest', 'issuer_id', 'signer_key_id', 'trust_root_id',
+  'issued_at_ms', 'not_before_ms', 'not_after_ms', 'signature_algorithm', 'signature',
+]);
+const TRUST_ROOT_FIELDS = new Set(['profile_id', 'trust_root_id', 'allowed_algorithms', 'keys']);
+const TRUST_KEY_FIELDS = new Set([
+  'signer_key_id', 'issuer_id', 'algorithm', 'public_key_base64',
+  'not_before_ms', 'not_after_ms', 'revoked',
+]);
+const FIXTURE_FIELDS = new Set([
+  'profile_id', 'schema_version', 'canonical_profile', 'base_now_ms',
+  'base_envelope', 'trust_root', 'expected_signed_payload_base64',
+  'expected_signature_base64', 'cases',
+]);
+const CASE_FIELDS = new Set(['id', 'now_ms', 'envelope_mutations', 'trust_root_mutations', 'expected']);
+const EXPECTED_FIELDS = new Set([
+  'valid', 'payload_digest_matches', 'attestation_id_valid', 'canonical_profile_valid',
+  'signature_valid', 'trusted_current_authority', 'reason_codes',
+]);
+const MUTATION_FIELDS = new Set(['path', 'value']);
+const DANGEROUS_PATH_PARTS = new Set(['__proto__', 'prototype', 'constructor']);
+const PATH_PART_RE = /^(?:[A-Za-z_][A-Za-z0-9_-]*|0|[1-9][0-9]*)$/;
 
 class CanonicalizationError extends Error {
   constructor(code) {
@@ -205,7 +230,13 @@ function add(reasons, reason, condition) {
 }
 function nonEmptyString(value) { return typeof value === 'string' && value.length > 0; }
 function integer(value) { return Number.isSafeInteger(value); }
+function timestamp(value) { return integer(value) && value >= 0; }
 function hex64(value) { return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value); }
+function exactObject(value, fields) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length === fields.size && keys.every((key) => fields.has(key));
+}
 
 const STATEMENT_FIELDS = [
   'payload_digest', 'issuer_id', 'signer_key_id', 'trust_root_id',
@@ -244,6 +275,23 @@ function decodeBase64(value) {
   }
 }
 
+function canonicalBase64(value, length = null) {
+  if (!nonEmptyString(value)) return false;
+  const decoded = decodeBase64(value);
+  return decoded !== null && (length === null || decoded.length === length);
+}
+
+function trustKeyShapeValid(key) {
+  return exactObject(key, TRUST_KEY_FIELDS)
+    && nonEmptyString(key.signer_key_id)
+    && nonEmptyString(key.issuer_id)
+    && nonEmptyString(key.algorithm)
+    && nonEmptyString(key.public_key_base64)
+    && timestamp(key.not_before_ms)
+    && timestamp(key.not_after_ms)
+    && typeof key.revoked === 'boolean';
+}
+
 function verifyCanonicalSignedEnvelope(envelope, trustRoot, nowMs) {
   const reasons = [];
   const invalid = (code) => ({
@@ -259,6 +307,15 @@ function verifyCanonicalSignedEnvelope(envelope, trustRoot, nowMs) {
 
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) return invalid('ENVELOPE_ROOT_INVALID');
   if (!trustRoot || typeof trustRoot !== 'object' || Array.isArray(trustRoot)) return invalid('TRUST_ROOT_INVALID');
+  if (!timestamp(nowMs)) return invalid('VERIFIER_TIME_INVALID');
+  try {
+    envelope = structuredClone(envelope);
+    trustRoot = structuredClone(trustRoot);
+  } catch {
+    return invalid('INPUT_SNAPSHOT_INVALID');
+  }
+
+  add(reasons, 'ENVELOPE_SCHEMA_INVALID', !exactObject(envelope, ENVELOPE_FIELDS));
 
   add(reasons, 'PROFILE_ID_MISMATCH', envelope.profile_id !== PROFILE_ID);
   add(reasons, 'SCHEMA_VERSION_MISMATCH', envelope.schema_version !== SCHEMA_VERSION);
@@ -276,17 +333,22 @@ function verifyCanonicalSignedEnvelope(envelope, trustRoot, nowMs) {
       trusted_current_authority: false, signed_payload_base64: '', reason_codes: reasons,
     };
   }
+  add(reasons, 'ATTESTATION_SCHEMA_INVALID:fields', !exactObject(attestation, ATTESTATION_FIELDS));
 
   const required = {
     attestation_id: nonEmptyString, payload_digest: hex64, issuer_id: nonEmptyString,
-    signer_key_id: nonEmptyString, trust_root_id: nonEmptyString, issued_at_ms: integer,
-    not_before_ms: integer, not_after_ms: integer, signature_algorithm: nonEmptyString,
+    signer_key_id: nonEmptyString, trust_root_id: nonEmptyString, issued_at_ms: timestamp,
+    not_before_ms: timestamp, not_after_ms: timestamp, signature_algorithm: nonEmptyString,
     signature: nonEmptyString,
   };
+  let requiredValueInvalid = false;
   for (const [field, predicate] of Object.entries(required)) {
-    if (!(field in attestation) || !predicate(attestation[field])) add(reasons, `ATTESTATION_SCHEMA_INVALID:${field}`, true);
+    if (!Object.hasOwn(attestation, field) || !predicate(attestation[field])) {
+      requiredValueInvalid = true;
+      add(reasons, `ATTESTATION_SCHEMA_INVALID:${field}`, true);
+    }
   }
-  if (reasons.some((reason) => reason.startsWith('ATTESTATION_SCHEMA_INVALID:')) || reasons.includes('PAYLOAD_INVALID')) {
+  if (requiredValueInvalid || reasons.includes('PAYLOAD_INVALID')) {
     return {
       valid: false, payload_digest_matches: false, attestation_id_valid: false,
       canonical_profile_valid: canonicalProfileValid, signature_valid: false,
@@ -315,11 +377,21 @@ function verifyCanonicalSignedEnvelope(envelope, trustRoot, nowMs) {
   add(reasons, 'ATTESTATION_ID_INVALID', !attestationIdValid);
 
   const trustReasons = [];
+  add(
+    trustReasons,
+    'TRUST_ROOT_SCHEMA_INVALID',
+    !exactObject(trustRoot, TRUST_ROOT_FIELDS) || !nonEmptyString(trustRoot.trust_root_id),
+  );
   add(trustReasons, 'TRUST_ROOT_PROFILE_INVALID', trustRoot.profile_id !== TRUST_ROOT_PROFILE_ID);
   add(trustReasons, 'TRUST_ROOT_MISMATCH', attestation.trust_root_id !== trustRoot.trust_root_id);
 
   let allowedAlgorithms = trustRoot.allowed_algorithms;
-  if (!Array.isArray(allowedAlgorithms) || !allowedAlgorithms.every(nonEmptyString)) {
+  if (
+    !Array.isArray(allowedAlgorithms)
+    || allowedAlgorithms.length === 0
+    || !allowedAlgorithms.every(nonEmptyString)
+    || new Set(allowedAlgorithms).size !== allowedAlgorithms.length
+  ) {
     add(trustReasons, 'TRUST_ROOT_ALGORITHMS_INVALID', true);
     allowedAlgorithms = [];
   }
@@ -328,8 +400,10 @@ function verifyCanonicalSignedEnvelope(envelope, trustRoot, nowMs) {
   add(trustReasons, 'ALGORITHM_NOT_ALLOWED', !algorithmAllowed);
 
   let keys = trustRoot.keys;
-  if (!Array.isArray(keys)) {
+  if (!Array.isArray(keys) || keys.length === 0 || !keys.every(trustKeyShapeValid)) {
     add(trustReasons, 'TRUST_ROOT_KEYS_INVALID', true);
+  }
+  if (!Array.isArray(keys)) {
     keys = [];
   }
   const matchingKeys = keys.filter((key) => key && typeof key === 'object' && !Array.isArray(key) && key.signer_key_id === attestation.signer_key_id);
@@ -343,16 +417,17 @@ function verifyCanonicalSignedEnvelope(envelope, trustRoot, nowMs) {
     add(trustReasons, 'KEY_ALGORITHM_MISMATCH', key.algorithm !== algorithm);
     add(trustReasons, 'SIGNER_REVOKED', key.revoked === true);
 
-    const keyIntervalValid = integer(key.not_before_ms) && integer(key.not_after_ms) && key.not_after_ms >= key.not_before_ms;
+    const keyIntervalValid = timestamp(key.not_before_ms) && timestamp(key.not_after_ms) && key.not_after_ms >= key.not_before_ms;
     add(trustReasons, 'SIGNER_KEY_VALIDITY_INVALID', !keyIntervalValid);
     add(trustReasons, 'SIGNER_KEY_NOT_CURRENT', keyIntervalValid && (nowMs < key.not_before_ms || nowMs > key.not_after_ms));
 
     const publicKey = decodeBase64(key.public_key_base64);
     const signature = decodeBase64(attestation.signature);
-    const keyMaterialValid = publicKey !== null && publicKey.length === 32;
+    const keyMaterialValid = publicKey !== null && publicKey.length === PUBLIC_KEY_BYTES;
+    const signatureMaterialValid = signature !== null && signature.length === SIGNATURE_BYTES;
     add(trustReasons, 'TRUST_KEY_MATERIAL_INVALID', !keyMaterialValid);
 
-    if (algorithmAllowed && key.algorithm === ED25519 && signature !== null && keyMaterialValid) {
+    if (algorithmAllowed && key.algorithm === ED25519 && signatureMaterialValid && keyMaterialValid) {
       try {
         const spki = Buffer.concat([
           Buffer.from('302a300506032b6570032100', 'hex'),
@@ -388,15 +463,143 @@ function verifyCanonicalSignedEnvelope(envelope, trustRoot, nowMs) {
 }
 
 function setPath(document, path, value) {
+  if (!nonEmptyString(path)) throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
   const parts = path.split('.');
+  if (parts.some((part) => DANGEROUS_PATH_PARTS.has(part) || !PATH_PART_RE.test(part))) {
+    throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+  }
   let cursor = document;
-  for (const part of parts.slice(0, -1)) cursor = Array.isArray(cursor) ? cursor[Number(part)] : cursor[part];
+  for (const part of parts.slice(0, -1)) {
+    if (Array.isArray(cursor)) {
+      const index = Number(part);
+      if (!/^\d+$/.test(part) || index >= cursor.length) throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+      cursor = cursor[index];
+    } else if (cursor && typeof cursor === 'object' && Object.hasOwn(cursor, part)) {
+      cursor = cursor[part];
+    } else {
+      throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+    }
+  }
   const last = parts.at(-1);
+  let previous;
+  if (Array.isArray(cursor)) {
+    const index = Number(last);
+    if (!/^\d+$/.test(last) || index >= cursor.length) throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+    previous = cursor[index];
+  } else if (cursor && typeof cursor === 'object' && Object.hasOwn(cursor, last)) {
+    previous = cursor[last];
+  } else {
+    throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+  }
+
+  try {
+    if (canonicalBytes(previous).equals(canonicalBytes(value))) {
+      throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+    }
+  } catch (error) {
+    if (error instanceof CanonicalizationError && error.code === 'FIXTURE_SCHEMA_INVALID') throw error;
+    throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+  }
+
   if (Array.isArray(cursor)) cursor[Number(last)] = structuredClone(value);
   else cursor[last] = structuredClone(value);
 }
 
+function validateFixtureShape(fixture) {
+  const fail = () => { throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID'); };
+  if (!exactObject(fixture, FIXTURE_FIELDS)) fail();
+  if (fixture.profile_id !== PROFILE_ID) fail();
+  if (fixture.schema_version !== FIXTURE_SCHEMA_VERSION) fail();
+  if (fixture.canonical_profile !== CANONICAL_PROFILE) fail();
+  if (!timestamp(fixture.base_now_ms)) fail();
+
+  const envelope = fixture.base_envelope;
+  if (!exactObject(envelope, ENVELOPE_FIELDS)) fail();
+  if (
+    envelope.profile_id !== PROFILE_ID
+    || envelope.schema_version !== SCHEMA_VERSION
+    || envelope.canonical_profile !== CANONICAL_PROFILE
+    || !(Array.isArray(envelope.payload) || (envelope.payload && typeof envelope.payload === 'object'))
+    || !exactObject(envelope.attestation, ATTESTATION_FIELDS)
+  ) fail();
+
+  const attestation = envelope.attestation;
+  if (
+    !nonEmptyString(attestation.attestation_id)
+    || !hex64(attestation.payload_digest)
+    || !nonEmptyString(attestation.issuer_id)
+    || !nonEmptyString(attestation.signer_key_id)
+    || !nonEmptyString(attestation.trust_root_id)
+    || !timestamp(attestation.issued_at_ms)
+    || !timestamp(attestation.not_before_ms)
+    || !timestamp(attestation.not_after_ms)
+    || attestation.signature_algorithm !== ED25519
+    || !canonicalBase64(attestation.signature, SIGNATURE_BYTES)
+  ) fail();
+  try { canonicalBytes(envelope.payload); } catch { fail(); }
+
+  const trustRoot = fixture.trust_root;
+  if (
+    !exactObject(trustRoot, TRUST_ROOT_FIELDS)
+    || trustRoot.profile_id !== TRUST_ROOT_PROFILE_ID
+    || !nonEmptyString(trustRoot.trust_root_id)
+    || !Array.isArray(trustRoot.allowed_algorithms)
+    || trustRoot.allowed_algorithms.length !== 1
+    || trustRoot.allowed_algorithms[0] !== ED25519
+    || !Array.isArray(trustRoot.keys)
+    || trustRoot.keys.length === 0
+  ) fail();
+  for (const key of trustRoot.keys) {
+    if (
+      !trustKeyShapeValid(key)
+      || key.algorithm !== ED25519
+      || !canonicalBase64(key.public_key_base64, PUBLIC_KEY_BYTES)
+    ) fail();
+  }
+  if (!canonicalBase64(fixture.expected_signed_payload_base64)) fail();
+  if (!canonicalBase64(fixture.expected_signature_base64, SIGNATURE_BYTES)) fail();
+
+  if (!Array.isArray(fixture.cases) || fixture.cases.length === 0) fail();
+  const identifiers = new Set();
+  for (const testCase of fixture.cases) {
+    if (!exactObject(testCase, CASE_FIELDS) || !nonEmptyString(testCase.id)) fail();
+    if (identifiers.has(testCase.id)) fail();
+    identifiers.add(testCase.id);
+    if (!timestamp(testCase.now_ms)) fail();
+    if (!exactObject(testCase.expected, EXPECTED_FIELDS)) fail();
+    for (const field of EXPECTED_FIELDS) {
+      if (field !== 'reason_codes' && typeof testCase.expected[field] !== 'boolean') fail();
+    }
+    const reasonCodes = testCase.expected.reason_codes;
+    if (
+      !Array.isArray(reasonCodes)
+      || !reasonCodes.every(nonEmptyString)
+      || new Set(reasonCodes).size !== reasonCodes.length
+    ) fail();
+
+    const envelopeCopy = structuredClone(envelope);
+    const trustRootCopy = structuredClone(trustRoot);
+    for (const [groupName, document] of [
+      ['envelope_mutations', envelopeCopy],
+      ['trust_root_mutations', trustRootCopy],
+    ]) {
+      const mutations = testCase[groupName];
+      if (!Array.isArray(mutations)) fail();
+      for (const mutation of mutations) {
+        if (!exactObject(mutation, MUTATION_FIELDS)) fail();
+        setPath(document, mutation.path, mutation.value);
+      }
+    }
+  }
+}
+
 function runFixture(fixture) {
+  if (!fixture || typeof fixture !== 'object' || Array.isArray(fixture)) {
+    throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID');
+  }
+  try { fixture = structuredClone(fixture); } catch { throw new CanonicalizationError('FIXTURE_SCHEMA_INVALID'); }
+  validateFixtureShape(fixture);
+
   const cases = fixture.cases.map((testCase) => {
     const envelope = structuredClone(fixture.base_envelope);
     const trustRoot = structuredClone(fixture.trust_root);
@@ -439,7 +642,7 @@ function runFixture(fixture) {
       total: cases.length,
       passed,
       failed: cases.length - passed,
-      all_passed: passed === cases.length && parity.signed_payload_matches_expected && parity.signature_matches_expected,
+      all_passed: baseResult.valid && passed === cases.length && parity.signed_payload_matches_expected && parity.signature_matches_expected,
     },
   };
 }
