@@ -539,6 +539,156 @@ describe("trustworthy-transition continuity adapter", () => {
     assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
   });
 
+  it("rejects a previously used authorization ref as a new epoch", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    const authorizationA = snapshotInput.record_refs.authorization_ref;
+    const authorizationB = ref("authorization-epoch-b");
+    const first = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const secondInput = structuredClone(snapshotInput);
+    secondInput.record_refs.authorization_ref = authorizationB;
+    secondInput.reauthorization_ref = authorizationB;
+    secondInput.authority_expires_at = null;
+    const second = persistTransitionSnapshot(
+      store,
+      secondInput,
+      "2030-01-01T00:01:00.000Z",
+      first.object_id
+    );
+    const reusedInput = structuredClone(secondInput);
+    reusedInput.record_refs.authorization_ref = authorizationA;
+    reusedInput.reauthorization_ref = authorizationA;
+    const reused = persistTransitionSnapshot(
+      store,
+      reusedInput,
+      "2030-01-01T00:02:00.000Z",
+      second.object_id
+    );
+
+    assert.deepEqual(assessSnapshotSequence([first, second, reused]), {
+      valid: false,
+      reason_codes: ["AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"]
+    });
+    const result = evaluateTransitionResume(
+      store,
+      reused.object_id,
+      buildRequest(reused, {
+        operation: "resume_side_effect",
+        now: "2030-01-01T02:00:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
+  it("rejects recovery evidence used before a blocking snapshot", () => {
+    for (const dimension of ["causal", "response"] as const) {
+      const { store } = storageFixture();
+      const { snapshotInput } = materializeCase(fixture.cases[0]);
+      const historicalRef = ref(`${dimension}-historical`);
+      const blockingRef = ref(`${dimension}-blocking`);
+      if (dimension === "causal") {
+        snapshotInput.record_refs.causal_audit_ref = historicalRef;
+      } else {
+        snapshotInput.record_refs.response_integrity_ref = historicalRef;
+        snapshotInput.dimensions.response_integrity = "VERIFIED";
+      }
+      const historical = persistTransitionSnapshot(
+        store,
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+      const blockedInput = structuredClone(snapshotInput);
+      if (dimension === "causal") {
+        blockedInput.record_refs.causal_audit_ref = blockingRef;
+        blockedInput.dimensions.causal_validity = "INVALID";
+      } else {
+        blockedInput.record_refs.response_integrity_ref = blockingRef;
+        blockedInput.dimensions.response_integrity = "FAILED";
+      }
+      const blocked = persistTransitionSnapshot(
+        store,
+        blockedInput,
+        "2030-01-01T00:01:00.000Z",
+        historical.object_id
+      );
+      const recoveredInput = structuredClone(blockedInput);
+      if (dimension === "causal") {
+        recoveredInput.record_refs.causal_audit_ref = historicalRef;
+        recoveredInput.dimensions.causal_validity = "VALID";
+      } else {
+        recoveredInput.record_refs.response_integrity_ref = historicalRef;
+        recoveredInput.dimensions.response_integrity = "VERIFIED";
+      }
+      const recovered = persistTransitionSnapshot(
+        store,
+        recoveredInput,
+        "2030-01-01T00:02:00.000Z",
+        blocked.object_id
+      );
+      const expectedReason =
+        dimension === "causal"
+          ? "CAUSAL_EVIDENCE_REUSED"
+          : "RESPONSE_INTEGRITY_EVIDENCE_REUSED";
+
+      assert.deepEqual(
+        assessSnapshotSequence([historical, blocked, recovered]),
+        { valid: false, reason_codes: [expectedReason] },
+        dimension
+      );
+      const result = evaluateTransitionResume(
+        store,
+        recovered.object_id,
+        buildRequest(recovered, {
+          operation: "resume_side_effect",
+          now: "2030-01-01T00:10:00.000Z"
+        })
+      );
+      assert.equal(result.allowed, false, dimension);
+      assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID", dimension);
+    }
+  });
+
+  it("keeps failed response recovery active until verification", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.record_refs.response_integrity_ref = ref("response-failed");
+    snapshotInput.dimensions.response_integrity = "FAILED";
+    const failed = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const unknownInput = structuredClone(snapshotInput);
+    unknownInput.record_refs.response_integrity_ref = ref("response-unknown");
+    unknownInput.dimensions.response_integrity = "UNKNOWN";
+    const unknown = persistTransitionSnapshot(
+      store,
+      unknownInput,
+      "2030-01-01T00:01:00.000Z",
+      failed.object_id
+    );
+
+    assert.deepEqual(assessSnapshotSequence([failed, unknown]), {
+      valid: false,
+      reason_codes: ["RESPONSE_INTEGRITY_RECOVERY_UNVERIFIED"]
+    });
+    const result = evaluateTransitionResume(
+      store,
+      unknown.object_id,
+      buildRequest(unknown, {
+        operation: "resume_side_effect",
+        now: "2030-01-01T00:10:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
   it("requires new corresponding evidence to clear blocking dimensions", () => {
     for (const dimension of ["causal", "response"] as const) {
       const { store } = storageFixture();

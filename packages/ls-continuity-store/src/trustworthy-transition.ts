@@ -169,6 +169,7 @@ export interface SnapshotChainAssessment {
     | "AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"
     | "CAUSAL_EVIDENCE_REUSED"
     | "RESPONSE_INTEGRITY_EVIDENCE_REUSED"
+    | "RESPONSE_INTEGRITY_RECOVERY_UNVERIFIED"
     | "CAPTURE_TIME_ROLLBACK"
   >;
 }
@@ -834,10 +835,11 @@ export function assessSnapshotSequence(
   let terminalAuthorityActive = false;
   let authorizationEpoch: string | null = null;
   let authorizationEpochExpiry: number | null = null;
+  const seenAuthorizationRefs = new Set<string>();
   let causalRecoveryRequired = false;
-  const blockedCausalRefs = new Set<string | null>();
+  const seenCausalRefs = new Set<string>();
   let responseRecoveryRequired = false;
-  const blockedResponseRefs = new Set<string | null>();
+  const seenResponseRefs = new Set<string>();
   for (const [index, snapshot] of snapshots.entries()) {
     verifyStoredSnapshot(snapshot);
     if (index > 0) {
@@ -857,7 +859,16 @@ export function assessSnapshotSequence(
       index > 0 &&
       authorization !== null &&
       authorization !== authorizationEpoch &&
-      snapshot.payload.reauthorization_ref === authorization;
+      snapshot.payload.reauthorization_ref === authorization &&
+      !seenAuthorizationRefs.has(authorization);
+    if (
+      index > 0 &&
+      authorization !== null &&
+      authorization !== authorizationEpoch &&
+      seenAuthorizationRefs.has(authorization)
+    ) {
+      reasons.push("AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION");
+    }
     if (index === 0 || explicitNewEpoch) {
       authorizationEpoch = authorization;
       authorizationEpochExpiry = currentExpiry;
@@ -892,40 +903,45 @@ export function assessSnapshotSequence(
     ) {
       terminalAuthorityActive = true;
     }
+    if (authorization !== null) seenAuthorizationRefs.add(authorization);
 
     const causalRef = snapshot.payload.record_refs.causal_audit_ref;
+    const causalRefSeen =
+      causalRef !== null && seenCausalRefs.has(causalRef);
     if (snapshot.payload.dimensions.causal_validity === "INVALID") {
       causalRecoveryRequired = true;
-      blockedCausalRefs.add(causalRef);
     } else if (
       causalRecoveryRequired &&
       snapshot.payload.dimensions.causal_validity === "VALID"
     ) {
-      if (causalRef === null || blockedCausalRefs.has(causalRef)) {
+      if (causalRef === null || causalRefSeen) {
         reasons.push("CAUSAL_EVIDENCE_REUSED");
       } else {
         causalRecoveryRequired = false;
-        blockedCausalRefs.clear();
       }
-    } else if (causalRecoveryRequired) {
-      blockedCausalRefs.add(causalRef);
     }
+    if (causalRef !== null) seenCausalRefs.add(causalRef);
 
     const responseRef = snapshot.payload.record_refs.response_integrity_ref;
+    const responseRefSeen =
+      responseRef !== null && seenResponseRefs.has(responseRef);
     if (
       snapshot.payload.dimensions.response_integrity === "FAILED" ||
       snapshot.payload.dimensions.response_integrity === "PARTIAL"
     ) {
       responseRecoveryRequired = true;
-      blockedResponseRefs.add(responseRef);
     } else if (responseRecoveryRequired) {
-      if (responseRef === null || blockedResponseRefs.has(responseRef)) {
-        reasons.push("RESPONSE_INTEGRITY_EVIDENCE_REUSED");
+      if (snapshot.payload.dimensions.response_integrity === "VERIFIED") {
+        if (responseRef === null || responseRefSeen) {
+          reasons.push("RESPONSE_INTEGRITY_EVIDENCE_REUSED");
+        } else {
+          responseRecoveryRequired = false;
+        }
       } else {
-        responseRecoveryRequired = false;
-        blockedResponseRefs.clear();
+        reasons.push("RESPONSE_INTEGRITY_RECOVERY_UNVERIFIED");
       }
     }
+    if (responseRef !== null) seenResponseRefs.add(responseRef);
   }
 
   return {
