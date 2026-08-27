@@ -15,4 +15,6 @@ updates:
     commit-message:
       prefix: "deps"
 
-    versioning-strategy: increase
+    # Preserve valid exact local-version pins (for example, PyTorch +cpu) unless
+    # the current requirement blocks the available update.
+    versioning-strategy: increase-if-necessary
