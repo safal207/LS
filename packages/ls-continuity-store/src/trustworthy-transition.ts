@@ -787,6 +787,13 @@ export function assessSnapshotChain(
     current.payload.reauthorization_ref ===
       current.payload.record_refs.authorization_ref;
   if (
+    previous.payload.dimensions.execution === "OBSERVED_BLOCKED" &&
+    current.payload.dimensions.execution !== "OBSERVED_BLOCKED" &&
+    !explicitAuthorizationEpoch
+  ) {
+    reasons.push("EXECUTION_ROLLBACK");
+  }
+  if (
     previous.payload.dimensions.authority === "VALID" &&
     current.payload.dimensions.authority === "VALID" &&
     previousExpiry !== null &&
@@ -840,6 +847,7 @@ export function assessSnapshotSequence(
   const seenCausalRefs = new Set<string>();
   let responseRecoveryRequired = false;
   const seenResponseRefs = new Set<string>();
+  let responseRecoveryUnverified = false;
   for (const [index, snapshot] of snapshots.entries()) {
     verifyStoredSnapshot(snapshot);
     if (index > 0) {
@@ -936,12 +944,20 @@ export function assessSnapshotSequence(
           reasons.push("RESPONSE_INTEGRITY_EVIDENCE_REUSED");
         } else {
           responseRecoveryRequired = false;
+          responseRecoveryUnverified = false;
         }
       } else {
-        reasons.push("RESPONSE_INTEGRITY_RECOVERY_UNVERIFIED");
+        responseRecoveryUnverified = true;
       }
     }
     if (responseRef !== null) seenResponseRefs.add(responseRef);
+  }
+  if (
+    responseRecoveryRequired &&
+    responseRecoveryUnverified &&
+    !reasons.includes("RESPONSE_INTEGRITY_EVIDENCE_REUSED")
+  ) {
+    reasons.push("RESPONSE_INTEGRITY_RECOVERY_UNVERIFIED");
   }
 
   return {
