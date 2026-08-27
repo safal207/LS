@@ -666,6 +666,72 @@ describe("trustworthy-transition continuity adapter", () => {
     assert.equal(result.posture, "RETRY_SIDE_EFFECT");
   });
 
+  it("consumes staged clearance when execution is blocked again", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.dimensions.execution = "OBSERVED_BLOCKED";
+    const initiallyBlocked = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+
+    const reauthorizedInput = structuredClone(snapshotInput);
+    const newAuthorization = ref("consumed-clearance-authorization");
+    reauthorizedInput.record_refs.authorization_ref = newAuthorization;
+    reauthorizedInput.reauthorization_ref = newAuthorization;
+    reauthorizedInput.retry = {
+      retryable_after_error: true,
+      idempotency_key: "consumed-clearance-retry"
+    };
+    const reauthorized = persistTransitionSnapshot(
+      store,
+      reauthorizedInput,
+      "2030-01-01T00:01:00.000Z",
+      initiallyBlocked.object_id
+    );
+
+    const blockedAgainInput = structuredClone(reauthorizedInput);
+    blockedAgainInput.record_refs.observation_refs.push(
+      ref("later-blocked-observation")
+    );
+    const blockedAgain = persistTransitionSnapshot(
+      store,
+      blockedAgainInput,
+      "2030-01-01T00:02:00.000Z",
+      reauthorized.object_id
+    );
+    const erroredInput = structuredClone(blockedAgainInput);
+    erroredInput.dimensions.execution = "OBSERVED_ERRORED";
+    const errored = persistTransitionSnapshot(
+      store,
+      erroredInput,
+      "2030-01-01T00:03:00.000Z",
+      blockedAgain.object_id
+    );
+
+    assert.deepEqual(
+      assessSnapshotSequence([
+        initiallyBlocked,
+        reauthorized,
+        blockedAgain,
+        errored
+      ]),
+      { valid: false, reason_codes: ["EXECUTION_ROLLBACK"] }
+    );
+    const result = evaluateTransitionResume(
+      store,
+      errored.object_id,
+      buildRequest(errored, {
+        operation: "retry_side_effect",
+        idempotency_key: "consumed-clearance-retry",
+        now: "2030-01-01T00:10:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
   it("rejects expiry removal or extension without a new authorization epoch", () => {
     for (const [name, nextExpiry] of [
       ["removed", null],

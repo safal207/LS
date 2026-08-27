@@ -869,9 +869,15 @@ export function assessSnapshotSequence(
   let blockedClearanceEpoch: string | null = null;
   for (const [index, snapshot] of snapshots.entries()) {
     verifyStoredSnapshot(snapshot);
-    if (index > 0) {
-      const assessment = assessSnapshotChain(snapshots[index - 1], snapshot);
-      const previous = snapshots[index - 1];
+    const previous = index > 0 ? snapshots[index - 1] : null;
+    const addsFreshObservation =
+      previous !== null &&
+      snapshot.payload.record_refs.observation_refs.some(
+        (reference) =>
+          !previous.payload.record_refs.observation_refs.includes(reference)
+      );
+    if (previous !== null) {
+      const assessment = assessSnapshotChain(previous, snapshot);
       const clearsBlockedUnderPreparedEpoch =
         blockedExecutionActive &&
         previous.payload.dimensions.execution === "OBSERVED_BLOCKED" &&
@@ -931,13 +937,14 @@ export function assessSnapshotSequence(
       }
     }
 
-    if (explicitNewEpoch && blockedExecutionActive) {
-      blockedClearanceEpoch = authorization;
-    }
     if (snapshot.payload.dimensions.execution === "OBSERVED_BLOCKED") {
       if (!blockedExecutionActive) {
         blockedExecutionActive = true;
         blockedClearanceEpoch = explicitNewEpoch ? authorization : null;
+      } else if (explicitNewEpoch) {
+        blockedClearanceEpoch = authorization;
+      } else if (addsFreshObservation) {
+        blockedClearanceEpoch = null;
       }
     } else if (blockedExecutionActive) {
       blockedExecutionActive = false;
