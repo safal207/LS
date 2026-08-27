@@ -52,6 +52,8 @@ signature_algorithm
 
 `trust_root_digest` binds the complete v0.8 trust-root payload. `snapshot_id` is derived from the statement fields excluding the signature.
 
+The verifier accepts only the published fields for the snapshot, bootstrap authority, bootstrap key, checkpoint, and embedded v0.8 trust root. Duplicate JSON member names (including escaped-name collisions), non-finite values, unpublished fields, negative epoch times, and invalid verifier time fail closed before signature, freshness, or continuity claims are evaluated. This prevents ignored properties from being presented downstream as though they were signed or verifier-authorized claims.
+
 ## Verifier-controlled inputs
 
 ### Bootstrap authority

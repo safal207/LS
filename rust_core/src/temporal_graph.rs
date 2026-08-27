@@ -96,10 +96,10 @@ impl TemporalGraph {
             ordered.push((node_id, ts, cause, solution, entry.clone()));
         }
 
-        ordered.sort_by(|a, b| a.1.cmp(&b.1));
+        ordered.sort_by_key(|item| item.1);
 
         for nodes in by_thread.values_mut() {
-            nodes.sort_by(|a, b| a.1.cmp(&b.1));
+            nodes.sort_by_key(|item| item.1);
             for pair in nodes.windows(2) {
                 let (from, from_ts) = (&pair[0].0, pair[0].1);
                 let (to, to_ts) = (&pair[1].0, pair[1].1);
@@ -168,7 +168,7 @@ impl TemporalGraph {
                 }
             })
             .collect();
-        same_thread.sort_by(|a, b| a.1.cmp(&b.1));
+        same_thread.sort_by_key(|item| item.1);
 
         if let Some(index) = same_thread.iter().position(|(id, _)| *id == node_id) {
             let predecessor = index.checked_sub(1).and_then(|i| same_thread.get(i));
@@ -316,7 +316,7 @@ impl TemporalGraph {
             .values()
             .filter_map(|node| parse_ts(&node.ts).map(|ts| (node.id.clone(), ts)))
             .collect();
-        dated_nodes.sort_by(|a, b| b.1.cmp(&a.1));
+        dated_nodes.sort_by_key(|item| std::cmp::Reverse(item.1));
 
         let allowed: HashSet<String> = dated_nodes
             .iter()

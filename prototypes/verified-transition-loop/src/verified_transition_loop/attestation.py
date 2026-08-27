@@ -7,6 +7,7 @@ import copy
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -23,6 +24,29 @@ ED25519 = "ED25519"
 ED25519_PUBLIC_KEY_BYTES = 32
 
 
+def _reject_duplicate_json_members(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON member name: {key}")
+        value[key] = item
+    return value
+
+
+def _reject_nonfinite_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant: {value}")
+
+
+def _load_json(path: str | Path) -> Any:
+    return json.loads(
+        Path(path).read_text(encoding="utf-8"),
+        object_pairs_hook=_reject_duplicate_json_members,
+        parse_constant=_reject_nonfinite_json_constant,
+    )
+
+
 @dataclass(frozen=True)
 class AuthenticityResult:
     valid: bool
@@ -36,7 +60,11 @@ class AuthenticityResult:
 
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -64,6 +92,26 @@ _STATEMENT_FIELDS = (
     "not_after_ms",
     "trust_policy_version",
     "signature_algorithm",
+)
+_ENVELOPE_FIELDS = frozenset(
+    ("profile_id", "schema_version", "transcript", "attestation")
+)
+_ATTESTATION_FIELDS = frozenset(
+    ("attestation_id", *_STATEMENT_FIELDS, "signature")
+)
+_TRUST_ROOT_FIELDS = frozenset(
+    ("profile_id", "trust_root_id", "policy_version", "allowed_algorithms", "keys")
+)
+_TRUST_KEY_FIELDS = frozenset(
+    (
+        "signer_key_id",
+        "issuer_id",
+        "algorithm",
+        "public_key_base64",
+        "not_before_ms",
+        "not_after_ms",
+        "revoked",
+    )
 )
 
 
@@ -97,6 +145,30 @@ def _integer(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _non_negative_integer(value: Any) -> bool:
+    return _integer(value) and value >= 0
+
+
+def _json_compatible(value: Any) -> bool:
+    if value is None or isinstance(value, (bool, int, str)):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, (list, tuple)):
+        return all(_json_compatible(item) for item in value)
+    if isinstance(value, Mapping):
+        return all(
+            isinstance(key, str) and _json_compatible(item)
+            for key, item in value.items()
+        )
+    return False
+
+
+def _public_boolean_claim(value: bool) -> bool:
+    """Project a verifier claim to a plain boolean for public CLI output."""
+    return True if value else False
+
+
 def _hex64(value: Any) -> bool:
     return (
         isinstance(value, str)
@@ -108,8 +180,15 @@ def _hex64(value: Any) -> bool:
 def validate_attested_envelope_shape(envelope: Any) -> tuple[str, ...]:
     if not isinstance(envelope, Mapping):
         return ("ENVELOPE_ROOT_INVALID",)
+    if not _json_compatible(envelope):
+        return ("ENVELOPE_CANONICALIZATION_INVALID",)
 
     reasons: list[str] = []
+    _add(
+        reasons,
+        "ENVELOPE_SCHEMA_INVALID:additionalProperties",
+        bool(set(envelope) - _ENVELOPE_FIELDS),
+    )
     _add(reasons, "PROFILE_ID_MISMATCH", envelope.get("profile_id") != PROFILE_ID)
     _add(reasons, "SCHEMA_VERSION_MISMATCH", envelope.get("schema_version") != SCHEMA_VERSION)
     _add(reasons, "TRANSCRIPT_SECTION_INVALID", not isinstance(envelope.get("transcript"), Mapping))
@@ -118,6 +197,11 @@ def validate_attested_envelope_shape(envelope: Any) -> tuple[str, ...]:
     if reasons:
         return tuple(reasons)
 
+    _add(
+        reasons,
+        "ATTESTATION_SCHEMA_INVALID:additionalProperties",
+        bool(set(attestation) - _ATTESTATION_FIELDS),
+    )
     required = {
         "attestation_id": _non_empty_string,
         "profile_id": lambda value: value == PROFILE_ID,
@@ -126,9 +210,9 @@ def validate_attested_envelope_shape(envelope: Any) -> tuple[str, ...]:
         "issuer_id": _non_empty_string,
         "signer_key_id": _non_empty_string,
         "trust_root_id": _non_empty_string,
-        "issued_at_ms": _integer,
-        "not_before_ms": _integer,
-        "not_after_ms": _integer,
+        "issued_at_ms": _non_negative_integer,
+        "not_before_ms": _non_negative_integer,
+        "not_after_ms": _non_negative_integer,
         "trust_policy_version": _non_empty_string,
         "signature_algorithm": _non_empty_string,
         "signature": _non_empty_string,
@@ -142,7 +226,14 @@ def validate_attested_envelope_shape(envelope: Any) -> tuple[str, ...]:
 def validate_trust_root_shape(trust_root: Any) -> tuple[str, ...]:
     if not isinstance(trust_root, Mapping):
         return ("TRUST_ROOT_INVALID",)
+    if not _json_compatible(trust_root):
+        return ("TRUST_ROOT_CANONICALIZATION_INVALID",)
     reasons: list[str] = []
+    _add(
+        reasons,
+        "TRUST_ROOT_SCHEMA_INVALID:additionalProperties",
+        bool(set(trust_root) - _TRUST_ROOT_FIELDS),
+    )
     _add(
         reasons,
         "TRUST_ROOT_PROFILE_INVALID",
@@ -170,13 +261,18 @@ def validate_trust_root_shape(trust_root: Any) -> tuple[str, ...]:
         if not isinstance(key, Mapping):
             _add(reasons, f"TRUST_KEY_INVALID:{index}", True)
             continue
+        _add(
+            reasons,
+            f"TRUST_KEY_SCHEMA_INVALID:{index}.additionalProperties",
+            bool(set(key) - _TRUST_KEY_FIELDS),
+        )
         specs = {
             "signer_key_id": _non_empty_string,
             "issuer_id": _non_empty_string,
             "algorithm": _non_empty_string,
             "public_key_base64": _non_empty_string,
-            "not_before_ms": _integer,
-            "not_after_ms": _integer,
+            "not_before_ms": _non_negative_integer,
+            "not_after_ms": _non_negative_integer,
             "revoked": lambda value: isinstance(value, bool),
         }
         for field, predicate in specs.items():
@@ -199,6 +295,11 @@ def verify_attested_dispatch(
     now_ms: int,
 ) -> AuthenticityResult:
     reasons = list(validate_attested_envelope_shape(envelope))
+    _add(
+        reasons,
+        "VERIFICATION_TIME_INVALID",
+        not _non_negative_integer(now_ms),
+    )
     trust_shape_reasons = validate_trust_root_shape(trust_root)
     reasons.extend(reason for reason in trust_shape_reasons if reason not in reasons)
     if reasons:
@@ -404,7 +505,7 @@ def validate_fixture_shape(fixture: Any) -> None:
 
 
 def load_fixture(path: str | Path) -> dict[str, Any]:
-    fixture = json.loads(Path(path).read_text(encoding="utf-8"))
+    fixture = _load_json(path)
     validate_fixture_shape(fixture)
     return fixture
 
@@ -431,7 +532,9 @@ def run_fixture(fixture: Mapping[str, Any]) -> dict[str, Any]:
                     "valid": result.valid,
                     "integrity_valid": result.integrity_valid,
                     "signature_valid": result.signature_valid,
-                    "trusted_current_authority": result.trusted_current_authority,
+                    "trusted_current_authority": _public_boolean_claim(
+                        result.trusted_current_authority
+                    ),
                     "reason_codes": list(result.reason_codes),
                 },
                 "expected": {
@@ -463,7 +566,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--now-ms", type=int, help="Verification time in epoch milliseconds")
     args = parser.parse_args(argv)
 
-    data = json.loads(Path(args.path).read_text(encoding="utf-8"))
+    data = _load_json(args.path)
     if isinstance(data, Mapping) and data.get("schema_version") == FIXTURE_SCHEMA_VERSION:
         result = run_fixture(data)
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -471,7 +574,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.trust_root is None or args.now_ms is None:
         parser.error("--trust-root and --now-ms are required for a single envelope")
-    trust_root = json.loads(Path(args.trust_root).read_text(encoding="utf-8"))
+    trust_root = _load_json(args.trust_root)
     result = verify_attested_dispatch(data, trust_root, now_ms=args.now_ms)
     print(
         json.dumps(
@@ -483,7 +586,9 @@ def main(argv: list[str] | None = None) -> int:
                 "transcript_digest_matches": result.transcript_digest_matches,
                 "attestation_id_valid": result.attestation_id_valid,
                 "signature_valid": result.signature_valid,
-                "trusted_current_authority": result.trusted_current_authority,
+                "trusted_current_authority": _public_boolean_claim(
+                    result.trusted_current_authority
+                ),
                 "reason_codes": list(result.reason_codes),
             },
             indent=2,

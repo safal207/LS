@@ -25,9 +25,9 @@
       ]
     },
     "trust_root_digest": {"$ref": "#/$defs/hex64"},
-    "issued_at_ms": {"type": "integer"},
-    "not_before_ms": {"type": "integer"},
-    "not_after_ms": {"type": "integer"},
+    "issued_at_ms": {"type": "integer", "minimum": 0},
+    "not_before_ms": {"type": "integer", "minimum": 0},
+    "not_after_ms": {"type": "integer", "minimum": 0},
     "issuer_id": {"type": "string", "minLength": 1},
     "bootstrap_authority_id": {"type": "string", "minLength": 1},
     "bootstrap_key_id": {"type": "string", "minLength": 1},
@@ -64,8 +64,8 @@
               "issuer_id": {"type": "string", "minLength": 1},
               "algorithm": {"const": "ED25519"},
               "public_key_base64": {"type": "string", "minLength": 1},
-              "not_before_ms": {"type": "integer"},
-              "not_after_ms": {"type": "integer"},
+              "not_before_ms": {"type": "integer", "minimum": 0},
+              "not_after_ms": {"type": "integer", "minimum": 0},
               "revoked": {"type": "boolean"}
             }
           }
@@ -89,7 +89,7 @@
         "known_snapshot_digest": {
           "oneOf": [{"type": "null"}, {"$ref": "#/$defs/hex64"}]
         },
-        "checkpointed_at_ms": {"type": "integer"}
+        "checkpointed_at_ms": {"type": "integer", "minimum": 0}
       }
     }
   }

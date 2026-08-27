@@ -43,7 +43,11 @@ The portable use-time oracle enforces:
 AUTHORIZE != EXECUTE
 ```
 
-Current proposal/source/policy/approval/evidence/executor state is revalidated at the point of use. The profile contains 10 executable vectors, including proposal/transition drift and single-use permit semantics.
+Current proposal/source/policy/approval/evidence/executor state is revalidated
+at the point of use. The profile contains 10 executable vectors, including
+proposal/transition drift and single-use permit semantics. The fixture loader
+rejects duplicate or escaped-collision JSON members, and approval expiry is
+exclusive: equality with `approval_valid_until_ms` is already expired.
 
 ```text
 schemas/use-time-conformance-v0.4.schema.json
@@ -77,7 +81,14 @@ AuthorizationReceipt
 
 The 11-vector dispatch profile covers wrong decision/use IDs, action-envelope drift, executor/occurrence substitution, context/policy mismatch, replay, sibling-capability substitution, cross-transition outcome binding, and outcome tamper.
 
-The verifier performs schema/structure validation before digest comparisons, so a self-consistent malformed transcript cannot pass through matching missing values.
+The detached verifier performs schema/structure validation before digest comparisons so matching missing values cannot accidentally validate a malformed transcript.
+
+The later dispatch receipt must consume the same binding. Envelope drift,
+executor/occurrence substitution, replay, sibling capability substitution,
+ambiguous JSON, missing authority bindings, verifier/executor collision, an
+invalid execution nonce, or an expired approval fails detached verification.
+
+Artifacts:
 
 ```text
 schemas/tool-dispatch-receipt-v0.7.schema.json
@@ -106,6 +117,21 @@ integrity_valid
 signature_valid
 trusted_current_authority
 ```
+
+The reference v0.8 profile checks:
+
+- exact transcript digest binding;
+- deterministic attestation id;
+- trusted signer lookup from external trust-root input;
+- issuer/key identity binding;
+- allowed signature algorithm;
+- key and attestation validity intervals;
+- signer revocation;
+- trust-policy version binding;
+- Ed25519 signature validity;
+- v0.7 integrity as a prerequisite;
+- strict JSON decoding and exact published envelope/trust-root fields;
+- non-negative verification and validity times.
 
 A self-consistent replacement transcript fails exact attested-digest binding; a valid signature over an invalid v0.7 transcript still fails; revoked or expired signer authority remains separate from mathematical signature validity. Ambiguous signer IDs and malformed trust-root key material fail closed.
 
@@ -154,7 +180,7 @@ next generation / wrong predecessor -> PREVIOUS_SNAPSHOT_DIGEST_MISMATCH
 skipped unseen generations           -> SNAPSHOT_CONTINUITY_GAP
 ```
 
-The 14-vector v0.9 profile additionally covers bad snapshot signatures, unknown bootstrap keys, root-payload tamper, expiry/not-yet-valid state, generation floors, root/policy mismatch, and algorithm substitution. Direct regressions cover ambiguous bootstrap key IDs, malformed/wrong-length bootstrap key material, invalid key validity intervals, future checkpoints, and incomplete checkpoint state.
+The 14-vector v0.9 profile additionally covers bad snapshot signatures, unknown bootstrap keys, root-payload tamper, expiry/not-yet-valid state, generation floors, root/policy mismatch, and algorithm substitution. Direct regressions cover ambiguous bootstrap key IDs, malformed/wrong-length bootstrap key material, invalid key validity intervals, future checkpoints, and incomplete checkpoint state. Strict input regressions also reject duplicate or escaped-collision JSON member names, non-finite values, unpublished fields at every v0.9 authority boundary, negative epoch times, and invalid verifier time before cryptographic or continuity decisions.
 
 A fresh valid snapshot still cannot rescue an invalid v0.8 attestation.
 
