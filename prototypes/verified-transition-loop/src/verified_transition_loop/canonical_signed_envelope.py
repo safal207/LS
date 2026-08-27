@@ -6,6 +6,7 @@ import binascii
 import copy
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -745,9 +746,9 @@ def main(argv: list[str] | None = None) -> int:
     serialized_public_evidence = json.dumps(
         result, indent=2, sort_keys=True, ensure_ascii=False
     )
-    # Public conformance evidence only: canonical signed bytes and signature.
-    # codeql[py/clear-text-logging-sensitive-data]
-    print(serialized_public_evidence)
+    # Emit public conformance evidence as explicit UTF-8 bytes. The result contains
+    # canonical signed bytes and a public signature, never secret key material.
+    sys.stdout.buffer.write(serialized_public_evidence.encode("utf-8") + b"\n")
     return 0 if result["summary"]["all_passed"] else 1
 
 
