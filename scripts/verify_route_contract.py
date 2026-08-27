@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 from route_artifact import (  # noqa: E402
     RouteArtifactError,
     compute_content_digest,
+    load_promotion_thresholds,
     verify_route_artifact,
 )
 from route_test_support import (  # noqa: E402
@@ -33,6 +34,7 @@ def read_json(path: Path) -> dict:
 
 
 def main() -> int:
+    configured_thresholds = load_promotion_thresholds()
     schema = read_json(SCHEMA)
     jsonschema.Draft202012Validator.check_schema(schema)
     validator = jsonschema.Draft202012Validator(schema)
@@ -47,16 +49,17 @@ def main() -> int:
         verify_route_artifact(
             t0,
             repository_root=repo,
+            configured_thresholds=configured_thresholds,
         )
 
     t1 = load_fixture("route_t1_valid.json")
     validator.validate(t1)
-    verify_route_artifact(t1)
+    verify_route_artifact(t1, configured_thresholds=configured_thresholds)
 
     t2 = load_fixture("route_t2_rejected.json")
     validator.validate(t2)
     try:
-        verify_route_artifact(t2)
+        verify_route_artifact(t2, configured_thresholds=configured_thresholds)
     except RouteArtifactError as exc:
         if exc.code != "ROUTE-V2-T2":
             raise
@@ -68,6 +71,7 @@ def main() -> int:
     verify_route_artifact(
         t2,
         canonical_store=False,
+        configured_thresholds=configured_thresholds,
     )
 
     tests = unittest.defaultTestLoader.discover(
@@ -87,7 +91,7 @@ def main() -> int:
         "t1": "artifact-attested",
         "t2": "rejected-canonical-audited",
         "honeypot": "sealed-ground-truth-matched",
-        "promotion_floors": "protocol-pinned",
+        "promotion_thresholds": "externally-configured-and-artifact-bound",
         "tests_run": result.testsRun,
         "failures": len(result.failures),
         "errors": len(result.errors),

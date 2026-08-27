@@ -225,10 +225,10 @@
       "additionalProperties": false,
       "required": ["minimum_t0_runs", "minimum_repositories", "minimum_task_variants", "minimum_sealed_honeypot_runs", "requires_zero_unresolved_critical_false_negatives", "requires_confidence_intervals", "requires_maintainer_approval"],
       "properties": {
-        "minimum_t0_runs": {"const": 20},
-        "minimum_repositories": {"const": 2},
-        "minimum_task_variants": {"const": 2},
-        "minimum_sealed_honeypot_runs": {"const": 1},
+        "minimum_t0_runs": {"type": "integer", "minimum": 1},
+        "minimum_repositories": {"type": "integer", "minimum": 1},
+        "minimum_task_variants": {"type": "integer", "minimum": 1},
+        "minimum_sealed_honeypot_runs": {"type": "integer", "minimum": 1},
         "requires_zero_unresolved_critical_false_negatives": {"const": true},
         "requires_confidence_intervals": {"const": true},
         "requires_maintainer_approval": {"const": true}

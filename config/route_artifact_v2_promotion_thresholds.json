@@ -1,0 +1,6 @@
+{
+  "minimum_t0_runs": 20,
+  "minimum_repositories": 2,
+  "minimum_task_variants": 2,
+  "minimum_sealed_honeypot_runs": 1
+}

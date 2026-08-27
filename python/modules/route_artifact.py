@@ -21,15 +21,16 @@ TIERS = {"T0_deterministic_replay", "T1_artifact_attested", "T2_narrative_only"}
 CAPABILITIES = {"frontier", "mid", "small", "open_weight", "human", "deterministic_tool"}
 RISKS = {"low", "medium", "high", "critical"}
 
-PROTOCOL_MINIMUM_T0_RUNS = 20
-PROTOCOL_MINIMUM_REPOSITORIES = 2
-PROTOCOL_MINIMUM_TASK_VARIANTS = 2
-PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS = 1
-PROTOCOL_PROMOTION_FLOORS = {
-    "minimum_t0_runs": PROTOCOL_MINIMUM_T0_RUNS,
-    "minimum_repositories": PROTOCOL_MINIMUM_REPOSITORIES,
-    "minimum_task_variants": PROTOCOL_MINIMUM_TASK_VARIANTS,
-    "minimum_sealed_honeypot_runs": PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS,
+DEFAULT_PROMOTION_THRESHOLDS_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "config"
+    / "route_artifact_v2_promotion_thresholds.json"
+)
+PROMOTION_THRESHOLD_KEYS = {
+    "minimum_t0_runs",
+    "minimum_repositories",
+    "minimum_task_variants",
+    "minimum_sealed_honeypot_runs",
 }
 
 ROUTE_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -170,6 +171,34 @@ def exact(value: Mapping[str, Any], path: str, keys: set[str]) -> None:
         fail("ROUTE-V2-SHAPE", f"{path} is missing keys: {sorted(missing)}")
     if extra:
         fail("ROUTE-V2-SHAPE", f"{path} contains unknown keys: {sorted(extra)}")
+
+
+def promotion_thresholds(
+    value: Any,
+    path: str = "promotion_thresholds",
+) -> dict[str, int]:
+    """Validate externally selected numeric promotion thresholds."""
+    configured = obj(value, path)
+    exact(configured, path, PROMOTION_THRESHOLD_KEYS)
+    return {
+        key: integer(configured[key], f"{path}.{key}", 1)
+        for key in sorted(PROMOTION_THRESHOLD_KEYS)
+    }
+
+
+def load_promotion_thresholds(
+    path: Path | str = DEFAULT_PROMOTION_THRESHOLDS_PATH,
+) -> dict[str, int]:
+    """Load and validate a promotion-threshold configuration file."""
+    source = Path(path)
+    try:
+        value = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(
+            "ROUTE-V2-POLICY",
+            f"cannot load promotion thresholds from {source}: {exc}",
+        )
+    return promotion_thresholds(value)
 
 
 def metric(value: Any, path: str) -> None:
@@ -413,7 +442,10 @@ def verify_source_checkout(
         )
 
 
-def verify_promotion(route: Mapping[str, Any]) -> None:
+def verify_promotion(
+    route: Mapping[str, Any],
+    configured_thresholds: Mapping[str, int],
+) -> None:
     status = route["status"]
     if status not in {"candidate", "validated"}:
         return
@@ -429,16 +461,18 @@ def verify_promotion(route: Mapping[str, Any]) -> None:
     failures: list[str] = []
 
     metric_floors = {
-        "t0_runs": PROTOCOL_MINIMUM_T0_RUNS,
-        "repository_count": PROTOCOL_MINIMUM_REPOSITORIES,
-        "task_variant_count": PROTOCOL_MINIMUM_TASK_VARIANTS,
-        "sealed_honeypot_runs": PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS,
+        "t0_runs": configured_thresholds["minimum_t0_runs"],
+        "repository_count": configured_thresholds["minimum_repositories"],
+        "task_variant_count": configured_thresholds["minimum_task_variants"],
+        "sealed_honeypot_runs": configured_thresholds[
+            "minimum_sealed_honeypot_runs"
+        ],
     }
     for metric_key, floor in metric_floors.items():
         if metrics[metric_key] < floor:
             failures.append(metric_key)
 
-    if len(honeypots) < PROTOCOL_MINIMUM_SEALED_HONEYPOT_RUNS:
+    if len(honeypots) < configured_thresholds["minimum_sealed_honeypot_runs"]:
         failures.append("sealed_honeypot_ground_truth_evaluations")
     if (
         policy["requires_zero_unresolved_critical_false_negatives"]
@@ -471,7 +505,13 @@ def verify_route_artifact(
     *,
     canonical_store: bool = True,
     repository_root: Path | str | None = None,
+    configured_thresholds: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    selected_thresholds = promotion_thresholds(
+        load_promotion_thresholds()
+        if configured_thresholds is None
+        else configured_thresholds
+    )
     route = obj(artifact, "route")
     exact(
         route,
@@ -771,14 +811,14 @@ def verify_route_artifact(
             "requires_maintainer_approval",
         },
     )
-    for key, protocol_value in PROTOCOL_PROMOTION_FLOORS.items():
+    for key, configured_value in selected_thresholds.items():
         value = integer(policy[key], f"route.promotion_policy.{key}", 1)
-        if value != protocol_value:
+        if value != configured_value:
             fail(
                 "ROUTE-V2-POLICY",
                 (
-                    f"route.promotion_policy.{key} must equal the v2 protocol "
-                    f"floor {protocol_value}"
+                    f"route.promotion_policy.{key} must equal the externally "
+                    f"configured threshold {configured_value}"
                 ),
             )
     for key in (
@@ -882,7 +922,7 @@ def verify_route_artifact(
             "training eligibility requires explicit permission",
         )
 
-    verify_promotion(route)
+    verify_promotion(route, selected_thresholds)
     return {
         "route_ref": ref,
         "content_digest": digest,
@@ -900,10 +940,12 @@ def verify_immutable_update(
     artifact: Mapping[str, Any],
     *,
     repository_root: Path | str | None = None,
+    configured_thresholds: Mapping[str, Any] | None = None,
 ) -> None:
     summary = verify_route_artifact(
         artifact,
         repository_root=repository_root,
+        configured_thresholds=configured_thresholds,
     )
     previous = existing_digests.get(summary["route_ref"])
     if previous is not None and previous != summary["content_digest"]:
@@ -917,12 +959,19 @@ def build_registry_projection(
     artifacts: Sequence[Mapping[str, Any]],
     *,
     repository_root: Path | str | None = None,
+    configured_thresholds: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    selected_thresholds = promotion_thresholds(
+        load_promotion_thresholds()
+        if configured_thresholds is None
+        else configured_thresholds
+    )
     records: dict[str, dict[str, Any]] = {}
     for artifact in artifacts:
         summary = verify_route_artifact(
             artifact,
             repository_root=repository_root,
+            configured_thresholds=selected_thresholds,
         )
         ref = summary["route_ref"]
         if ref in records:

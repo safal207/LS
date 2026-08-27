@@ -601,7 +601,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 repository_root=repo,
             )
 
-    def test_candidate_cannot_lower_protocol_promotion_floors(self):
+    def test_candidate_cannot_self_lower_configured_promotion_thresholds(self):
         with source_checkout() as (repo, head):
             artifact = make_promotable(repo, head)
             artifact["promotion_policy"].update(
@@ -612,7 +612,7 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 }
             )
             digest(artifact)
-            self.assertTrue(
+            self.assertFalse(
                 list(self.validator().iter_errors(artifact))
             )
             self.assert_code(
@@ -621,6 +621,36 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 artifact,
                 repository_root=repo,
             )
+
+    def test_external_policy_changes_threshold_without_code_change(self):
+        with source_checkout() as (repo, head):
+            artifact = make_promotable(repo, head)
+            configured = {
+                "minimum_t0_runs": 21,
+                "minimum_repositories": 2,
+                "minimum_task_variants": 2,
+                "minimum_sealed_honeypot_runs": 1,
+            }
+            artifact["promotion_policy"].update(configured)
+            digest(artifact)
+            self.assertFalse(list(self.validator().iter_errors(artifact)))
+            self.assert_code(
+                "ROUTE-V2-PROMOTION",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                configured_thresholds=configured,
+            )
+
+            artifact["metrics"]["sample_size"] = 21
+            artifact["metrics"]["t0_runs"] = 21
+            digest(artifact)
+            result = verify_route_artifact(
+                artifact,
+                repository_root=repo,
+                configured_thresholds=configured,
+            )
+            self.assertEqual("candidate", result["status"])
 
     def test_candidate_blocked_without_honeypot_evidence(self):
         with source_checkout() as (repo, head):

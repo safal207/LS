@@ -15,8 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python" / "modules"))
 
 from route_artifact import (  # noqa: E402
+    DEFAULT_PROMOTION_THRESHOLDS_PATH,
     RouteArtifactError,
     build_registry_projection,
+    load_promotion_thresholds,
     verify_route_artifact,
 )
 
@@ -73,6 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--promotion-thresholds",
+        type=Path,
+        default=DEFAULT_PROMOTION_THRESHOLDS_PATH,
+        help="External numeric promotion-threshold policy JSON",
+    )
+    parser.add_argument(
         "--allow-t2-audit",
         action="store_true",
         help=(
@@ -93,6 +101,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     try:
+        configured_thresholds = load_promotion_thresholds(
+            args.promotion_thresholds
+        )
         if args.artifact:
             artifact = read_json(args.artifact)
             validate_schema(artifact)
@@ -100,6 +111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 artifact,
                 canonical_store=not args.allow_t2_audit,
                 repository_root=args.repo_root,
+                configured_thresholds=configured_thresholds,
             )
         else:
             artifacts = [read_json(path) for path in args.registry]
@@ -108,6 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = build_registry_projection(
                 artifacts,
                 repository_root=args.repo_root,
+                configured_thresholds=configured_thresholds,
             )
     except RouteArtifactError as exc:
         sys.stderr.write(f"{exc}\n")

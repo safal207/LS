@@ -113,7 +113,7 @@ projection. Missing references, self-supersession, duplicate references, and
 cycles fail closed. Cycle detection is iterative, so a deep valid lineage does
 not escape through Python recursion depth.
 
-## Promotion statuses and protocol floors
+## Promotion statuses and configured thresholds
 
 - `draft`
 - `experimental`
@@ -124,7 +124,8 @@ not escape through Python recursion depth.
 
 A non-T0 artifact cannot become `candidate` or `validated`.
 
-Route Artifact v2 fixes the promotion floors in the protocol itself:
+The repository default in
+`config/route_artifact_v2_promotion_thresholds.json` is:
 
 - at least 20 T0 runs;
 - at least two repositories;
@@ -134,9 +135,15 @@ Route Artifact v2 fixes the promotion floors in the protocol itself:
 - confidence intervals;
 - maintainer approval for `validated`.
 
-Artifacts must carry those exact v2 values. They cannot lower the thresholds to
-promote themselves on weaker evidence. Changing the protocol floors requires a
-new protocol version rather than a self-authored policy override.
+The verifier selects this external file by default, and the CLI can select a
+different reviewed file with `--promotion-thresholds`. An artifact must carry
+the exact numeric values selected by the verifier, so it cannot lower its own
+thresholds. JSON Schema validates the policy shape; runtime verification binds
+the artifact to the externally selected values and enforces them.
+
+Zero unresolved critical false negatives, confidence intervals, and explicit
+maintainer approval for `validated` remain mandatory v2 invariants and are not
+weakened by the numeric threshold configuration.
 
 These are operational gates, not a claim of statistical proof.
 
