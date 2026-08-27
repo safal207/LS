@@ -61,6 +61,20 @@ def fail(code: str, message: str) -> None:
     raise RouteArtifactError(code, message)
 
 
+def _reject_duplicate_policy_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            fail(
+                "ROUTE-V2-POLICY",
+                f"duplicate JSON object key in promotion thresholds: {key}",
+            )
+        value[key] = item
+    return value
+
+
 def _normalize_json(value: Any, path: str = "$") -> Any:
     """Normalize strings to NFC and reject unsupported or non-finite JSON values."""
     if value is None or isinstance(value, (bool, int)):
@@ -194,7 +208,10 @@ def load_promotion_thresholds(
     """Load and validate a promotion-threshold configuration file."""
     source = Path(path)
     try:
-        value = json.loads(source.read_text(encoding="utf-8"))
+        value = json.loads(
+            source.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_policy_keys,
+        )
     except (OSError, json.JSONDecodeError) as exc:
         fail(
             "ROUTE-V2-POLICY",
@@ -347,7 +364,7 @@ def execute_replay(
             capture_output=True,
             text=True,
             timeout=60,
-            env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"},
+            env=_sanitized_git_environment(),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         fail("ROUTE-V2-REPLAY", f"unable to execute replay command: {exc}")
@@ -523,6 +540,17 @@ def verify_executed_honeypots(
     return len(evaluations)
 
 
+def _sanitized_git_environment() -> dict[str, str]:
+    """Drop caller-controlled Git overrides before source-bound operations."""
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("GIT_")
+    }
+    environment["GIT_NO_REPLACE_OBJECTS"] = "1"
+    return environment
+
+
 def _run_git(repository_root: Path, *args: str) -> str:
     try:
         completed = subprocess.run(
@@ -531,7 +559,7 @@ def _run_git(repository_root: Path, *args: str) -> str:
             capture_output=True,
             text=True,
             timeout=20,
-            env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"},
+            env=_sanitized_git_environment(),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         fail("ROUTE-V2-HEAD", f"unable to verify source checkout: {exc}")

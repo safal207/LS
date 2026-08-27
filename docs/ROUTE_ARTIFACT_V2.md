@@ -45,6 +45,11 @@ the explicit execution capability fails closed. This proves source-bound replay
 behavior; it does not turn the producer's assertion names into independent
 claims about the world.
 
+Verifier-owned Git checks and the declared replay inherit no caller-supplied
+`GIT_*` overrides; the verifier adds only `GIT_NO_REPLACE_OBJECTS=1`. Thus
+`GIT_DIR`, `GIT_WORK_TREE`, object alternates, replacement refs, and related
+environment state cannot redirect source binding away from `--repo-root`.
+
 A 40-character hexadecimal string alone is not T0 evidence.
 
 Only T0 may eventually contribute to confirmed metrics, route promotion, or a
@@ -177,7 +182,9 @@ The verifier selects this external file by default, and the CLI can select a
 different reviewed file with `--promotion-thresholds`. An artifact must carry
 the exact numeric values selected by the verifier, so it cannot lower its own
 thresholds. JSON Schema validates the policy shape; runtime verification binds
-the artifact to the externally selected values and enforces them.
+the artifact to the externally selected values and enforces them. Duplicate
+JSON keys at any nesting depth are rejected rather than resolved by last-value
+wins parsing.
 
 Effectiveness and false-positive point estimates and confidence bounds are
 restricted to `[0, 1]`, but remain empty in this contract until a separately

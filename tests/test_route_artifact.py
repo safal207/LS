@@ -6,10 +6,13 @@ import importlib.util
 import io
 import json
 import math
+import os
+import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import jsonschema
 
@@ -22,6 +25,7 @@ from route_artifact import (  # noqa: E402
     build_registry_projection,
     compute_content_digest,
     compute_replay_evidence_digest,
+    load_promotion_thresholds,
     verify_immutable_update,
     verify_route_artifact,
 )
@@ -206,6 +210,24 @@ class RouteArtifactV2Tests(unittest.TestCase):
         self.assertEqual(1, result)
         self.assertIn("duplicate JSON object key: status", stderr.getvalue())
 
+    def test_promotion_thresholds_reject_duplicate_json_keys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            policy_path = Path(directory) / "promotion-thresholds.json"
+            policy_path.write_text(
+                (
+                    '{"minimum_t0_runs":20,"minimum_t0_runs":1,'
+                    '"minimum_repositories":2,"minimum_task_variants":2,'
+                    '"minimum_sealed_honeypot_runs":1}\n'
+                ),
+                encoding="utf-8",
+            )
+            error = self.assert_code(
+                "ROUTE-V2-POLICY",
+                load_promotion_thresholds,
+                policy_path,
+            )
+        self.assertIn("duplicate JSON object key", error.message)
+
     def test_t0_is_source_bound_and_training_eligible(self):
         with source_checkout() as (repo, head):
             result = verify_route_artifact(
@@ -364,6 +386,39 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 repository_root=repo,
                 execute_declared_replay=True,
             )
+
+    def test_t0_rejects_repository_redirecting_git_environment(self):
+        with source_checkout() as (trusted_repo, exact_head):
+            artifact = materialize_t0(
+                trusted_repo,
+                exact_head,
+                compute_digest=compute_content_digest,
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                replay_root = Path(directory)
+                (replay_root / "scripts").mkdir()
+                shutil.copy2(
+                    trusted_repo / "fixture.txt",
+                    replay_root / "fixture.txt",
+                )
+                shutil.copy2(
+                    trusted_repo / "scripts" / "verify_route_contract.py",
+                    replay_root / "scripts" / "verify_route_contract.py",
+                )
+                with mock.patch.dict(
+                    os.environ,
+                    {
+                        "GIT_DIR": str(trusted_repo / ".git"),
+                        "GIT_WORK_TREE": str(trusted_repo),
+                    },
+                ):
+                    self.assert_code(
+                        "ROUTE-V2-HEAD",
+                        verify_route_artifact,
+                        artifact,
+                        repository_root=replay_root,
+                        execute_declared_replay=True,
+                    )
 
     def test_t0_rejects_self_declared_honeypot_without_operator_truth(self):
         with source_checkout() as (repo, head):
