@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.EXACT_SOURCE_SHA }}
+          persist-credentials: false
       - name: Verify checked-out source identity
         run: test "$(git rev-parse HEAD)" = "$EXACT_SOURCE_SHA"
 
