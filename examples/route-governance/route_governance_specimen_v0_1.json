@@ -8,7 +8,7 @@
   "route_promotion_candidate": {
     "candidate_id": "rpc_high-risk-code-review_2.0.0_001",
     "candidate_version": "0.1",
-    "candidate_digest": "sha256:c2697dc32521e240c5142fe6426891805afd638a63b8e64690546b34faf503e4",
+    "candidate_digest": "sha256:1356255937af1f0af6a113322a8e79e0b429ef488f0c47de22f01ebf76372eae",
     "created_at": "2026-07-03T21:50:00Z",
     "created_by": "route_evidence_adapter:v0.1",
     "subject": {
@@ -24,6 +24,40 @@
     },
     "evidence": {
       "tier": "T0_deterministic_replay",
+      "tier_semantics": {
+        "selected_tier": "T0_deterministic_replay",
+        "boundaries": {
+          "T0_deterministic_replay": {
+            "canonical_disposition": "replay_evidence",
+            "confirmed_metrics_allowed": true,
+            "training_eligibility_possible": true,
+            "round_trip_fields": [
+              "exact_head",
+              "replay_evidence_digest",
+              "sealed_honeypot_refs"
+            ]
+          },
+          "T1_artifact_attested": {
+            "canonical_disposition": "artifact_attested_only",
+            "confirmed_metrics_allowed": false,
+            "training_eligibility_possible": false,
+            "round_trip_fields": [
+              "artifact_refs",
+              "human_sign_off"
+            ]
+          },
+          "T2_narrative_only": {
+            "canonical_disposition": "rejection_audit_only",
+            "canonical_store_allowed": false,
+            "confirmed_metrics_allowed": false,
+            "training_eligibility_possible": false,
+            "round_trip_fields": [
+              "narrative",
+              "rejection_reason_codes"
+            ]
+          }
+        }
+      },
       "exact_head": "61216069d60c3cfe68c975ff2385d0d53339525c",
       "replay_evidence_digest": "sha256:f6bee80cdb3c0cb5a7f0a96297b28e4c08eabcd96ca250a0d4fe6efd05f9ea95",
       "sealed_honeypot_refs": [
@@ -35,7 +69,18 @@
       "counterevidence_refs": [],
       "unavailable_provider_refs": [
         "provider:codex/code-review-usage-limit"
-      ]
+      ],
+      "evidence_set_binding": {
+        "canonicalization": "RFC8785-JCS",
+        "digest": "sha256:5fe17008ceb72df4371a9cc4a6d881c0f5be59b4bfca11b7a738e690b062cc3a",
+        "members": [
+          "git-head:61216069d60c3cfe68c975ff2385d0d53339525c",
+          "workflow:route-artifact-v2@61216069d60c3cfe68c975ff2385d0d53339525c",
+          "replay:sha256:f6bee80cdb3c0cb5a7f0a96297b28e4c08eabcd96ca250a0d4fe6efd05f9ea95",
+          "honeypot:terminal_authority_multihop",
+          "unavailable:provider:codex/code-review-usage-limit"
+        ]
+      }
     },
     "observed_metrics": {
       "t0_runs": 1,
@@ -67,10 +112,11 @@
         "groundTruthMatched",
         "promotionEligible",
         "maintainerApproved",
-        "validatedState"
+        "validatedState",
+        "candidate_state"
       ]
     },
-    "candidate_state": "READY_FOR_GOVERNANCE",
+    "candidate_state": "GOVERNANCE_DECISION_ISSUED_REQUEST_MORE_EVIDENCE",
     "authority_effects": {
       "may_approve_route": false,
       "may_mark_validated": false,
@@ -93,12 +139,13 @@
   "governance_decision": {
     "decision_id": "gd_route_high-risk-code-review_001",
     "decision_version": "0.1",
-    "decision_digest": "sha256:9a6f2eddc5c9863ca6dfc4302dcff00689b824040e0b92823846018d60b03dc9",
+    "decision_digest": "sha256:cba7e37a6b346480d71941001d2c91f66151e6973c325879319b1fd61d8b9bb3",
     "decided_at": "2026-07-03T21:55:00Z",
     "decided_by": "route_governance_reviewer:v0.1",
     "proposing_actor": "route_evidence_adapter:v0.1",
     "subject_candidate_ref": "rpc_high-risk-code-review_2.0.0_001",
-    "subject_candidate_digest": "sha256:c2697dc32521e240c5142fe6426891805afd638a63b8e64690546b34faf503e4",
+    "subject_candidate_digest": "sha256:1356255937af1f0af6a113322a8e79e0b429ef488f0c47de22f01ebf76372eae",
+    "evidence_set_digest": "sha256:5fe17008ceb72df4371a9cc4a6d881c0f5be59b4bfca11b7a738e690b062cc3a",
     "reviewed_subject": {
       "route_ref": "high-risk-code-review@2.0.0",
       "route_content_digest": "sha256:a67ced8479bd83c67b4dde4f630395996fd3a292fca8acaf73bd50b57ea76edf",
@@ -132,12 +179,46 @@
       "deployment_authority_granted": false
     }
   },
-  "route_version_record": null,
-  "route_ledger_entry": null,
+  "route_version_record": {
+    "creation_status": "not_created",
+    "reason": "REQUEST_MORE_EVIDENCE is non-approving; creating a durable promoted record would fabricate state.",
+    "blocked_by_decision_ref": "gd_route_high-risk-code-review_001",
+    "template": {
+      "route_version_record_id": null,
+      "route_ref": null,
+      "route_content_digest": null,
+      "promotion_candidate_ref": null,
+      "governance_decision_ref": null,
+      "governance_decision_digest": null,
+      "governed_state": null,
+      "supersedes_route_version_record_ref": null,
+      "created_at": null,
+      "record_digest": null,
+      "authority_effects": {
+        "merge_authority_granted": false,
+        "deployment_authority_granted": false,
+        "execution_authority_granted": false
+      }
+    }
+  },
+  "route_ledger_entry": {
+    "creation_status": "not_created",
+    "reason": "No governed route-version transition exists to append to the ledger.",
+    "blocked_by_decision_ref": "gd_route_high-risk-code-review_001",
+    "template": {
+      "route_ledger_entry_id": null,
+      "route_version_record_ref": null,
+      "governance_decision_ref": null,
+      "transition": null,
+      "previous_ledger_entry_ref": null,
+      "created_at": null,
+      "entry_digest": null
+    }
+  },
   "route_registry_snapshot": {
     "snapshot_id": "route_registry_snapshot_2026_07_03_001",
     "snapshot_version": "0.1",
-    "snapshot_digest": "sha256:715db240b19c113b23fb2ab4b5d3e02f00d4025ac5e73ce4747b44f5141628f8",
+    "snapshot_digest": "sha256:b022292019469806f2e266ed68f82087a9069e9ab30e41060e6a4f6d0e17a220",
     "as_of": "2026-07-03T22:00:00Z",
     "created_by": "route_registry_reconstructor:v0.1",
     "reconstruction_basis": {
@@ -184,12 +265,14 @@
       "self_approved_candidate": "reject_snapshot",
       "validated_state_without_approving_decision": "reject_snapshot",
       "active_record_missing_ledger_history": "reject_snapshot",
+      "not_created_template_treated_as_record": "reject_snapshot",
       "route_memory_used_as_action_authority": "reject_snapshot"
     }
   },
   "interpretation": {
     "outcome": "promotion_blocked_request_more_evidence",
     "why_no_route_version_record": "The current evidence has one T0 run, one repository, one task variant, no confidence intervals, and no maintainer approval. Governance must not fabricate durable promoted state.",
-    "provisional_compatibility_decision": "B_shared_governance_envelope_domain_specific_records"
+    "provisional_compatibility_decision": "B_shared_governance_envelope_domain_specific_records",
+    "pr_772_disposition": "merge_narrow_route_evidence_contract_after_own_exact_head_gates"
   }
 }
