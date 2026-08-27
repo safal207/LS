@@ -233,8 +233,8 @@ Key properties:
   duplicate IDs, malformed expected encodings, and no-op mutation claims;
 - Python-only values such as tuples are not accepted as JSON profile values.
 
-The machine-readable proof contains **19 vectors**: 11 positive canonical-byte
-cases, 7 fail-closed parser/domain cases, and one semantic-mutation digest
+The machine-readable proof contains **21 vectors**: 11 positive canonical-byte
+cases, 9 fail-closed parser/domain cases, and one semantic-mutation digest
 case. Python and Node independently compute the same base64-encoded UTF-8 bytes
 and SHA-256 digest and CI then compares their complete structured results.
 

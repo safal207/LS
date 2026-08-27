@@ -85,8 +85,8 @@ jobs:
           node_result = json.loads(Path('/tmp/vtl-canonical-node.json').read_text())
           assert python_result == node_result
           assert python_result['summary'] == {
-              'total': 19,
-              'passed': 19,
+              'total': 21,
+              'passed': 21,
               'failed': 0,
               'all_passed': True,
           }
@@ -98,9 +98,14 @@ jobs:
           python - <<'PY'
           import copy
           import json
+          import shutil
           from pathlib import Path
 
           source = json.loads(Path('fixtures/canonical-proof-v0.10.json').read_text())
+          output_dir = Path('/tmp/vtl-canonical-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
           fixtures = {}
 
           candidate = copy.deepcopy(source)
@@ -120,12 +125,17 @@ jobs:
           fixtures['mutation-may-match'] = candidate
 
           for name, fixture in fixtures.items():
-              Path(f'/tmp/vtl-canonical-{name}.json').write_text(
+              (output_dir / f'{name}.json').write_text(
                   json.dumps(fixture),
                   encoding='utf-8',
               )
           PY
-          for fixture in /tmp/vtl-canonical-*.json; do
+          fixtures=(/tmp/vtl-canonical-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 4 ]]; then
+            echo "Expected four malformed fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
             if vtl-canonical-verify "$fixture" > /dev/null 2>&1; then
               echo "Python accepted invalid fixture: $fixture" >&2
               exit 1

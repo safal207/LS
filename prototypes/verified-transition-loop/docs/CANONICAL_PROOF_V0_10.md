@@ -96,8 +96,9 @@ success.
 
 The positive profile covers key/whitespace changes, nested object order, alternate escape spelling, composed and decomposed Unicode, supplementary-plane key sorting, control escaping, arrays, safe-integer boundaries, and a VTL-shaped transition payload.
 
-Negative vectors cover floating-point values, exponent notation, non-JSON
-constants, unsafe integers, duplicate names, and lone surrogates. A
+Negative vectors cover fractional values, integral values written with decimal
+or exponent syntax, non-JSON constants, unsafe integers, duplicate names, and
+lone surrogates. A
 semantic-mutation vector proves that changing an actual field changes the
 canonical digest.
 

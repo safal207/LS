@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from verified_transition_loop.canonical import (
     CANONICAL_PROFILE,
@@ -24,11 +25,19 @@ def test_machine_readable_fixture_passes() -> None:
     result = verify_fixture(strict_loads(FIXTURE.read_text(encoding="utf-8")))
     assert result["canonical_profile"] == CANONICAL_PROFILE
     assert result["summary"] == {
-        "total": 19,
-        "passed": 19,
+        "total": 21,
+        "passed": 21,
         "failed": 0,
         "all_passed": True,
     }
+
+
+def test_machine_readable_fixture_matches_published_schema() -> None:
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(fixture)
 
 
 def test_utf16_key_order_matches_jcs_requirement() -> None:
@@ -57,7 +66,10 @@ def test_escaped_duplicate_names_fail_closed() -> None:
     assert excinfo.value.code == "DUPLICATE_KEY"
 
 
-@pytest.mark.parametrize("raw", ['{"x":1.5}', '{"x":1e3}'])
+@pytest.mark.parametrize(
+    "raw",
+    ['{"x":1.5}', '{"x":1e3}', '{"x":1.0}', '{"x":1e0}'],
+)
 def test_floating_point_forms_are_outside_profile(raw: str) -> None:
     with pytest.raises(CanonicalizationError) as excinfo:
         strict_loads(raw)

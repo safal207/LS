@@ -82,6 +82,16 @@
       "error_code": "UNSUPPORTED_NUMBER"
     },
     {
+      "id": "integral-float-form-rejected",
+      "raw_json": "{\"x\":1.0}",
+      "error_code": "UNSUPPORTED_NUMBER"
+    },
+    {
+      "id": "integral-exponent-form-rejected",
+      "raw_json": "{\"x\":1e0}",
+      "error_code": "UNSUPPORTED_NUMBER"
+    },
+    {
       "id": "non-json-nan-rejected",
       "raw_json": "{\"x\":NaN}",
       "error_code": "INVALID_JSON"
