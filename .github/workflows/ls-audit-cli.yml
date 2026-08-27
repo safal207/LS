@@ -46,7 +46,6 @@ jobs:
       - name: Live exact-head and CML Git Internet smoke on this PR
         if: github.event_name == 'pull_request'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
