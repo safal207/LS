@@ -509,7 +509,7 @@ fn resize_gray(rgb: &[u8], src_w: usize, src_h: usize, dst_w: usize, dst_h: usiz
 
 fn rgb_to_gray(rgb: &[u8]) -> Vec<f32> {
     let mut out = vec![0f32; rgb.len() / 3];
-    for (dst, px) in out.iter_mut().zip(rgb.chunks_exact(3)) {
+    for (dst, px) in out.iter_mut().zip(rgb.as_chunks::<3>().0) {
         *dst = rgb_to_gray_pixel(px[0], px[1], px[2]);
     }
     out

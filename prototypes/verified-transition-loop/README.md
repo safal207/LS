@@ -106,7 +106,11 @@ execution nonce missing     -> BLOCK
 proposal/transition changed -> BLOCK / AUTHORIZATION_TRANSITION_MISMATCH
 ```
 
-The built-in fixture validator enforces the consumed JSON contract strictly: exact keys, nested required fields, primitive types without coercion, bounds/enums, and proposal/invariant constraints.
+The portable fixture loader rejects duplicate JSON member names, including
+escaped-name collisions, before the validator enforces exact keys, nested
+required fields, primitive types without coercion, bounds/enums, and
+proposal/invariant constraints. Approval expiry is exclusive: equality with
+`approval_valid_until_ms` is already expired.
 
 Framework adapters may reject some invalid states earlier than the generic core oracle. For example, AutoGen requires its framework occurrence at assessment and uses it as the exact use-time nonce; proposal mutation is also prevented by the bound request digest.
 
@@ -158,7 +162,10 @@ policy_ref
 bound_at_ms
 ```
 
-The later dispatch receipt must consume the same binding. Envelope drift, executor/occurrence substitution, replay, or sibling capability substitution fails detached verification.
+The later dispatch receipt must consume the same binding. Envelope drift,
+executor/occurrence substitution, replay, sibling capability substitution,
+ambiguous JSON, missing authority bindings, verifier/executor collision, an
+invalid execution nonce, or an expired approval fails detached verification.
 
 ### Detached dispatch conformance
 

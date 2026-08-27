@@ -59,6 +59,27 @@ def test_strict_validation_rejects_invalid_primitive_types_without_coercion():
         validate_fixture_shape(fixture)
 
 
+@pytest.mark.parametrize(
+    "second_name",
+    ("schema_version", r"schema\u005fversion"),
+)
+def test_load_fixture_rejects_duplicate_json_member_names(tmp_path, second_name):
+    raw = FIXTURE_PATH.read_text(encoding="utf-8")
+    ambiguous = raw.replace(
+        '"schema_version": "vtl.use-time-conformance/v0.4",',
+        (
+            '"schema_version": "wrong",\n'
+            f'  "{second_name}": "vtl.use-time-conformance/v0.4",'
+        ),
+        1,
+    )
+    path = tmp_path / "ambiguous.json"
+    path.write_text(ambiguous, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate JSON member name: schema_version"):
+        load_fixture(path)
+
+
 def test_vendor_neutral_use_time_vectors_all_pass():
     result = run_fixture(load_fixture(FIXTURE_PATH))
     assert result["summary"] == {
