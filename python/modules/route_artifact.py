@@ -7,6 +7,7 @@ import hashlib
 import heapq
 import json
 import math
+import os
 import re
 import shlex
 import subprocess
@@ -346,6 +347,7 @@ def execute_replay(
             capture_output=True,
             text=True,
             timeout=60,
+            env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"},
         )
     except (OSError, subprocess.SubprocessError) as exc:
         fail("ROUTE-V2-REPLAY", f"unable to execute replay command: {exc}")
@@ -529,6 +531,7 @@ def _run_git(repository_root: Path, *args: str) -> str:
             capture_output=True,
             text=True,
             timeout=20,
+            env={**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"},
         )
     except (OSError, subprocess.SubprocessError) as exc:
         fail("ROUTE-V2-HEAD", f"unable to verify source checkout: {exc}")
@@ -579,6 +582,15 @@ def verify_source_checkout(
     root = Path(repository_root).resolve()
     if not root.is_dir():
         fail("ROUTE-V2-HEAD", f"repository checkout does not exist: {root}")
+
+    replacement_refs = _run_git(
+        root,
+        "for-each-ref",
+        "--format=%(refname)",
+        "refs/replace",
+    )
+    if replacement_refs:
+        fail("ROUTE-V2-HEAD", "source checkout contains Git replacement refs")
 
     current_head = _run_git(root, "rev-parse", "--verify", "HEAD^{commit}")
     if current_head != exact_head:

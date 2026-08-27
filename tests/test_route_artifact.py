@@ -7,6 +7,7 @@ import io
 import json
 import math
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -178,6 +179,33 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 )
         self.assertEqual(2, context.exception.code)
 
+    def test_cli_rejects_duplicate_json_object_keys(self):
+        cli_path = ROOT / "scripts" / "verify_route_artifact.py"
+        spec = importlib.util.spec_from_file_location(
+            "verify_route_artifact_duplicate_keys_cli",
+            cli_path,
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        source = (FIXTURES / "route_t1_valid.json").read_text(encoding="utf-8")
+        source = source.replace(
+            '"status": "experimental"',
+            '"status": "validated",\n  "status": "experimental"',
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_path = Path(directory) / "duplicate-status.json"
+            artifact_path.write_text(source, encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                result = module.main(["--artifact", str(artifact_path)])
+
+        self.assertEqual(1, result)
+        self.assertIn("duplicate JSON object key: status", stderr.getvalue())
+
     def test_t0_is_source_bound_and_training_eligible(self):
         with source_checkout() as (repo, head):
             result = verify_route_artifact(
@@ -297,6 +325,38 @@ class RouteArtifactV2Tests(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            self.assert_code(
+                "ROUTE-V2-HEAD",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
+
+    def test_t0_rejects_git_replacement_objects(self):
+        with source_checkout() as (repo, exact_head):
+            artifact = materialize_t0(
+                repo,
+                exact_head,
+                compute_digest=compute_content_digest,
+            )
+            (repo / "replacement-only.txt").write_text(
+                "replacement tree\n",
+                encoding="utf-8",
+            )
+            git(repo, "add", "replacement-only.txt")
+            git(repo, "commit", "-q", "-m", "replacement tree")
+            replacement = git(repo, "rev-parse", "HEAD")
+            git(repo, "reset", "--hard", exact_head)
+            git(repo, "replace", exact_head, replacement)
+            git(repo, "reset", "--hard", exact_head)
+
+            self.assertEqual(exact_head, git(repo, "rev-parse", "HEAD"))
+            self.assertEqual("", git(repo, "status", "--porcelain=v1"))
+            self.assertEqual(
+                "replacement tree",
+                git(repo, "show", "HEAD:replacement-only.txt"),
+            )
             self.assert_code(
                 "ROUTE-V2-HEAD",
                 verify_route_artifact,

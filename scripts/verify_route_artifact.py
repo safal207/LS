@@ -25,9 +25,26 @@ from route_artifact import (  # noqa: E402
 SCHEMA = ROOT / "schemas" / "route_artifact_v2.schema.json"
 
 
+def reject_duplicate_keys(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise RouteArtifactError(
+                "ROUTE-V2-CLI",
+                f"duplicate JSON object key: {key}",
+            )
+        value[key] = item
+    return value
+
+
 def read_json(path: Path) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+        )
     except FileNotFoundError as exc:
         raise RouteArtifactError(
             "ROUTE-V2-CLI",
