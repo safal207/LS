@@ -210,13 +210,15 @@ def validate_required_schema_contracts(
 ) -> None:
     """Require the input schema to preserve the exact trusted vector set."""
     negative = schema.get("properties", {}).get("negative_vectors", {})
-    if negative.get("minItems") != len(REQUIRED_VECTOR_CONTRACTS):
-        error(
-            errors,
-            "SCHEMA_VECTOR_COUNT_INVALID",
-            "schema.properties.negative_vectors.minItems",
-            f"expected {len(REQUIRED_VECTOR_CONTRACTS)} required vectors",
-        )
+    expected_count = len(REQUIRED_VECTOR_CONTRACTS)
+    for bound in ("minItems", "maxItems"):
+        if negative.get(bound) != expected_count:
+            error(
+                errors,
+                "SCHEMA_VECTOR_COUNT_INVALID",
+                f"schema.properties.negative_vectors.{bound}",
+                f"expected exactly {expected_count} required vectors",
+            )
 
     actual: list[dict[str, Any]] = []
     all_of = negative.get("allOf")
