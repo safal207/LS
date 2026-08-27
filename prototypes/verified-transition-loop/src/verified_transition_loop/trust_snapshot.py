@@ -609,8 +609,9 @@ def verify_attested_dispatch_with_snapshot(
     *,
     now_ms: int,
 ) -> LayeredTrustResult:
+    trusted_snapshot = copy.deepcopy(snapshot)
     snapshot_result = verify_trust_root_snapshot(
-        snapshot,
+        trusted_snapshot,
         bootstrap_authority,
         checkpoint,
         now_ms=now_ms,
@@ -623,7 +624,7 @@ def verify_attested_dispatch_with_snapshot(
         )
     attested_result = verify_attested_dispatch(
         attested_envelope,
-        snapshot["trust_root"],
+        trusted_snapshot["trust_root"],
         now_ms=now_ms,
     )
     return LayeredTrustResult(
