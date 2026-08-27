@@ -100,6 +100,7 @@ export function openDatabase(path: string): DatabaseSync {
         SELECT 1
         FROM current_state
         WHERE subject_id = NEW.subject_id
+          AND decision_ref = json_extract(NEW.canonical_json, '$.payload.decision_ref')
           AND outcome_ref IS NOT NULL
       )
     BEGIN
