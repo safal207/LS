@@ -153,7 +153,10 @@ proposal/transition changed -> BLOCK / AUTHORIZATION_TRANSITION_MISMATCH
 
 The final vector keeps evidence stable while changing proposal identity so an implementation cannot claim conformance while silently ignoring proposal binding.
 
-The reference fixture validator enforces the consumed schema strictly before execution: exact keys, nested required fields, primitive types without coercion, bounds, enums, and proposal/invariant constraints.
+The reference fixture loader rejects duplicate JSON member names (including
+escaped-name collisions) before the validator enforces exact keys, nested
+required fields, primitive types without coercion, bounds, enums, and
+proposal/invariant constraints.
 
 Framework adapters may enforce some invariants earlier than the generic oracle. For example, AutoGen requires its framework occurrence id before assessment and uses it as the exact gate nonce; a missing occurrence is therefore rejected before the portable empty-nonce path. The portable ten-vector profile remains the semantic reference.
 
