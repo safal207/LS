@@ -167,6 +167,8 @@ export interface SnapshotChainAssessment {
     | "SIDE_EFFECT_ROLLBACK"
     | "EXECUTION_ROLLBACK"
     | "AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"
+    | "CAUSAL_EVIDENCE_REUSED"
+    | "RESPONSE_INTEGRITY_EVIDENCE_REUSED"
     | "CAPTURE_TIME_ROLLBACK"
   >;
 }
@@ -830,7 +832,12 @@ export function assessSnapshotSequence(
   }
 
   let terminalAuthorityActive = false;
-  let terminalAuthorization: string | null = null;
+  let authorizationEpoch: string | null = null;
+  let authorizationEpochExpiry: number | null = null;
+  let causalRecoveryRequired = false;
+  const blockedCausalRefs = new Set<string | null>();
+  let responseRecoveryRequired = false;
+  const blockedResponseRefs = new Set<string | null>();
   for (const [index, snapshot] of snapshots.entries()) {
     verifyStoredSnapshot(snapshot);
     if (index > 0) {
@@ -839,12 +846,38 @@ export function assessSnapshotSequence(
     }
 
     const authorization = snapshot.payload.record_refs.authorization_ref;
+    const currentExpiry =
+      snapshot.payload.authority_expires_at === null
+        ? null
+        : parseTime(
+            snapshot.payload.authority_expires_at,
+            "authority_expires_at"
+          );
     const explicitNewEpoch =
-      terminalAuthorityActive &&
+      index > 0 &&
       authorization !== null &&
-      authorization !== terminalAuthorization &&
+      authorization !== authorizationEpoch &&
       snapshot.payload.reauthorization_ref === authorization;
-    if (explicitNewEpoch) terminalAuthorityActive = false;
+    if (index === 0 || explicitNewEpoch) {
+      authorizationEpoch = authorization;
+      authorizationEpochExpiry = currentExpiry;
+      if (explicitNewEpoch) terminalAuthorityActive = false;
+    } else {
+      if (
+        snapshot.payload.dimensions.authority === "VALID" &&
+        authorizationEpochExpiry !== null &&
+        (currentExpiry === null || currentExpiry > authorizationEpochExpiry)
+      ) {
+        reasons.push("AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION");
+      }
+      if (
+        currentExpiry !== null &&
+        (authorizationEpochExpiry === null ||
+          currentExpiry < authorizationEpochExpiry)
+      ) {
+        authorizationEpochExpiry = currentExpiry;
+      }
+    }
 
     if (
       terminalAuthorityActive &&
@@ -858,7 +891,40 @@ export function assessSnapshotSequence(
       TERMINAL_AUTHORITY.has(snapshot.payload.dimensions.authority)
     ) {
       terminalAuthorityActive = true;
-      terminalAuthorization = authorization;
+    }
+
+    const causalRef = snapshot.payload.record_refs.causal_audit_ref;
+    if (snapshot.payload.dimensions.causal_validity === "INVALID") {
+      causalRecoveryRequired = true;
+      blockedCausalRefs.add(causalRef);
+    } else if (
+      causalRecoveryRequired &&
+      snapshot.payload.dimensions.causal_validity === "VALID"
+    ) {
+      if (causalRef === null || blockedCausalRefs.has(causalRef)) {
+        reasons.push("CAUSAL_EVIDENCE_REUSED");
+      } else {
+        causalRecoveryRequired = false;
+        blockedCausalRefs.clear();
+      }
+    } else if (causalRecoveryRequired) {
+      blockedCausalRefs.add(causalRef);
+    }
+
+    const responseRef = snapshot.payload.record_refs.response_integrity_ref;
+    if (
+      snapshot.payload.dimensions.response_integrity === "FAILED" ||
+      snapshot.payload.dimensions.response_integrity === "PARTIAL"
+    ) {
+      responseRecoveryRequired = true;
+      blockedResponseRefs.add(responseRef);
+    } else if (responseRecoveryRequired) {
+      if (responseRef === null || blockedResponseRefs.has(responseRef)) {
+        reasons.push("RESPONSE_INTEGRITY_EVIDENCE_REUSED");
+      } else {
+        responseRecoveryRequired = false;
+        blockedResponseRefs.clear();
+      }
     }
   }
 

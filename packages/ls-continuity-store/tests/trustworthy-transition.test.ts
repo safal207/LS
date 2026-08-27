@@ -497,6 +497,100 @@ describe("trustworthy-transition continuity adapter", () => {
     }
   });
 
+  it("preserves an authorization epoch expiry across intermediate states", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    const expiring = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const pendingInput = structuredClone(snapshotInput);
+    pendingInput.dimensions.authority = "PENDING";
+    pendingInput.authority_expires_at = null;
+    const pending = persistTransitionSnapshot(
+      store,
+      pendingInput,
+      "2030-01-01T00:01:00.000Z",
+      expiring.object_id
+    );
+    const reopenedInput = structuredClone(pendingInput);
+    reopenedInput.dimensions.authority = "VALID";
+    const reopened = persistTransitionSnapshot(
+      store,
+      reopenedInput,
+      "2030-01-01T00:02:00.000Z",
+      pending.object_id
+    );
+
+    assert.deepEqual(assessSnapshotSequence([expiring, pending, reopened]), {
+      valid: false,
+      reason_codes: ["AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"]
+    });
+    const result = evaluateTransitionResume(
+      store,
+      reopened.object_id,
+      buildRequest(reopened, {
+        operation: "resume_side_effect",
+        now: "2030-01-01T00:10:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
+  it("requires new corresponding evidence to clear blocking dimensions", () => {
+    for (const dimension of ["causal", "response"] as const) {
+      const { store } = storageFixture();
+      const { snapshotInput } = materializeCase(fixture.cases[0]);
+      if (dimension === "causal") {
+        snapshotInput.dimensions.causal_validity = "INVALID";
+      } else {
+        snapshotInput.dimensions.response_integrity = "FAILED";
+        snapshotInput.record_refs.response_integrity_ref = ref(
+          "failed-response-integrity"
+        );
+      }
+      const blocked = persistTransitionSnapshot(
+        store,
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+      const clearedInput = structuredClone(snapshotInput);
+      if (dimension === "causal") {
+        clearedInput.dimensions.causal_validity = "VALID";
+      } else {
+        clearedInput.dimensions.response_integrity = "VERIFIED";
+      }
+      const cleared = persistTransitionSnapshot(
+        store,
+        clearedInput,
+        "2030-01-01T00:01:00.000Z",
+        blocked.object_id
+      );
+      const expectedReason =
+        dimension === "causal"
+          ? "CAUSAL_EVIDENCE_REUSED"
+          : "RESPONSE_INTEGRITY_EVIDENCE_REUSED";
+
+      assert.deepEqual(
+        assessSnapshotSequence([blocked, cleared]),
+        { valid: false, reason_codes: [expectedReason] },
+        dimension
+      );
+      const result = evaluateTransitionResume(
+        store,
+        cleared.object_id,
+        buildRequest(cleared, {
+          operation: "resume_side_effect",
+          now: "2030-01-01T00:10:00.000Z"
+        })
+      );
+      assert.equal(result.allowed, false, dimension);
+      assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID", dimension);
+    }
+  });
+
   it("rejects null mandatory digests at creation and stored verification", () => {
     const fields = [
       "action_identity_digest",
