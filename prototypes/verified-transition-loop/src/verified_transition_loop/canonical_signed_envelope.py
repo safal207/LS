@@ -742,11 +742,12 @@ def main(argv: list[str] | None = None) -> int:
 
     fixture = strict_loads(args.fixture.read_text(encoding="utf-8"))
     result = run_fixture(fixture)
+    serialized_public_evidence = json.dumps(
+        result, indent=2, sort_keys=True, ensure_ascii=False
+    )
     # Public conformance evidence only: canonical signed bytes and signature.
     # codeql[py/clear-text-logging-sensitive-data]
-    print(
-        json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False)
-    )
+    print(serialized_public_evidence)
     return 0 if result["summary"]["all_passed"] else 1
 
 
