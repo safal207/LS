@@ -1,4 +1,4 @@
-name: Verified Transition Loop v0.13
+name: Verified Transition Loop v0.14
 
 on:
   pull_request:
@@ -6,14 +6,14 @@ on:
       - main
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.13.yml"
+      - ".github/workflows/verified-transition-loop-v0.14.yml"
   push:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.13"
+      - "agent/verified-transition-loop-v0.14"
     paths:
       - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.13.yml"
+      - ".github/workflows/verified-transition-loop-v0.14.yml"
 
 permissions:
   contents: read
@@ -54,6 +54,8 @@ jobs:
           python -m json.tool fixtures/canonical-trust-root-snapshot-v0.12.json > /dev/null
           python -m json.tool schemas/witnessed-freshness-v0.13.schema.json > /dev/null
           python -m json.tool fixtures/witnessed-freshness-v0.13.json > /dev/null
+          python -m json.tool schemas/transparency-log-v0.14.schema.json > /dev/null
+          python -m json.tool fixtures/transparency-log-v0.14.json > /dev/null
 
       - name: Install isolated VTL prototype
         working-directory: prototypes/verified-transition-loop
@@ -64,7 +66,7 @@ jobs:
         run: |
           python - <<'PY'
           from importlib.metadata import version
-          assert version('verified-transition-loop') == '0.13.0'
+          assert version('verified-transition-loop') == '0.14.0'
           PY
       - name: Run focused VTL suite
         working-directory: prototypes/verified-transition-loop
@@ -457,6 +459,164 @@ jobs:
             fi
             if node reference/witnessed-freshness-v0.13.mjs "$fixture" > /dev/null 2>&1; then
               echo "Node accepted invalid v0.13 fixture: $fixture" >&2
+              exit 1
+            fi
+          done
+
+      - name: Run Python transparency log v0.14
+        working-directory: prototypes/verified-transition-loop
+        run: vtl-transparency-log-verify fixtures/transparency-log-v0.14.json > /tmp/vtl-log-python.json
+
+      - name: Run Node transparency log v0.14
+        working-directory: prototypes/verified-transition-loop
+        run: node reference/transparency-log-conformance-v0.14.mjs fixtures/transparency-log-v0.14.json > /tmp/vtl-log-node.json
+
+      - name: Prove transparency-log semantics match in Python and Node
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          py = json.loads(Path('/tmp/vtl-log-python.json').read_text())
+          js = json.loads(Path('/tmp/vtl-log-node.json').read_text())
+          witness = json.loads(Path('fixtures/witnessed-freshness-v0.13.json').read_text())
+          log = json.loads(Path('fixtures/transparency-log-v0.14.json').read_text())
+          assert py == js
+          assert py['summary'] == {'total': 26, 'passed': 26, 'failed': 0, 'all_passed': True}
+          assert log['base_bundle']['target']['snapshot_digest'] == witness['snapshot_view']['snapshot_digest']
+          parity = py['parity']
+          assert parity['entry_canonical_matches_expected'] is True
+          assert parity['leaf_hash_matches_expected'] is True
+          assert parity['checkpoint_signed_payload_matches_expected'] is True
+          assert parity['checkpoint_signature_matches_expected'] is True
+          assert parity['checkpoint_digest_matches_expected'] is True
+          assert parity['root_hash_matches_expected'] is True
+          by_id = {case['id']: case for case in py['cases']}
+          valid = by_id['valid-inclusion-and-consistency']['actual']
+          assert valid['valid'] is True
+          assert valid['accepted_tree_size'] == 6
+          tree4 = by_id['tree4-valid-inclusion-and-consistency']['actual']
+          assert tree4['valid'] is True
+          assert tree4['accepted_tree_size'] == 4
+          split = by_id['peer-split-view-detected']['actual']
+          assert split['inclusion_valid'] is True
+          assert split['consistency_valid'] is True
+          assert split['log_equivocation_detected'] is True
+          assert split['valid'] is False
+          revoked = by_id['revoked-log-key']['actual']
+          assert revoked['log_checkpoint_signature_valid'] is True
+          assert revoked['log_checkpoint_authority_valid'] is False
+          lower = by_id['inherited-v013-failure-not-rescued']['actual']
+          assert lower['inclusion_valid'] is True
+          assert lower['consistency_valid'] is True
+          assert lower['local_witnessed_freshness_valid'] is False
+          assert lower['valid'] is False
+          PY
+
+      - name: Prove v0.14 fixture contract fails closed across runtimes
+        working-directory: prototypes/verified-transition-loop
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import shutil
+          from pathlib import Path
+
+          source_path = Path('fixtures/transparency-log-v0.14.json')
+          source = json.loads(source_path.read_text())
+          output_dir = Path('/tmp/vtl-log-invalid')
+          if output_dir.exists():
+              shutil.rmtree(output_dir)
+          output_dir.mkdir()
+          fixtures = {}
+
+          candidate = copy.deepcopy(source)
+          candidate['claimed_valid'] = True
+          fixtures['extra-root-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'] = []
+          fixtures['empty-cases'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][1]['id'] = candidate['cases'][0]['id']
+          fixtures['duplicate-case-id'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['claimed_valid'] = True
+          fixtures['extra-case-field'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['checkpoint_ref'] = 'missing'
+          fixtures['dangling-checkpoint-ref'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['checkpoint_variants']['unused'] = copy.deepcopy(
+              candidate['checkpoint_variants']['base']
+          )
+          fixtures['unused-checkpoint-variant'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['mutations'] = [
+              {'path': '__proto__.polluted', 'value': True}
+          ]
+          fixtures['dangerous-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['mutations'] = [
+              {'path': 'target.missing', 'value': True}
+          ]
+          fixtures['missing-path'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['cases'][0]['mutations'] = [
+              {'path': 'target.log_id', 'value': source['base_bundle']['target']['log_id']}
+          ]
+          fixtures['no-op-mutation'] = candidate
+
+          candidate = copy.deepcopy(source)
+          del candidate['cases'][0]['expected']['entry_integrity_valid']
+          fixtures['partial-expected-result'] = candidate
+
+          candidate = copy.deepcopy(source)
+          duplicate = copy.deepcopy(candidate['cases'][0])
+          duplicate['id'] = 'duplicate-input'
+          candidate['cases'].append(duplicate)
+          fixtures['duplicate-verification-input'] = candidate
+
+          candidate = copy.deepcopy(source)
+          candidate['base_bundle']['log_authority']['keys'][0]['public_key_base64'] = 'AAAA'
+          fixtures['bad-baseline-key-material'] = candidate
+
+          for name, fixture in fixtures.items():
+              (output_dir / f'{name}.json').write_text(
+                  json.dumps(fixture),
+                  encoding='utf-8',
+              )
+
+          raw = source_path.read_text()
+          duplicate_key = raw.replace(
+              '"profile_id":',
+              '"profile_id": "duplicate", "profile_id":',
+              1,
+          )
+          (output_dir / 'duplicate-json-key.json').write_text(
+              duplicate_key,
+              encoding='utf-8',
+          )
+          PY
+          fixtures=(/tmp/vtl-log-invalid/*.json)
+          if [[ ${#fixtures[@]} -ne 13 ]]; then
+            echo "Expected thirteen malformed v0.14 fixtures, found ${#fixtures[@]}" >&2
+            exit 1
+          fi
+          for fixture in "${fixtures[@]}"; do
+            if vtl-transparency-log-verify "$fixture" > /dev/null 2>&1; then
+              echo "Python accepted invalid v0.14 fixture: $fixture" >&2
+              exit 1
+            fi
+            if node reference/transparency-log-conformance-v0.14.mjs "$fixture" > /dev/null 2>&1; then
+              echo "Node accepted invalid v0.14 fixture: $fixture" >&2
               exit 1
             fi
           done
