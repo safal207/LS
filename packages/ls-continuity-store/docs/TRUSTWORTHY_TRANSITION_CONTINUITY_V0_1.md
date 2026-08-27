@@ -99,7 +99,9 @@ Allowed only when:
 
 Allowed only after `OBSERVED_ERRORED` when the snapshot explicitly records
 `retryable_after_error=true` and the request supplies the exact stored
-idempotency key.
+idempotency key. A later snapshot cannot make retry eligibility permissive, or
+replace its accepted key, unless that snapshot also adds fresh observation
+evidence or starts an explicit authorization epoch.
 
 ### `report_only`
 
@@ -125,6 +127,8 @@ local event log. `assessSnapshotChain(previous, current)` and
 - removed observation references;
 - `side_effect_committed: true -> false`;
 - `OBSERVED_EXECUTED -> NOT_OBSERVED`;
+- retry eligibility made permissive without fresh observation evidence or a new
+  authorization epoch;
 - capture-time rollback;
 - terminal authority reopened under the same authorization reference.
 
@@ -140,6 +144,13 @@ current.reauthorization_ref == current.authorization_ref
 
 The older observations remain in the evidence set; a new authorization epoch
 does not erase history.
+
+An authorization epoch may be established while execution remains
+`OBSERVED_BLOCKED`; sequence validation remembers that epoch only long enough to
+clear that blocked state. A later blocked observation requires another new
+epoch. If response recovery becomes unknown and later returns to `FAILED` or
+`PARTIAL`, response remediation remains available without granting permission
+to repeat the original side effect.
 
 ## Deterministic fixtures
 

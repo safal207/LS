@@ -167,6 +167,7 @@ export interface SnapshotChainAssessment {
     | "SIDE_EFFECT_ROLLBACK"
     | "EXECUTION_ROLLBACK"
     | "AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"
+    | "RETRY_ELIGIBILITY_WITHOUT_FRESH_EVIDENCE"
     | "CAUSAL_EVIDENCE_REUSED"
     | "RESPONSE_INTEGRITY_EVIDENCE_REUSED"
     | "RESPONSE_INTEGRITY_RECOVERY_UNVERIFIED"
@@ -786,6 +787,22 @@ export function assessSnapshotChain(
     current.payload.reauthorization_ref !== null &&
     current.payload.reauthorization_ref ===
       current.payload.record_refs.authorization_ref;
+  const freshObservation = [...currentObservations].some(
+    (reference) => !previousObservations.has(reference)
+  );
+  const retryBecamePermissive =
+    current.payload.retry.retryable_after_error &&
+    current.payload.retry.idempotency_key !== null &&
+    (!previous.payload.retry.retryable_after_error ||
+      current.payload.retry.idempotency_key !==
+        previous.payload.retry.idempotency_key);
+  if (
+    retryBecamePermissive &&
+    !freshObservation &&
+    !explicitAuthorizationEpoch
+  ) {
+    reasons.push("RETRY_ELIGIBILITY_WITHOUT_FRESH_EVIDENCE");
+  }
   if (
     previous.payload.dimensions.execution === "OBSERVED_BLOCKED" &&
     current.payload.dimensions.execution !== "OBSERVED_BLOCKED" &&
@@ -848,11 +865,27 @@ export function assessSnapshotSequence(
   let responseRecoveryRequired = false;
   const seenResponseRefs = new Set<string>();
   let responseRecoveryUnverified = false;
+  let blockedExecutionActive = false;
+  let blockedClearanceEpoch: string | null = null;
   for (const [index, snapshot] of snapshots.entries()) {
     verifyStoredSnapshot(snapshot);
     if (index > 0) {
       const assessment = assessSnapshotChain(snapshots[index - 1], snapshot);
-      reasons.push(...assessment.reason_codes.filter((reason) => reason !== "OK"));
+      const previous = snapshots[index - 1];
+      const clearsBlockedUnderPreparedEpoch =
+        blockedExecutionActive &&
+        previous.payload.dimensions.execution === "OBSERVED_BLOCKED" &&
+        snapshot.payload.dimensions.execution !== "OBSERVED_BLOCKED" &&
+        blockedClearanceEpoch !== null &&
+        previous.payload.record_refs.authorization_ref === blockedClearanceEpoch &&
+        snapshot.payload.record_refs.authorization_ref === blockedClearanceEpoch;
+      reasons.push(
+        ...assessment.reason_codes.filter(
+          (reason) =>
+            reason !== "OK" &&
+            !(reason === "EXECUTION_ROLLBACK" && clearsBlockedUnderPreparedEpoch)
+        )
+      );
     }
 
     const authorization = snapshot.payload.record_refs.authorization_ref;
@@ -898,6 +931,19 @@ export function assessSnapshotSequence(
       }
     }
 
+    if (explicitNewEpoch && blockedExecutionActive) {
+      blockedClearanceEpoch = authorization;
+    }
+    if (snapshot.payload.dimensions.execution === "OBSERVED_BLOCKED") {
+      if (!blockedExecutionActive) {
+        blockedExecutionActive = true;
+        blockedClearanceEpoch = explicitNewEpoch ? authorization : null;
+      }
+    } else if (blockedExecutionActive) {
+      blockedExecutionActive = false;
+      blockedClearanceEpoch = null;
+    }
+
     if (
       terminalAuthorityActive &&
       snapshot.payload.dimensions.authority === "VALID"
@@ -938,6 +984,7 @@ export function assessSnapshotSequence(
       snapshot.payload.dimensions.response_integrity === "PARTIAL"
     ) {
       responseRecoveryRequired = true;
+      responseRecoveryUnverified = false;
     } else if (responseRecoveryRequired) {
       if (snapshot.payload.dimensions.response_integrity === "VERIFIED") {
         if (responseRef === null || responseRefSeen) {

@@ -117,6 +117,8 @@ requires it to be the latest entry in a valid, forward-only transition chain.
 - removed observation evidence;
 - committed-side-effect rollback;
 - executed-to-unobserved rollback;
+- retry eligibility made permissive without fresh observation evidence or a new
+  authorization epoch;
 - terminal authority reopened without a new explicit authorization epoch;
 - terminal authority hidden behind intermediate snapshots;
 - capture-time rollback.

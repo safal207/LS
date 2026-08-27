@@ -464,6 +464,75 @@ describe("trustworthy-transition continuity adapter", () => {
     assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
   });
 
+  it("binds newly permissive retry profiles to fresh evidence", () => {
+    for (const change of ["enable", "replace-key"] as const) {
+      const { store } = storageFixture();
+      const { snapshotInput } = materializeCase(fixture.cases[0]);
+      snapshotInput.dimensions.execution = "OBSERVED_ERRORED";
+      snapshotInput.retry = {
+        retryable_after_error: change === "replace-key",
+        idempotency_key: change === "replace-key" ? "retry-old" : null
+      };
+      const initial = persistTransitionSnapshot(
+        store,
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+      const permissiveInput = structuredClone(snapshotInput);
+      permissiveInput.retry = {
+        retryable_after_error: true,
+        idempotency_key: "retry-new"
+      };
+      const permissive = persistTransitionSnapshot(
+        store,
+        permissiveInput,
+        "2030-01-01T00:01:00.000Z",
+        initial.object_id
+      );
+
+      assert.deepEqual(assessSnapshotSequence([initial, permissive]), {
+        valid: false,
+        reason_codes: ["RETRY_ELIGIBILITY_WITHOUT_FRESH_EVIDENCE"]
+      });
+      const rejected = evaluateTransitionResume(
+        store,
+        permissive.object_id,
+        buildRequest(permissive, {
+          operation: "retry_side_effect",
+          idempotency_key: "retry-new",
+          now: "2030-01-01T00:10:00.000Z"
+        })
+      );
+      assert.equal(rejected.allowed, false, change);
+      assert.equal(rejected.reason, "SNAPSHOT_CHAIN_INVALID", change);
+    }
+
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.dimensions.execution = "OBSERVED_ERRORED";
+    const initial = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const supportedInput = structuredClone(snapshotInput);
+    supportedInput.record_refs.observation_refs.push(ref("retry-fresh-observation"));
+    supportedInput.retry = {
+      retryable_after_error: true,
+      idempotency_key: "retry-with-fresh-evidence"
+    };
+    const supported = persistTransitionSnapshot(
+      store,
+      supportedInput,
+      "2030-01-01T00:01:00.000Z",
+      initial.object_id
+    );
+    assert.deepEqual(assessSnapshotSequence([initial, supported]), {
+      valid: true,
+      reason_codes: ["OK"]
+    });
+  });
+
   it("keeps blocked execution sticky until a new authorization epoch", () => {
     const { store } = storageFixture();
     const { snapshotInput } = materializeCase(fixture.cases[0]);
@@ -476,6 +545,9 @@ describe("trustworthy-transition continuity adapter", () => {
 
     const sameAuthorizationInput = structuredClone(snapshotInput);
     sameAuthorizationInput.dimensions.execution = "OBSERVED_ERRORED";
+    sameAuthorizationInput.record_refs.observation_refs.push(
+      ref("blocked-transition-error-observation")
+    );
     sameAuthorizationInput.retry = {
       retryable_after_error: true,
       idempotency_key: "blocked-transition-retry"
@@ -541,6 +613,57 @@ describe("trustworthy-transition continuity adapter", () => {
     );
     assert.equal(allowedRetry.allowed, true);
     assert.equal(allowedRetry.posture, "RETRY_SIDE_EFFECT");
+  });
+
+  it("honors a staged authorization epoch when clearing blocked execution", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.dimensions.execution = "OBSERVED_BLOCKED";
+    const blocked = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+
+    const reauthorizedInput = structuredClone(snapshotInput);
+    const newAuthorization = ref("staged-blocked-authorization");
+    reauthorizedInput.record_refs.authorization_ref = newAuthorization;
+    reauthorizedInput.reauthorization_ref = newAuthorization;
+    reauthorizedInput.retry = {
+      retryable_after_error: true,
+      idempotency_key: "staged-blocked-retry"
+    };
+    const reauthorized = persistTransitionSnapshot(
+      store,
+      reauthorizedInput,
+      "2030-01-01T00:01:00.000Z",
+      blocked.object_id
+    );
+
+    const erroredInput = structuredClone(reauthorizedInput);
+    erroredInput.dimensions.execution = "OBSERVED_ERRORED";
+    const errored = persistTransitionSnapshot(
+      store,
+      erroredInput,
+      "2030-01-01T00:02:00.000Z",
+      reauthorized.object_id
+    );
+
+    assert.deepEqual(assessSnapshotSequence([blocked, reauthorized, errored]), {
+      valid: true,
+      reason_codes: ["OK"]
+    });
+    const result = evaluateTransitionResume(
+      store,
+      errored.object_id,
+      buildRequest(errored, {
+        operation: "retry_side_effect",
+        idempotency_key: "staged-blocked-retry",
+        now: "2030-01-01T00:10:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, true);
+    assert.equal(result.posture, "RETRY_SIDE_EFFECT");
   });
 
   it("rejects expiry removal or extension without a new authorization epoch", () => {
@@ -811,6 +934,51 @@ describe("trustworthy-transition continuity adapter", () => {
     );
     assert.equal(result.allowed, true);
     assert.equal(result.posture, "CONTINUE_SIDE_EFFECT");
+  });
+
+  it("restores remediation when response failure is observed again", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.record_refs.response_integrity_ref = ref("response-failed-first");
+    snapshotInput.dimensions.response_integrity = "FAILED";
+    const failed = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const unknownInput = structuredClone(snapshotInput);
+    unknownInput.record_refs.response_integrity_ref = ref("response-unknown-middle");
+    unknownInput.dimensions.response_integrity = "UNKNOWN";
+    const unknown = persistTransitionSnapshot(
+      store,
+      unknownInput,
+      "2030-01-01T00:01:00.000Z",
+      failed.object_id
+    );
+    const failedAgainInput = structuredClone(unknownInput);
+    failedAgainInput.record_refs.response_integrity_ref = ref("response-failed-again");
+    failedAgainInput.dimensions.response_integrity = "FAILED";
+    const failedAgain = persistTransitionSnapshot(
+      store,
+      failedAgainInput,
+      "2030-01-01T00:02:00.000Z",
+      unknown.object_id
+    );
+
+    assert.deepEqual(assessSnapshotSequence([failed, unknown, failedAgain]), {
+      valid: true,
+      reason_codes: ["OK"]
+    });
+    const result = evaluateTransitionResume(
+      store,
+      failedAgain.object_id,
+      buildRequest(failedAgain, {
+        operation: "remediate_response",
+        now: "2030-01-01T00:10:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, true);
+    assert.equal(result.posture, "REMEDIATE_RESPONSE");
   });
 
   it("requires new corresponding evidence to clear blocking dimensions", () => {
