@@ -426,6 +426,110 @@ describe("trustworthy-transition continuity adapter", () => {
     assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
   });
 
+  it("rejects rollback from an observed error to unobserved execution", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.dimensions.execution = "OBSERVED_ERRORED";
+    snapshotInput.retry = {
+      retryable_after_error: true,
+      idempotency_key: "retry-errored-transition"
+    };
+    const errored = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const rolledBackInput = structuredClone(snapshotInput);
+    rolledBackInput.dimensions.execution = "NOT_OBSERVED";
+    const rolledBack = persistTransitionSnapshot(
+      store,
+      rolledBackInput,
+      "2030-01-01T00:01:00.000Z",
+      errored.object_id
+    );
+
+    assert.deepEqual(assessSnapshotSequence([errored, rolledBack]), {
+      valid: false,
+      reason_codes: ["EXECUTION_ROLLBACK"]
+    });
+    const result = evaluateTransitionResume(
+      store,
+      rolledBack.object_id,
+      buildRequest(rolledBack, {
+        operation: "resume_side_effect",
+        now: "2030-01-01T00:02:00.000Z"
+      })
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
+  it("rejects expiry removal or extension without a new authorization epoch", () => {
+    for (const [name, nextExpiry] of [
+      ["removed", null],
+      ["extended", "2030-01-01T02:00:00.000Z"]
+    ] as const) {
+      const { store } = storageFixture();
+      const { snapshotInput } = materializeCase(fixture.cases[0]);
+      snapshotInput.authority_expires_at = "2030-01-01T01:00:00.000Z";
+      const previous = persistTransitionSnapshot(
+        store,
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+      const changedInput = structuredClone(snapshotInput);
+      changedInput.authority_expires_at = nextExpiry;
+      const current = persistTransitionSnapshot(
+        store,
+        changedInput,
+        "2030-01-01T00:01:00.000Z",
+        previous.object_id
+      );
+
+      assert.deepEqual(
+        assessSnapshotChain(previous, current),
+        {
+          valid: false,
+          reason_codes: ["AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"]
+        },
+        name
+      );
+    }
+  });
+
+  it("rejects null mandatory digests at creation and stored verification", () => {
+    const fields = [
+      "action_identity_digest",
+      "binding_digest",
+      "context_digest"
+    ] as const;
+    for (const field of fields) {
+      const { store } = storageFixture();
+      const { snapshotInput } = materializeCase(fixture.cases[0]);
+      const invalidInput = structuredClone(snapshotInput);
+      (invalidInput as unknown as Record<string, unknown>)[field] = null;
+      assert.throws(
+        () =>
+          createTransitionSnapshotEnvelope(
+            invalidInput,
+            "2030-01-01T00:00:00.000Z"
+          ),
+        new RegExp(`${field.toUpperCase()}_INVALID`)
+      );
+
+      const envelope = createTransitionSnapshotEnvelope(
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+      (envelope.payload as unknown as Record<string, unknown>)[field] = null;
+      const stored = store.persist(envelope);
+      assert.throws(
+        () => assessSnapshotSequence([stored]),
+        new RegExp(`${field.toUpperCase()}_INVALID`)
+      );
+    }
+  });
+
   it("rejects malformed persisted dimensions before resume evaluation", () => {
     const { store } = storageFixture();
     const { snapshotInput } = materializeCase(fixture.cases[0]);

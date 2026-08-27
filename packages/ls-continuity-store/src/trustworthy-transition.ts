@@ -186,10 +186,20 @@ function requireObjectRef(value: unknown, label: string): string | null {
   return value;
 }
 
+function requireNonNullObjectRef(value: unknown, label: string): string {
+  const reference = requireObjectRef(value, label);
+  if (reference === null) {
+    throw new Error(`${label.toUpperCase()}_INVALID`);
+  }
+  return reference;
+}
+
 function uniqueSorted(values: unknown): string[] {
   if (!Array.isArray(values)) throw new Error("OBSERVATION_REFS_INVALID");
   const result = [...new Set(values)];
-  for (const value of result) requireObjectRef(value, "observation_ref");
+  for (const value of result) {
+    requireNonNullObjectRef(value, "observation_ref");
+  }
   return (result as string[]).sort();
 }
 
@@ -271,11 +281,14 @@ export function computeEvidenceSetDigest(input: {
     profile: "org.ls.trustworthy-transition-evidence-set.v0.1",
     transition_id: requireText(input.transition_id, "transition_id"),
     subject_id: requireText(input.subject_id, "subject_id"),
-    action_identity_digest: requireObjectRef(
+    action_identity_digest: requireNonNullObjectRef(
       input.action_identity_digest,
       "action_identity_digest"
     ),
-    binding_digest: requireObjectRef(input.binding_digest, "binding_digest"),
+    binding_digest: requireNonNullObjectRef(
+      input.binding_digest,
+      "binding_digest"
+    ),
     record_refs: {
       authorization_ref: requireObjectRef(
         input.record_refs.authorization_ref,
@@ -302,7 +315,10 @@ export function createTransitionSnapshotEnvelope(
 ): ContinuityEnvelope<TransitionContinuitySnapshotPayload> {
   parseTime(createdAt, "created_at");
   requireObjectRef(previousRef, "previous_ref");
-  const contextDigest = requireObjectRef(input.context_digest, "context_digest") as string;
+  const contextDigest = requireNonNullObjectRef(
+    input.context_digest,
+    "context_digest"
+  );
   const reauthorizationRef = requireObjectRef(
     input.reauthorization_ref ?? null,
     "reauthorization_ref"
@@ -340,11 +356,14 @@ export function createTransitionSnapshotEnvelope(
   };
   const transitionId = requireText(input.transition_id, "transition_id");
   const subjectId = requireText(input.subject_id, "subject_id");
-  const actionIdentityDigest = requireObjectRef(
+  const actionIdentityDigest = requireNonNullObjectRef(
     input.action_identity_digest,
     "action_identity_digest"
-  ) as string;
-  const bindingDigest = requireObjectRef(input.binding_digest, "binding_digest") as string;
+  );
+  const bindingDigest = requireNonNullObjectRef(
+    input.binding_digest,
+    "binding_digest"
+  );
 
   const payload: TransitionContinuitySnapshotPayload = {
     profile: PROFILE,
@@ -412,9 +431,12 @@ function verifyStoredSnapshot(
   parseTime(snapshot.created_at, "created_at");
   requireText(snapshot.payload.transition_id, "transition_id");
   requireText(snapshot.payload.subject_id, "subject_id");
-  requireObjectRef(snapshot.payload.action_identity_digest, "action_identity_digest");
-  requireObjectRef(snapshot.payload.binding_digest, "binding_digest");
-  requireObjectRef(snapshot.payload.context_digest, "context_digest");
+  requireNonNullObjectRef(
+    snapshot.payload.action_identity_digest,
+    "action_identity_digest"
+  );
+  requireNonNullObjectRef(snapshot.payload.binding_digest, "binding_digest");
+  requireNonNullObjectRef(snapshot.payload.context_digest, "context_digest");
   requireObjectRef(snapshot.payload.reauthorization_ref, "reauthorization_ref");
   requireObjectRef(snapshot.payload.evidence_set_digest, "evidence_set_digest");
   validateDimensions(snapshot.payload.dimensions);
@@ -744,20 +766,44 @@ export function assessSnapshotChain(
     current.payload.dimensions.execution !== "OBSERVED_EXECUTED"
   ) {
     reasons.push("EXECUTION_ROLLBACK");
+  } else if (
+    previous.payload.dimensions.execution !== "NOT_OBSERVED" &&
+    current.payload.dimensions.execution === "NOT_OBSERVED"
+  ) {
+    reasons.push("EXECUTION_ROLLBACK");
+  }
+
+  const previousExpiry = previous.payload.authority_expires_at;
+  const currentExpiry = current.payload.authority_expires_at;
+  const authorizationChanged =
+    current.payload.record_refs.authorization_ref !==
+    previous.payload.record_refs.authorization_ref;
+  const explicitAuthorizationEpoch =
+    authorizationChanged &&
+    current.payload.reauthorization_ref !== null &&
+    current.payload.reauthorization_ref ===
+      current.payload.record_refs.authorization_ref;
+  if (
+    previous.payload.dimensions.authority === "VALID" &&
+    current.payload.dimensions.authority === "VALID" &&
+    previousExpiry !== null &&
+    (currentExpiry === null ||
+      parseTime(currentExpiry, "current_authority_expires_at") >
+        parseTime(previousExpiry, "previous_authority_expires_at")) &&
+    !explicitAuthorizationEpoch
+  ) {
+    reasons.push("AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION");
   }
 
   if (
     TERMINAL_AUTHORITY.has(previous.payload.dimensions.authority) &&
     current.payload.dimensions.authority === "VALID"
   ) {
-    const newAuthorization =
-      current.payload.record_refs.authorization_ref !==
-      previous.payload.record_refs.authorization_ref;
     const explicitReauthorization =
       current.payload.reauthorization_ref !== null &&
       current.payload.reauthorization_ref ===
         current.payload.record_refs.authorization_ref;
-    if (!newAuthorization || !explicitReauthorization) {
+    if (!authorizationChanged || !explicitReauthorization) {
       reasons.push("AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION");
     }
   }
