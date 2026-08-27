@@ -1,0 +1,145 @@
+{
+  "base_envelope": {
+    "attestation": {
+      "attestation_id": "attest_0f7d2ad0b3ebaafc7348d92a",
+      "issued_at_ms": 1800000000500,
+      "issuer_id": "issuer:vtl-reference",
+      "not_after_ms": 1800000060000,
+      "not_before_ms": 1800000000000,
+      "profile_id": "vtl-attested-dispatch-v0.8",
+      "schema_version": "vtl.attested-dispatch/v0.8",
+      "signature": "MMucP97l8SJf9ICpSFR+KbON6zjdAxYCoVPY6T4lpCrlG9vUlWxQwUwZWspKlan5aM4PNGedYEx+iQVF7X0wBw==",
+      "signature_algorithm": "ED25519",
+      "signer_key_id": "key:ed25519:test-001",
+      "transcript_digest": "2ad65526b2f5fc6bfbc742ec4b87b868a3961ef6e811393ed7d7879fd45c2a44",
+      "trust_policy_version": "trust-policy:v1",
+      "trust_root_id": "trust-root:test-v1"
+    },
+    "profile_id": "vtl-attested-dispatch-v0.8",
+    "schema_version": "vtl.attested-dispatch/v0.8",
+    "transcript": {
+      "action_envelope": {
+        "action": "tool:ShellTool:fixture-command-v1",
+        "occurrence_id": "tool-call-001",
+        "payload": {
+          "agent_role": "release-agent",
+          "crew_id": "crew-fixture-001",
+          "task_description": "run the exact reviewed command",
+          "tool_input": {"command": "echo verified"},
+          "tool_name": "ShellTool"
+        },
+        "runtime_surface": "crewai",
+        "transition_id": "crew-transition-fixture-001"
+      },
+      "authorization": {
+        "approval_ref": "approval:fixture-001",
+        "approval_valid_until_ms": 1800000060000,
+        "decision_id": "auth_e25ddea8ab987b1d50bb3623",
+        "evidence_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "executor_id": "crew-runtime-executor",
+        "intent_id": "crew-intent-fixture-001",
+        "policy_ref": "crew-policy:v1",
+        "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+        "reason_codes": [],
+        "source_ref": "git:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "transition_id": "crew-transition-fixture-001",
+        "verdict": "AUTHORIZE",
+        "verifier_id": "vtl-crewai-pretool-verifier"
+      },
+      "dispatch_receipt": {
+        "action_envelope_digest": "5cd453fd34b97ce4e6b4c76c9ec865b43d8b2a0273b9b2773e7bafe215e08592",
+        "authorization_decision_id": "auth_e25ddea8ab987b1d50bb3623",
+        "authorized_action_id": "action_5cd453fd34b97ce4e6b4c76c",
+        "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "dispatch_ref": "dispatch:crew:001",
+        "dispatched_action_id": "action_5cd453fd34b97ce4e6b4c76c",
+        "dispatched_at_ms": 1800000000002,
+        "execution_nonce": "exec-nonce-001",
+        "executor_id": "crew-runtime-executor",
+        "grant_binding_id": "grant_1f99c3e46aed37133eaa8e0a",
+        "observed_at_ms": 1800000000003,
+        "observed_outcome_digest": "003750ea7cd9af908df3477d964311542207a5ac6b94528be1ba2c14c549ac71",
+        "observed_outcome_ref": "outcome:crew:001",
+        "occurrence_id": "tool-call-001",
+        "policy_ref": "crew-policy:v1",
+        "profile_id": "vtl-tool-dispatch-v0.7",
+        "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+        "receipt_id": "dispatch_a01de4cb48b8c799c52acd12",
+        "schema_version": "vtl.tool-dispatch-receipt/v0.7",
+        "transition_id": "crew-transition-fixture-001",
+        "use_id": "use_0873f1aa69421d2ef45507dd"
+      },
+      "grant_binding": {
+        "action_envelope_digest": "5cd453fd34b97ce4e6b4c76c9ec865b43d8b2a0273b9b2773e7bafe215e08592",
+        "action_id": "action_5cd453fd34b97ce4e6b4c76c",
+        "authorization_decision_id": "auth_e25ddea8ab987b1d50bb3623",
+        "binding_id": "grant_1f99c3e46aed37133eaa8e0a",
+        "bound_at_ms": 1800000000001,
+        "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "execution_nonce": "exec-nonce-001",
+        "executor_id": "crew-runtime-executor",
+        "occurrence_id": "tool-call-001",
+        "policy_ref": "crew-policy:v1",
+        "profile_id": "vtl-tool-dispatch-v0.7",
+        "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+        "schema_version": "vtl.tool-dispatch-receipt/v0.7",
+        "transition_id": "crew-transition-fixture-001",
+        "use_id": "use_0873f1aa69421d2ef45507dd"
+      },
+      "observed_outcome": {
+        "observed_state": "tool-complete",
+        "outcome_ref": "outcome:crew:001",
+        "status": "success",
+        "transition_id": "crew-transition-fixture-001"
+      },
+      "profile_id": "vtl-tool-dispatch-v0.7",
+      "proposal": {
+        "action": "tool:ShellTool:fixture-command-v1",
+        "expected_post_state": "tool-complete",
+        "intent_id": "crew-intent-fixture-001",
+        "invariants": ["authorized", "single_use", "outcome_linked"],
+        "pre_state": "tool-pending",
+        "transition_id": "crew-transition-fixture-001"
+      },
+      "schema_version": "vtl.tool-dispatch-receipt/v0.7",
+      "use_time": {
+        "authorization_decision_id": "auth_e25ddea8ab987b1d50bb3623",
+        "checked_at_ms": 1800000000000,
+        "context_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "execution_nonce": "exec-nonce-001",
+        "executor_id": "crew-runtime-executor",
+        "proposal_digest": "770cc3221b2efd4649a8fbf99a18ce9b3d479132ec16e81cb91429d14019b9ad",
+        "reason_codes": [],
+        "transition_id": "crew-transition-fixture-001",
+        "use_id": "use_0873f1aa69421d2ef45507dd",
+        "verdict": "EXECUTE"
+      }
+    }
+  },
+  "cases": [
+    {"id":"valid-trusted-attestation","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[],"expected":{"valid":true,"reason_codes":[]}},
+    {"id":"transcript-tampered-after-signing","now_ms":1800000001000,"envelope_mutations":[{"path":"transcript.observed_outcome.observed_state","value":"tampered-state"}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["TRANSCRIPT_INTEGRITY_INVALID","ATTESTED_TRANSCRIPT_DIGEST_MISMATCH"]}},
+    {"id":"self-consistent-replacement-transcript","now_ms":1800000001000,"envelope_mutations":[{"path":"transcript.observed_outcome.observed_state","value":"tool-complete-replacement"},{"path":"transcript.dispatch_receipt.observed_outcome_digest","value":"4b4d8036cff74e836398fd3cc0cd1eb8ff1ffa08a28cbcdc2b31ff0119b98414"},{"path":"transcript.dispatch_receipt.receipt_id","value":"dispatch_53728a356f4b4014e3620209"}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["ATTESTED_TRANSCRIPT_DIGEST_MISMATCH"]}},
+    {"id":"wrong-signature","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.signature","value":"/0nYGddkpUY9yvdTahIrhCfpaqdnu5yGS8L+e2kIXh3ytIP/XhGnNa9YpTyk8kkjda7SyVUUlV0BK8URYTE4AA=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["SIGNATURE_INVALID"]}},
+    {"id":"unknown-signer","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.signer_key_id","value":"key:unknown"},{"path":"attestation.attestation_id","value":"attest_81c4fe0caaff89c45dd98a00"},{"path":"attestation.signature","value":"2wAX4ttsdQJY0gxT4n2sXP59HPnH0EPgMH8362koIHevaKNpAwbEh13stPMqfpJ2FhbiJOU5XAV7qNmiYo6DBA=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["SIGNER_NOT_TRUSTED"]}},
+    {"id":"issuer-mismatch","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.issuer_id","value":"issuer:other"},{"path":"attestation.attestation_id","value":"attest_67e7eb16ce4d7e1abfa81c23"},{"path":"attestation.signature","value":"sv+zF8AakmVq9TT1yNHbMyVLluiJAAzfo3yAixezbvdm1aTz3KnAb2A9riGji2MvWJuID/IOr6Kr4kOtVdYJDQ=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["ISSUER_MISMATCH"]}},
+    {"id":"trust-root-mismatch","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.trust_root_id","value":"trust-root:other"},{"path":"attestation.attestation_id","value":"attest_4a36b3859ce67536b8280053"},{"path":"attestation.signature","value":"Mi3SBLDPZWDt/SjGogRmEkwXJ6ZVMhGEkCkdykkTucU/qmWN4S/aWcwzLRo1qDRPIcWvEPLFkxMD6tuvNiImDw=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["TRUST_ROOT_MISMATCH"]}},
+    {"id":"expired-attestation","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.not_after_ms","value":1800000000999},{"path":"attestation.attestation_id","value":"attest_fd4d5ea453c86761456dbed8"},{"path":"attestation.signature","value":"p9eFpnkjH7KBwX+lFKeSVjjE4W/JBBWGJQAewEBM4tQV2eSODpbC20kb6MwZx3gjNzwzBkA/fe3rXyrH8AaYDg=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["ATTESTATION_EXPIRED"]}},
+    {"id":"not-yet-valid-attestation","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.not_before_ms","value":1800000002000},{"path":"attestation.not_after_ms","value":1800000006000},{"path":"attestation.attestation_id","value":"attest_d75b140e6131a4a4fc060ca8"},{"path":"attestation.signature","value":"xxY/60qizVm9bN3y2Ygx+HZNWOol757aoLLMyrRbsU6DPdPKXB3/f0dnmwqufIv35pRVgp0WS9LCl7rlxiGsDQ=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["ATTESTATION_NOT_YET_VALID"]}},
+    {"id":"revoked-signer","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[{"path":"keys","value":[{"algorithm":"ED25519","issuer_id":"issuer:vtl-reference","not_after_ms":1800000100000,"not_before_ms":1799999990000,"public_key_base64":"iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=","revoked":true,"signer_key_id":"key:ed25519:test-001"}]}],"expected":{"valid":false,"reason_codes":["SIGNER_REVOKED"]}},
+    {"id":"trust-policy-version-drift","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.trust_policy_version","value":"trust-policy:v2"},{"path":"attestation.attestation_id","value":"attest_95f4c8393e9fb15366efc113"},{"path":"attestation.signature","value":"FFZsfCBu/kUzs58tz30VwAZMbUqMBFtTTq9LCANRyLwiXmgwxDo472lVw/NSCqHxbstIS/GL/jgJswN/k5chCQ=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["TRUST_POLICY_VERSION_MISMATCH"]}},
+    {"id":"algorithm-substitution","now_ms":1800000001000,"envelope_mutations":[{"path":"attestation.signature_algorithm","value":"ED25519-LEGACY"},{"path":"attestation.attestation_id","value":"attest_b88ef089b357b31ba7315247"},{"path":"attestation.signature","value":"NJOnPltT0n4ec/Ee8f73JJGePCzo+yidkCBmwZAmdW02x5EFiO36VH8SxcgSLnE819uaRhW49L6QBCldmVgrBw=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["ALGORITHM_NOT_ALLOWED","KEY_ALGORITHM_MISMATCH"]}},
+    {"id":"wrong-signer-key-material","now_ms":1800000001000,"envelope_mutations":[],"trust_root_mutations":[{"path":"keys","value":[{"algorithm":"ED25519","issuer_id":"issuer:vtl-reference","not_after_ms":1800000100000,"not_before_ms":1799999990000,"public_key_base64":"gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=","revoked":false,"signer_key_id":"key:ed25519:test-001"}]}],"expected":{"valid":false,"reason_codes":["SIGNATURE_INVALID"]}},
+    {"id":"valid-signature-over-invalid-v07-transcript","now_ms":1800000001000,"envelope_mutations":[{"path":"transcript.action_envelope","value":{"action":"tool:ShellTool:fixture-command-v1","occurrence_id":"tool-call-001","runtime_surface":"crewai","transition_id":"crew-transition-fixture-001"}},{"path":"attestation.transcript_digest","value":"4ace3524852ab06f8456da1380e88f072bd6c71a8e59a68d1a6cf0eaeb7f2365"},{"path":"attestation.attestation_id","value":"attest_9dfdc207b625841f589f31f5"},{"path":"attestation.signature","value":"g37V2HRnLFmtJct6OUgzoXd2QinfTLPN8c2iN/PYFNAPhjGKy0LpX/XBnOCgSdkpqfvEd1r2ye5Sp65tjABGDQ=="}],"trust_root_mutations":[],"expected":{"valid":false,"reason_codes":["TRANSCRIPT_INTEGRITY_INVALID"]}}
+  ],
+  "description": "VTL v0.8 authenticity/trust-root conformance vectors.",
+  "profile_id": "vtl-attested-dispatch-v0.8",
+  "schema_version": "vtl.attested-dispatch-fixture/v0.8",
+  "trust_root": {
+    "allowed_algorithms": ["ED25519"],
+    "keys": [{"algorithm":"ED25519","issuer_id":"issuer:vtl-reference","not_after_ms":1800000100000,"not_before_ms":1799999990000,"public_key_base64":"iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=","revoked":false,"signer_key_id":"key:ed25519:test-001"}],
+    "policy_version": "trust-policy:v1",
+    "profile_id": "vtl-trust-root/v0.8",
+    "trust_root_id": "trust-root:test-v1"
+  }
+}

@@ -1,22 +1,22 @@
-name: Verified Transition Loop v0.7
+name: Verified Transition Loop v0.8
 
 on:
   pull_request:
     branches:
       - main
-      - "agent/verified-transition-loop-v0.1"
-    paths:
-      - "prototypes/verified-transition-loop/**"
-      - ".github/workflows/verified-transition-loop-v0.7.yml"
-      - ".github/workflows/verified-transition-loop-v0.6.yml"
-  push:
-    branches:
-      - main
       - "agent/verified-transition-loop-v0.7"
     paths:
       - "prototypes/verified-transition-loop/**"
+      - ".github/workflows/verified-transition-loop-v0.8.yml"
       - ".github/workflows/verified-transition-loop-v0.7.yml"
-      - ".github/workflows/verified-transition-loop-v0.6.yml"
+  push:
+    branches:
+      - main
+      - "agent/verified-transition-loop-v0.8"
+    paths:
+      - "prototypes/verified-transition-loop/**"
+      - ".github/workflows/verified-transition-loop-v0.8.yml"
+      - ".github/workflows/verified-transition-loop-v0.7.yml"
 
 permissions:
   contents: read
@@ -41,6 +41,8 @@ jobs:
           python -m json.tool fixtures/use-time-conformance-v0.4.json > /dev/null
           python -m json.tool schemas/tool-dispatch-receipt-v0.7.schema.json > /dev/null
           python -m json.tool fixtures/tool-dispatch-receipt-v0.7.json > /dev/null
+          python -m json.tool schemas/attested-dispatch-v0.8.schema.json > /dev/null
+          python -m json.tool fixtures/attested-dispatch-v0.8.json > /dev/null
 
       - name: Install isolated VTL prototype
         working-directory: prototypes/verified-transition-loop
@@ -51,7 +53,7 @@ jobs:
         run: |
           python - <<'PY'
           from importlib.metadata import version
-          assert version('verified-transition-loop') == '0.7.0'
+          assert version('verified-transition-loop') == '0.8.0'
           PY
 
       - name: Run focused VTL suite
@@ -65,6 +67,10 @@ jobs:
       - name: Run detached dispatch receipt conformance
         working-directory: prototypes/verified-transition-loop
         run: vtl-dispatch-verify fixtures/tool-dispatch-receipt-v0.7.json
+
+      - name: Run attested dispatch authenticity conformance
+        working-directory: prototypes/verified-transition-loop
+        run: vtl-attestation-verify fixtures/attested-dispatch-v0.8.json
 
       - name: Verify side-effect-free deployment demo
         working-directory: prototypes/verified-transition-loop
