@@ -10,7 +10,8 @@ import type {
   ContinuationCheckpointPayload,
   GovernanceDecisionPayload,
   GovernanceOutcomePayload,
-  ContinuationState
+  ContinuationState,
+  IntentPayload
 } from "./types.js";
 
 function withoutObjectId<T>(input: ContinuityEnvelope<T>): ContinuityEnvelope<T> {
@@ -42,15 +43,13 @@ export class ContinuityStore {
     const stored: StoredContinuityObject<T> = { ...normalized, object_id: objectId };
 
     const filename = this.objectPath(objectId);
-    if (fs.existsSync(filename)) {
-      const existing = JSON.parse(fs.readFileSync(filename, "utf8")) as StoredContinuityObject<T>;
-      const { object_id: existingId, ...existingUnsigned } = existing;
-      if (existingId !== objectId || !canonicalBytes(existingUnsigned).equals(canonical)) {
-        throw new Error("CONTENT_ADDRESS_COLLISION");
-      }
-    } else {
+    try {
       fs.mkdirSync(path.dirname(filename), { recursive: true });
       fs.writeFileSync(filename, JSON.stringify(stored, null, 2), { flag: "wx" });
+    } catch (error) {
+      const errno = error as NodeJS.ErrnoException;
+      if (errno.code !== "EEXIST") throw error;
+      this.assertExistingObjectMatches(filename, objectId, canonical);
     }
 
     this.db.exec("BEGIN IMMEDIATE");
@@ -66,6 +65,7 @@ export class ContinuityStore {
         VALUES (?, ?, ?, ?, ?)
       `).run(objectId, stored.object_type, stored.subject_id, canonical.toString("utf8"), stored.created_at);
 
+      this.validatePersistReferences(stored as StoredContinuityObject<Record<string, unknown>>);
       this.appendEvent("object_persisted", stored.subject_id, objectId, stored.created_at);
       this.updateProjection(stored as StoredContinuityObject<Record<string, unknown>>);
       this.db.exec("COMMIT");
@@ -101,6 +101,7 @@ export class ContinuityStore {
 
     return {
       subject_id: row.subject_id as string,
+      latest_intent_ref: (row.latest_intent_ref as string | null) ?? null,
       checkpoint_ref: (row.checkpoint_ref as string | null) ?? null,
       decision_ref: (row.decision_ref as string | null) ?? null,
       outcome_ref: (row.outcome_ref as string | null) ?? null,
@@ -149,6 +150,7 @@ export class ContinuityStore {
         }
       : {
           subject_id: object.subject_id,
+          latest_intent_ref: null,
           checkpoint_ref: null,
           decision_ref: null,
           outcome_ref: null,
@@ -164,8 +166,28 @@ export class ContinuityStore {
 
     if (object.subject_id !== next.subject_id) throw new Error("SUBJECT_MISMATCH");
 
+    if (object.object_type === "intent") {
+      next.latest_intent_ref = object.object_id;
+      next.checkpoint_ref = null;
+      next.decision_ref = null;
+      next.outcome_ref = null;
+      next.decision_state = null;
+      next.validity_state = "active";
+      next.resume_posture = "requires_revalidation";
+      next.pending_approval_ref = null;
+      next.expires_at = null;
+      next.revalidate_if = [];
+      next.required_checks = ["governance_decision"];
+    }
+
     if (object.object_type === "governance_decision") {
       const payload = object.payload as unknown as GovernanceDecisionPayload;
+      if (next.latest_intent_ref !== payload.intent_ref) throw new Error("DECISION_INTENT_NOT_CURRENT");
+
+      const intent = this.load<IntentPayload>(payload.intent_ref);
+      if (intent.object_type !== "intent") throw new Error("DECISION_INTENT_TYPE_MISMATCH");
+      if (intent.subject_id !== object.subject_id) throw new Error("DECISION_INTENT_SUBJECT_MISMATCH");
+
       next.decision_ref = object.object_id;
       next.outcome_ref = null;
       next.decision_state = payload.decision;
@@ -236,6 +258,56 @@ export class ContinuityStore {
     return path.join(this.objectsDir, digest.slice(0, 2), digest.slice(2, 4), `${digest}.json`);
   }
 
+  private assertExistingObjectMatches(filename: string, objectId: string, canonical: Buffer): void {
+    try {
+      const existing = JSON.parse(fs.readFileSync(filename, "utf8")) as StoredContinuityObject<Record<string, unknown>>;
+      const { object_id: existingId, ...existingUnsigned } = existing;
+      if (existingId !== objectId || !canonicalBytes(existingUnsigned).equals(canonical)) {
+        throw new Error("CONTENT_ADDRESS_COLLISION");
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message === "CONTENT_ADDRESS_COLLISION") throw error;
+      throw new Error("CONTENT_ADDRESS_COLLISION");
+    }
+  }
+
+  private validatePersistReferences(object: StoredContinuityObject<Record<string, unknown>>): void {
+    if (object.object_type !== "governance_decision") return;
+
+    const payload = object.payload as unknown as GovernanceDecisionPayload;
+    const evidence = this.db.prepare(`
+      SELECT object_type, subject_id
+      FROM objects
+      WHERE object_id = ?
+    `).get(payload.intent_ref) as { object_type: string; subject_id: string } | undefined;
+
+    if (!evidence) throw new Error("DECISION_INTENT_NOT_INDEXED");
+    if (evidence.object_type !== "intent") throw new Error("DECISION_INTENT_TYPE_MISMATCH");
+    if (evidence.subject_id !== object.subject_id) throw new Error("DECISION_INTENT_SUBJECT_MISMATCH");
+
+    const indexed = this.db.prepare(`
+      SELECT 1 AS present
+      FROM event_log
+      WHERE subject_id = ? AND object_ref = ?
+      LIMIT 1
+    `).get(object.subject_id, payload.intent_ref);
+
+    if (!indexed) throw new Error("DECISION_INTENT_NOT_INDEXED");
+
+    const latest = this.db.prepare(`
+      SELECT event.object_ref
+      FROM event_log AS event
+      JOIN objects AS evidence ON evidence.object_id = event.object_ref
+      WHERE event.subject_id = ? AND evidence.object_type = 'intent'
+      ORDER BY event.sequence_number DESC
+      LIMIT 1
+    `).get(object.subject_id) as { object_ref: string } | undefined;
+
+    if (!latest || latest.object_ref !== payload.intent_ref) {
+      throw new Error("DECISION_INTENT_NOT_CURRENT");
+    }
+  }
+
   private appendEvent(eventType: string, subjectId: string, objectRef: string, createdAt: string): void {
     const previous = this.db.prepare(`
       SELECT event_hash FROM event_log WHERE subject_id = ? ORDER BY sequence_number DESC LIMIT 1
@@ -262,16 +334,17 @@ export class ContinuityStore {
 
     this.db.prepare(`
       INSERT INTO current_state(
-        subject_id, checkpoint_ref, decision_ref, outcome_ref, decision_state,
+        subject_id, latest_intent_ref, checkpoint_ref, decision_ref, outcome_ref, decision_state,
         validity_state, resume_posture, pending_approval_ref, expires_at,
         revalidate_if_json, required_checks_json, updated_at
       )
       VALUES (
-        @subject_id, @checkpoint_ref, @decision_ref, @outcome_ref, @decision_state,
+        @subject_id, @latest_intent_ref, @checkpoint_ref, @decision_ref, @outcome_ref, @decision_state,
         @validity_state, @resume_posture, @pending_approval_ref, @expires_at,
         @revalidate_if_json, @required_checks_json, @updated_at
       )
       ON CONFLICT(subject_id) DO UPDATE SET
+        latest_intent_ref = excluded.latest_intent_ref,
         checkpoint_ref = excluded.checkpoint_ref,
         decision_ref = excluded.decision_ref,
         outcome_ref = excluded.outcome_ref,
@@ -285,6 +358,7 @@ export class ContinuityStore {
         updated_at = excluded.updated_at
     `).run({
       subject_id: next.subject_id,
+      latest_intent_ref: next.latest_intent_ref,
       checkpoint_ref: next.checkpoint_ref,
       decision_ref: next.decision_ref,
       outcome_ref: next.outcome_ref,

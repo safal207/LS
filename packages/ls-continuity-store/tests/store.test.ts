@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 import { openDatabase } from "../src/database.js";
 import { ContinuityStore } from "../src/store.js";
 import { recoverSubject } from "../src/recover.js";
@@ -10,13 +10,24 @@ import { evaluateResume } from "../src/resume.js";
 
 const ZERO_REF = `sha256:${"0".repeat(64)}`;
 const ONE_REF = `sha256:${"1".repeat(64)}`;
+const fixtures = new Set<ReturnType<typeof fixture>>();
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ls-continuity-"));
   const db = openDatabase(path.join(root, "continuity.db"));
   const store = new ContinuityStore(db, path.join(root, "objects"));
-  return { root, db, store };
+  const value = { root, db, store };
+  fixtures.add(value);
+  return value;
 }
+
+afterEach(() => {
+  for (const value of fixtures) {
+    value.db.close();
+    fs.rmSync(value.root, { recursive: true, force: true });
+  }
+  fixtures.clear();
+});
 
 function persistDecision(store: ContinuityStore, subject = "agent-1", posture = "retryable") {
   const intent = store.persist({

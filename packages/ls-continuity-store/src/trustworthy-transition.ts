@@ -8,37 +8,46 @@ import type {
 
 const OBJECT_REF_RE = /^sha256:[0-9a-f]{64}$/;
 const PROFILE = "org.ls.trustworthy-transition-continuity.v0.1" as const;
+const CLAIM_BOUNDARY =
+  "LS persists an immutable continuity snapshot and derives resume posture from supplied independent dimensions. " +
+  "It does not issue authority, observe execution, verify response truth, or decide causal validity.";
 
-export type AuthorityDimension =
-  | "VALID"
-  | "DENIED"
-  | "PENDING"
-  | "EXPIRED"
-  | "EXPIRED_AT_REPORT"
-  | "CONSUMED"
-  | "REVALIDATION_REQUIRED"
-  | "NOT_EVALUATED"
-  | "UNKNOWN";
+const AUTHORITY_DIMENSIONS = [
+  "VALID",
+  "DENIED",
+  "PENDING",
+  "EXPIRED",
+  "EXPIRED_AT_REPORT",
+  "CONSUMED",
+  "REVALIDATION_REQUIRED",
+  "NOT_EVALUATED",
+  "UNKNOWN"
+] as const;
+const EXECUTION_DIMENSIONS = [
+  "NOT_OBSERVED",
+  "OBSERVED_EXECUTED",
+  "OBSERVED_BLOCKED",
+  "OBSERVED_ERRORED",
+  "OBSERVED_OTHER"
+] as const;
+const INTEGRITY_DIMENSIONS = [
+  "VERIFIED",
+  "FAILED",
+  "PARTIAL",
+  "NOT_EVALUATED",
+  "UNKNOWN"
+] as const;
+const CAUSAL_DIMENSIONS = [
+  "VALID",
+  "INVALID",
+  "NOT_EVALUATED",
+  "UNKNOWN"
+] as const;
 
-export type ExecutionDimension =
-  | "NOT_OBSERVED"
-  | "OBSERVED_EXECUTED"
-  | "OBSERVED_BLOCKED"
-  | "OBSERVED_ERRORED"
-  | "OBSERVED_OTHER";
-
-export type IntegrityDimension =
-  | "VERIFIED"
-  | "FAILED"
-  | "PARTIAL"
-  | "NOT_EVALUATED"
-  | "UNKNOWN";
-
-export type CausalDimension =
-  | "VALID"
-  | "INVALID"
-  | "NOT_EVALUATED"
-  | "UNKNOWN";
+export type AuthorityDimension = (typeof AUTHORITY_DIMENSIONS)[number];
+export type ExecutionDimension = (typeof EXECUTION_DIMENSIONS)[number];
+export type IntegrityDimension = (typeof INTEGRITY_DIMENSIONS)[number];
+export type CausalDimension = (typeof CAUSAL_DIMENSIONS)[number];
 
 export type TransitionOperation =
   | "resume_side_effect"
@@ -121,6 +130,8 @@ export interface TransitionResumeDecision {
     | "SUBJECT_MISMATCH"
     | "ACTION_BINDING_MISMATCH"
     | "SNAPSHOT_EVIDENCE_MISMATCH"
+    | "SNAPSHOT_NOT_LATEST"
+    | "SNAPSHOT_CHAIN_INVALID"
     | "EVIDENCE_DRIFT"
     | "CONTEXT_DRIFT"
     | "AUTHORITY_DENIED"
@@ -160,29 +171,93 @@ export interface SnapshotChainAssessment {
   >;
 }
 
-function requireText(value: string, label: string): string {
+function requireText(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(`${label.toUpperCase()}_REQUIRED`);
   }
   return value.trim();
 }
 
-function requireObjectRef(value: string | null, label: string): string | null {
+function requireObjectRef(value: unknown, label: string): string | null {
   if (value === null) return null;
-  if (!OBJECT_REF_RE.test(value)) throw new Error(`${label.toUpperCase()}_INVALID`);
+  if (typeof value !== "string" || !OBJECT_REF_RE.test(value)) {
+    throw new Error(`${label.toUpperCase()}_INVALID`);
+  }
   return value;
 }
 
-function uniqueSorted(values: readonly string[]): string[] {
+function uniqueSorted(values: unknown): string[] {
+  if (!Array.isArray(values)) throw new Error("OBSERVATION_REFS_INVALID");
   const result = [...new Set(values)];
   for (const value of result) requireObjectRef(value, "observation_ref");
-  return result.sort();
+  return (result as string[]).sort();
 }
 
-function parseTime(value: string, label: string): number {
+function parseTime(value: unknown, label: string): number {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${label.toUpperCase()}_INVALID`);
+  }
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) throw new Error(`${label.toUpperCase()}_INVALID`);
   return timestamp;
+}
+
+function requireRecord(value: unknown, label: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label.toUpperCase()}_INVALID`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireDimension<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  label: string
+): T {
+  if (typeof value !== "string" || !(allowed as readonly string[]).includes(value)) {
+    throw new Error(`${label.toUpperCase()}_INVALID`);
+  }
+  return value as T;
+}
+
+function validateDimensions(
+  value: unknown
+): TransitionContinuitySnapshotPayload["dimensions"] {
+  const dimensions = requireRecord(value, "dimensions");
+  const expected = new Set([
+    "authority",
+    "execution",
+    "response_integrity",
+    "causal_validity"
+  ]);
+  if (
+    Object.keys(dimensions).length !== expected.size ||
+    Object.keys(dimensions).some((key) => !expected.has(key))
+  ) {
+    throw new Error("DIMENSIONS_SHAPE_INVALID");
+  }
+  return {
+    authority: requireDimension(
+      dimensions.authority,
+      AUTHORITY_DIMENSIONS,
+      "authority"
+    ),
+    execution: requireDimension(
+      dimensions.execution,
+      EXECUTION_DIMENSIONS,
+      "execution"
+    ),
+    response_integrity: requireDimension(
+      dimensions.response_integrity,
+      INTEGRITY_DIMENSIONS,
+      "response_integrity"
+    ),
+    causal_validity: requireDimension(
+      dimensions.causal_validity,
+      CAUSAL_DIMENSIONS,
+      "causal_validity"
+    )
+  };
 }
 
 export function computeEvidenceSetDigest(input: {
@@ -227,22 +302,39 @@ export function createTransitionSnapshotEnvelope(
 ): ContinuityEnvelope<TransitionContinuitySnapshotPayload> {
   parseTime(createdAt, "created_at");
   requireObjectRef(previousRef, "previous_ref");
-  requireObjectRef(input.context_digest, "context_digest");
-  requireObjectRef(input.reauthorization_ref ?? null, "reauthorization_ref");
-  if (input.authority_expires_at) parseTime(input.authority_expires_at, "authority_expires_at");
+  const contextDigest = requireObjectRef(input.context_digest, "context_digest") as string;
+  const reauthorizationRef = requireObjectRef(
+    input.reauthorization_ref ?? null,
+    "reauthorization_ref"
+  );
+  const authorityExpiresAt = input.authority_expires_at ?? null;
+  if (authorityExpiresAt !== null) {
+    parseTime(authorityExpiresAt, "authority_expires_at");
+  }
+  const dimensions = validateDimensions(input.dimensions);
+  if (typeof input.side_effect_committed !== "boolean") {
+    throw new Error("SIDE_EFFECT_COMMITTED_INVALID");
+  }
+  const retryableAfterError = input.retry?.retryable_after_error ?? false;
+  if (typeof retryableAfterError !== "boolean") {
+    throw new Error("RETRYABLE_AFTER_ERROR_INVALID");
+  }
+  const idempotencyKey = input.retry?.idempotency_key ?? null;
+  if (idempotencyKey !== null) requireText(idempotencyKey, "idempotency_key");
 
+  const inputRecordRefs = requireRecord(input.record_refs, "record_refs");
   const recordRefs = {
     authorization_ref: requireObjectRef(
-      input.record_refs.authorization_ref,
+      inputRecordRefs.authorization_ref,
       "authorization_ref"
     ),
-    observation_refs: uniqueSorted(input.record_refs.observation_refs),
+    observation_refs: uniqueSorted(inputRecordRefs.observation_refs),
     response_integrity_ref: requireObjectRef(
-      input.record_refs.response_integrity_ref,
+      inputRecordRefs.response_integrity_ref,
       "response_integrity_ref"
     ),
     causal_audit_ref: requireObjectRef(
-      input.record_refs.causal_audit_ref,
+      inputRecordRefs.causal_audit_ref,
       "causal_audit_ref"
     )
   };
@@ -268,19 +360,17 @@ export function createTransitionSnapshotEnvelope(
       binding_digest: bindingDigest,
       record_refs: recordRefs
     }),
-    dimensions: { ...input.dimensions },
+    dimensions,
     side_effect_committed: input.side_effect_committed,
-    authority_expires_at: input.authority_expires_at ?? null,
-    context_digest: input.context_digest,
+    authority_expires_at: authorityExpiresAt,
+    context_digest: contextDigest,
     retry: {
-      retryable_after_error: input.retry?.retryable_after_error ?? false,
-      idempotency_key: input.retry?.idempotency_key ?? null
+      retryable_after_error: retryableAfterError,
+      idempotency_key: idempotencyKey
     },
-    reauthorization_ref: input.reauthorization_ref ?? null,
+    reauthorization_ref: reauthorizationRef,
     captured_at: createdAt,
-    claim_boundary:
-      "LS persists an immutable continuity snapshot and derives resume posture from supplied independent dimensions. " +
-      "It does not issue authority, observe execution, verify response truth, or decide causal validity."
+    claim_boundary: CLAIM_BOUNDARY
   };
 
   return {
@@ -318,6 +408,38 @@ function verifyStoredSnapshot(
   if (snapshot.subject_id !== snapshot.payload.subject_id) {
     throw new Error("TRANSITION_SNAPSHOT_SUBJECT_MISMATCH");
   }
+  requireObjectRef(snapshot.previous_ref, "previous_ref");
+  parseTime(snapshot.created_at, "created_at");
+  requireText(snapshot.payload.transition_id, "transition_id");
+  requireText(snapshot.payload.subject_id, "subject_id");
+  requireObjectRef(snapshot.payload.action_identity_digest, "action_identity_digest");
+  requireObjectRef(snapshot.payload.binding_digest, "binding_digest");
+  requireObjectRef(snapshot.payload.context_digest, "context_digest");
+  requireObjectRef(snapshot.payload.reauthorization_ref, "reauthorization_ref");
+  requireObjectRef(snapshot.payload.evidence_set_digest, "evidence_set_digest");
+  validateDimensions(snapshot.payload.dimensions);
+  if (typeof snapshot.payload.side_effect_committed !== "boolean") {
+    throw new Error("SIDE_EFFECT_COMMITTED_INVALID");
+  }
+  if (snapshot.payload.authority_expires_at !== null) {
+    parseTime(snapshot.payload.authority_expires_at, "authority_expires_at");
+  }
+  parseTime(snapshot.payload.captured_at, "captured_at");
+  const retry = requireRecord(snapshot.payload.retry, "retry");
+  if (typeof retry.retryable_after_error !== "boolean") {
+    throw new Error("RETRYABLE_AFTER_ERROR_INVALID");
+  }
+  if (retry.idempotency_key !== null) {
+    requireText(retry.idempotency_key, "idempotency_key");
+  }
+  if (snapshot.payload.claim_boundary !== CLAIM_BOUNDARY) {
+    throw new Error("TRANSITION_SNAPSHOT_CLAIM_BOUNDARY_MISMATCH");
+  }
+  const recordRefs = requireRecord(snapshot.payload.record_refs, "record_refs");
+  requireObjectRef(recordRefs.authorization_ref, "authorization_ref");
+  uniqueSorted(recordRefs.observation_refs);
+  requireObjectRef(recordRefs.response_integrity_ref, "response_integrity_ref");
+  requireObjectRef(recordRefs.causal_audit_ref, "causal_audit_ref");
   const expected = computeEvidenceSetDigest(snapshot.payload);
   if (snapshot.payload.evidence_set_digest !== expected) {
     throw new Error("TRANSITION_SNAPSHOT_EVIDENCE_MISMATCH");
@@ -341,12 +463,40 @@ function decision(
   };
 }
 
+function loadTransitionSnapshots(
+  store: ContinuityStore,
+  subjectId: string,
+  transitionId: string
+): Array<StoredContinuityObject<TransitionContinuitySnapshotPayload>> {
+  const snapshots: Array<
+    StoredContinuityObject<TransitionContinuitySnapshotPayload>
+  > = [];
+  for (const event of store.listEvents(subjectId)) {
+    const objectRef = requireObjectRef(event.object_ref, "event_object_ref");
+    if (objectRef === null) throw new Error("EVENT_OBJECT_REF_INVALID");
+    const object = store.load<Record<string, unknown>>(objectRef);
+    if (object.object_type !== "verification_receipt") continue;
+    const payload = requireRecord(object.payload, "verification_receipt_payload");
+    if (payload.profile !== PROFILE) continue;
+    const snapshot = object as StoredContinuityObject<
+      TransitionContinuitySnapshotPayload
+    >;
+    verifyStoredSnapshot(snapshot);
+    if (snapshot.payload.transition_id === transitionId) snapshots.push(snapshot);
+  }
+  return snapshots;
+}
+
 export function evaluateTransitionResume(
-  snapshot: StoredContinuityObject<TransitionContinuitySnapshotPayload>,
+  store: ContinuityStore,
+  snapshotRef: string,
   request: TransitionResumeRequest
 ): TransitionResumeDecision {
+  requireObjectRef(snapshotRef, "snapshot_ref");
+  const snapshot = store.load<TransitionContinuitySnapshotPayload>(snapshotRef);
   verifyStoredSnapshot(snapshot);
   const payload = snapshot.payload;
+  const now = parseTime(request.now, "now");
 
   if (request.transition_id !== payload.transition_id) {
     return decision(snapshot, false, "BLOCKED", "TRANSITION_MISMATCH");
@@ -376,6 +526,22 @@ export function evaluateTransitionResume(
       "HISTORICAL_REPORT_ONLY",
       checks
     );
+  }
+
+  const snapshots = loadTransitionSnapshots(
+    store,
+    payload.subject_id,
+    payload.transition_id
+  );
+  if (snapshots.at(-1)?.object_id !== snapshot.object_id) {
+    return decision(snapshot, false, "BLOCKED", "SNAPSHOT_NOT_LATEST", [
+      "load_latest_transition_snapshot"
+    ]);
+  }
+  if (!assessSnapshotSequence(snapshots).valid) {
+    return decision(snapshot, false, "BLOCKED", "SNAPSHOT_CHAIN_INVALID", [
+      "repair_snapshot_chain"
+    ]);
   }
 
   if (request.current_evidence_set_digest !== payload.evidence_set_digest) {
@@ -426,7 +592,7 @@ export function evaluateTransitionResume(
 
   if (
     payload.authority_expires_at !== null &&
-    parseTime(request.now, "now") >= parseTime(payload.authority_expires_at, "authority_expires_at")
+    now >= parseTime(payload.authority_expires_at, "authority_expires_at")
   ) {
     return decision(snapshot, false, "BLOCKED", "AUTHORITY_EXPIRED", [
       "obtain_fresh_authorization"
@@ -466,6 +632,10 @@ export function evaluateTransitionResume(
       );
     case "VALID":
       break;
+    default:
+      return decision(snapshot, false, "BLOCKED", "UNKNOWN_STATE", [
+        "validate_snapshot_dimensions"
+      ]);
   }
 
   if (
@@ -597,6 +767,53 @@ export function assessSnapshotChain(
     parseTime(previous.payload.captured_at, "previous_captured_at")
   ) {
     reasons.push("CAPTURE_TIME_ROLLBACK");
+  }
+
+  return {
+    valid: reasons.length === 0,
+    reason_codes: reasons.length === 0 ? ["OK"] : [...new Set(reasons)].sort()
+  };
+}
+
+export function assessSnapshotSequence(
+  snapshots: readonly StoredContinuityObject<TransitionContinuitySnapshotPayload>[]
+): SnapshotChainAssessment {
+  const reasons: SnapshotChainAssessment["reason_codes"] = [];
+  if (snapshots.length === 0 || snapshots[0].previous_ref !== null) {
+    reasons.push("PREVIOUS_REF_MISMATCH");
+  }
+
+  let terminalAuthorityActive = false;
+  let terminalAuthorization: string | null = null;
+  for (const [index, snapshot] of snapshots.entries()) {
+    verifyStoredSnapshot(snapshot);
+    if (index > 0) {
+      const assessment = assessSnapshotChain(snapshots[index - 1], snapshot);
+      reasons.push(...assessment.reason_codes.filter((reason) => reason !== "OK"));
+    }
+
+    const authorization = snapshot.payload.record_refs.authorization_ref;
+    const explicitNewEpoch =
+      terminalAuthorityActive &&
+      authorization !== null &&
+      authorization !== terminalAuthorization &&
+      snapshot.payload.reauthorization_ref === authorization;
+    if (explicitNewEpoch) terminalAuthorityActive = false;
+
+    if (
+      terminalAuthorityActive &&
+      snapshot.payload.dimensions.authority === "VALID"
+    ) {
+      reasons.push("AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION");
+    }
+
+    if (
+      !terminalAuthorityActive &&
+      TERMINAL_AUTHORITY.has(snapshot.payload.dimensions.authority)
+    ) {
+      terminalAuthorityActive = true;
+      terminalAuthorization = authorization;
+    }
   }
 
   return {

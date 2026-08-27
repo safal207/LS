@@ -26,6 +26,7 @@ export function openDatabase(path: string): DatabaseSync {
 
     CREATE TABLE IF NOT EXISTS current_state (
       subject_id TEXT PRIMARY KEY,
+      latest_intent_ref TEXT REFERENCES objects(object_id),
       checkpoint_ref TEXT REFERENCES objects(object_id),
       decision_ref TEXT REFERENCES objects(object_id),
       outcome_ref TEXT REFERENCES objects(object_id),
@@ -48,5 +49,64 @@ export function openDatabase(path: string): DatabaseSync {
       continuation_id TEXT
     );
   `);
+
+  const stateColumns = db.prepare("PRAGMA table_info(current_state)").all() as Array<{ name: string }>;
+  if (!stateColumns.some((column) => column.name === "latest_intent_ref")) {
+    db.exec("ALTER TABLE current_state ADD COLUMN latest_intent_ref TEXT REFERENCES objects(object_id)");
+  }
+
+  db.exec(`
+    UPDATE current_state
+    SET latest_intent_ref = (
+      SELECT event.object_ref
+      FROM event_log AS event
+      JOIN objects AS evidence ON evidence.object_id = event.object_ref
+      WHERE event.subject_id = current_state.subject_id
+        AND evidence.object_type = 'intent'
+      ORDER BY event.sequence_number DESC
+      LIMIT 1
+    )
+    WHERE latest_intent_ref IS NULL;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS one_governance_outcome_per_decision
+    ON objects(
+      subject_id,
+      json_extract(canonical_json, '$.payload.decision_ref')
+    )
+    WHERE object_type = 'governance_outcome';
+
+    DROP TRIGGER IF EXISTS reject_reauthorization_after_consumed_outcome;
+    CREATE TRIGGER reject_reauthorization_after_consumed_outcome
+    BEFORE INSERT ON objects
+    WHEN NEW.object_type = 'governance_decision'
+      AND EXISTS (
+        SELECT 1
+        FROM current_state
+        WHERE subject_id = NEW.subject_id
+          AND latest_intent_ref = json_extract(NEW.canonical_json, '$.payload.intent_ref')
+          AND outcome_ref IS NOT NULL
+          AND resume_posture = 'consumed'
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'DECISION_REQUIRES_NEW_INTENT_AFTER_CONSUMED_OUTCOME');
+    END;
+
+    DROP TRIGGER IF EXISTS reject_outcome_while_authority_consumed;
+    DROP TRIGGER IF EXISTS reject_replacement_outcome;
+    CREATE TRIGGER reject_replacement_outcome
+    BEFORE INSERT ON objects
+    WHEN NEW.object_type = 'governance_outcome'
+      AND EXISTS (
+        SELECT 1
+        FROM current_state
+        WHERE subject_id = NEW.subject_id
+          AND decision_ref = json_extract(NEW.canonical_json, '$.payload.decision_ref')
+          AND outcome_ref IS NOT NULL
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'OUTCOME_ALREADY_RECORDED_FOR_DECISION');
+    END;
+  `);
+
   return db;
 }

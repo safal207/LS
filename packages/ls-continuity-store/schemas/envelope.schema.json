@@ -82,6 +82,29 @@
         },
         "continuation_id": { "type": ["string", "null"], "minLength": 1 }
       },
+      "allOf": [
+        {
+          "if": { "properties": { "decision": { "const": "deny" } }, "required": ["decision"] },
+          "then": { "properties": { "resume_posture": { "const": "non_retryable" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "require_approval" } }, "required": ["decision"] },
+          "then": { "properties": { "resume_posture": { "const": "pending_approval" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "revise" } }, "required": ["decision"] },
+          "then": { "properties": { "resume_posture": { "const": "requires_revalidation" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "allow" } }, "required": ["decision"] },
+          "then": {
+            "not": {
+              "properties": { "resume_posture": { "const": "pending_approval" } },
+              "required": ["resume_posture"]
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "governanceOutcomePayload": {

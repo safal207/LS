@@ -346,5 +346,16 @@
         "reason": "SUBJECT_MISMATCH"
       }
     }
+  ],
+  "tampering_cases": [
+    {
+      "case_id": "snapshot_dimension_mutation_fails_closed",
+      "source_case_id": "active_unobserved_resume",
+      "mutation": {
+        "dimension": "authority",
+        "value": "DENIED"
+      },
+      "expected_error": "OBJECT_HASH_MISMATCH"
+    }
   ]
 }

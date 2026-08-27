@@ -2,14 +2,17 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import type { DatabaseSync } from "node:sqlite";
+import { afterEach, describe, it } from "node:test";
 import { canonicalBytes } from "../src/canonicalize.js";
 import { openDatabase } from "../src/database.js";
 import { sha256Ref } from "../src/hash.js";
 import { ContinuityStore } from "../src/store.js";
 import {
   assessSnapshotChain,
+  assessSnapshotSequence,
   computeEvidenceSetDigest,
+  createTransitionSnapshotEnvelope,
   evaluateTransitionResume,
   persistTransitionSnapshot,
   type TransitionContinuitySnapshotInput,
@@ -35,10 +38,42 @@ interface FixtureCase {
   };
 }
 
+interface TamperingFixtureCase {
+  case_id: string;
+  source_case_id: string;
+  mutation: {
+    dimension: keyof TransitionContinuitySnapshotInput["dimensions"];
+    value: string;
+  };
+  expected_error: string;
+}
+
 const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, "utf8")) as {
   profile: string;
   cases: FixtureCase[];
+  tampering_cases: TamperingFixtureCase[];
 };
+
+interface StorageResource {
+  root: string;
+  databases: Set<DatabaseSync>;
+}
+
+const storageResources = new Set<StorageResource>();
+
+afterEach(() => {
+  for (const resource of storageResources) {
+    for (const database of resource.databases) {
+      try {
+        database.close();
+      } catch {
+        // The test may already have closed this handle to simulate restart.
+      }
+    }
+    fs.rmSync(resource.root, { recursive: true, force: true });
+  }
+  storageResources.clear();
+});
 
 function ref(label: string): string {
   return sha256Ref(canonicalBytes({ fixture_ref: label }));
@@ -62,8 +97,20 @@ function storageFixture() {
   const databasePath = path.join(root, "continuity.db");
   const objectsPath = path.join(root, "objects");
   const db = openDatabase(databasePath);
+  const resource = { root, databases: new Set<DatabaseSync>([db]) };
+  storageResources.add(resource);
   const store = new ContinuityStore(db, objectsPath);
-  return { root, databasePath, objectsPath, db, store };
+  const reopen = () => {
+    const reopened = openDatabase(databasePath);
+    resource.databases.add(reopened);
+    return reopened;
+  };
+  return { root, databasePath, objectsPath, db, store, reopen };
+}
+
+function objectPath(objectsPath: string, objectRef: string): string {
+  const digest = objectRef.slice("sha256:".length);
+  return path.join(objectsPath, digest.slice(0, 2), digest.slice(2, 4), `${digest}.json`);
 }
 
 function materializeCase(caseData: FixtureCase) {
@@ -96,11 +143,12 @@ describe("trustworthy-transition continuity adapter", () => {
   it("publishes the expected profile fixture", () => {
     assert.equal(fixture.profile, "org.ls.trustworthy-transition-continuity.v0.1");
     assert.equal(fixture.cases.length, 10);
+    assert.equal(fixture.tampering_cases.length, 1);
   });
 
   for (const caseData of fixture.cases) {
     it(`replays ${caseData.case_id} after storage restart`, () => {
-      const { databasePath, objectsPath, db, store } = storageFixture();
+      const { objectsPath, db, store, reopen } = storageFixture();
       const { snapshotInput, requestOverride } = materializeCase(caseData);
       const stored = persistTransitionSnapshot(
         store,
@@ -110,11 +158,11 @@ describe("trustworthy-transition continuity adapter", () => {
       const request = buildRequest(stored, requestOverride);
       db.close();
 
-      const reopenedDb = openDatabase(databasePath);
+      const reopenedDb = reopen();
       const reopenedStore = new ContinuityStore(reopenedDb, objectsPath);
       const recovered = reopenedStore.load<typeof stored.payload>(stored.object_id);
-      const first = evaluateTransitionResume(recovered, request);
-      const second = evaluateTransitionResume(recovered, request);
+      const first = evaluateTransitionResume(reopenedStore, recovered.object_id, request);
+      const second = evaluateTransitionResume(reopenedStore, recovered.object_id, request);
 
       assert.deepEqual(second, first);
       assert.equal(first.allowed, caseData.expected.allowed);
@@ -122,6 +170,38 @@ describe("trustworthy-transition continuity adapter", () => {
       assert.equal(first.reason, caseData.expected.reason);
       assert.equal(first.snapshot_ref, stored.object_id);
       assert.deepEqual(first.dimensions, stored.payload.dimensions);
+      reopenedDb.close();
+    });
+  }
+
+  for (const tamperingCase of fixture.tampering_cases) {
+    it(`rejects ${tamperingCase.case_id} after storage restart`, () => {
+      const source = fixture.cases.find(
+        (caseData) => caseData.case_id === tamperingCase.source_case_id
+      );
+      assert.ok(source);
+      const { objectsPath, db, store, reopen } = storageFixture();
+      const { snapshotInput } = materializeCase(source);
+      const stored = persistTransitionSnapshot(
+        store,
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+      const filename = objectPath(objectsPath, stored.object_id);
+      const tampered = JSON.parse(fs.readFileSync(filename, "utf8")) as {
+        payload: { dimensions: Record<string, unknown> };
+      };
+      tampered.payload.dimensions[tamperingCase.mutation.dimension] =
+        tamperingCase.mutation.value;
+      fs.writeFileSync(filename, JSON.stringify(tampered, null, 2));
+      db.close();
+
+      const reopenedDb = reopen();
+      const reopenedStore = new ContinuityStore(reopenedDb, objectsPath);
+      assert.throws(
+        () => reopenedStore.load(stored.object_id),
+        new RegExp(tamperingCase.expected_error)
+      );
       reopenedDb.close();
     });
   }
@@ -256,7 +336,130 @@ describe("trustworthy-transition continuity adapter", () => {
       valid: true,
       reason_codes: ["OK"]
     });
+    assert.deepEqual(assessSnapshotSequence([previous, current]), {
+      valid: true,
+      reason_codes: ["OK"]
+    });
     db.close();
+  });
+
+  it("blocks live evaluation of a non-latest snapshot but keeps it reportable", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    const initial = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const deniedInput = structuredClone(snapshotInput);
+    deniedInput.dimensions.authority = "DENIED";
+    const latest = persistTransitionSnapshot(
+      store,
+      deniedInput,
+      "2030-01-01T00:01:00.000Z",
+      initial.object_id
+    );
+    const request = buildRequest(initial, {
+      operation: "resume_side_effect",
+      now: "2030-01-01T00:10:00.000Z"
+    });
+
+    const stale = evaluateTransitionResume(store, initial.object_id, request);
+    assert.equal(stale.allowed, false);
+    assert.equal(stale.reason, "SNAPSHOT_NOT_LATEST");
+
+    const current = evaluateTransitionResume(store, latest.object_id, request);
+    assert.equal(current.allowed, false);
+    assert.equal(current.reason, "AUTHORITY_DENIED");
+
+    const report = evaluateTransitionResume(store, initial.object_id, {
+      ...request,
+      operation: "report_only"
+    });
+    assert.equal(report.allowed, true);
+    assert.equal(report.reason, "HISTORICAL_REPORT_ONLY");
+  });
+
+  it("keeps terminal authority sticky across intermediate snapshots", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.dimensions.authority = "DENIED";
+    const denied = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const pendingInput = structuredClone(snapshotInput);
+    pendingInput.dimensions.authority = "PENDING";
+    const pending = persistTransitionSnapshot(
+      store,
+      pendingInput,
+      "2030-01-01T00:01:00.000Z",
+      denied.object_id
+    );
+    const validInput = structuredClone(snapshotInput);
+    validInput.dimensions.authority = "VALID";
+    const invalidReopen = persistTransitionSnapshot(
+      store,
+      validInput,
+      "2030-01-01T00:02:00.000Z",
+      pending.object_id
+    );
+
+    assert.equal(assessSnapshotChain(denied, pending).valid, true);
+    assert.equal(assessSnapshotChain(pending, invalidReopen).valid, true);
+    assert.deepEqual(assessSnapshotSequence([denied, pending, invalidReopen]), {
+      valid: false,
+      reason_codes: ["AUTHORITY_REOPENED_WITHOUT_REAUTHORIZATION"]
+    });
+
+    const request = buildRequest(invalidReopen, {
+      operation: "resume_side_effect",
+      now: "2030-01-01T00:10:00.000Z"
+    });
+    const result = evaluateTransitionResume(
+      store,
+      invalidReopen.object_id,
+      request
+    );
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
+  it("rejects malformed persisted dimensions before resume evaluation", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    const envelope = createTransitionSnapshotEnvelope(
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    (envelope.payload.dimensions as unknown as Record<string, unknown>).authority =
+      "STALE";
+    const stored = store.persist(envelope);
+    const request = buildRequest(stored, {
+      operation: "resume_side_effect",
+      now: "2030-01-01T00:10:00.000Z"
+    });
+
+    assert.throws(
+      () => evaluateTransitionResume(store, stored.object_id, request),
+      /AUTHORITY_INVALID/
+    );
+  });
+
+  it("rejects an empty authority expiry before persistence", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    snapshotInput.authority_expires_at = "";
+    assert.throws(
+      () =>
+        persistTransitionSnapshot(
+          store,
+          snapshotInput,
+          "2030-01-01T00:00:00.000Z"
+        ),
+      /AUTHORITY_EXPIRES_AT_INVALID/
+    );
   });
 
   it("binds evidence-set digest to identity, arguments, and all record refs", () => {

@@ -2,28 +2,54 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 import { openDatabase } from "../src/database.js";
 import { ContinuityStore } from "../src/store.js";
 import { recoverSubject } from "../src/recover.js";
 import { evaluateResume } from "../src/resume.js";
 
 const DIGEST = `sha256:${"2".repeat(64)}`;
+const MISSING_REF = `sha256:${"9".repeat(64)}`;
+const fixtures = new Set<ReturnType<typeof makeFixture>>();
 
-function makeStore() {
+function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ls-review-"));
   const db = openDatabase(path.join(root, "continuity.db"));
-  return new ContinuityStore(db, path.join(root, "objects"));
+  const store = new ContinuityStore(db, path.join(root, "objects"));
+  const value = { root, db, store };
+  fixtures.add(value);
+  return value;
 }
 
-function allowDecision(store: ContinuityStore, subject: string, expiresAt: string | null = null) {
-  const intent = store.persist({
+afterEach(() => {
+  for (const value of fixtures) {
+    value.db.close();
+    fs.rmSync(value.root, { recursive: true, force: true });
+  }
+  fixtures.clear();
+});
+
+function makeStore() {
+  return makeFixture().store;
+}
+
+function persistIntent(
+  store: ContinuityStore,
+  subject: string,
+  action = "example_action",
+  createdAt = "2026-06-28T00:00:00.000Z"
+) {
+  return store.persist({
     schema: "ls.continuity.v1",
     object_type: "intent",
     subject_id: subject,
-    created_at: "2026-06-28T00:00:00.000Z",
-    payload: { action: "example_action", params_digest: DIGEST }
+    created_at: createdAt,
+    payload: { action, params_digest: DIGEST }
   });
+}
+
+function allowDecision(store: ContinuityStore, subject: string, expiresAt: string | null = null) {
+  const intent = persistIntent(store, subject);
 
   return store.persist({
     schema: "ls.continuity.v1",
@@ -42,16 +68,28 @@ function allowDecision(store: ContinuityStore, subject: string, expiresAt: strin
   });
 }
 
+function persistAllowForIntent(store: ContinuityStore, subject: string, intentRef: string) {
+  return store.persist({
+    schema: "ls.continuity.v1",
+    object_type: "governance_decision",
+    subject_id: subject,
+    previous_ref: intentRef,
+    created_at: "2026-06-28T00:00:01.000Z",
+    payload: {
+      intent_ref: intentRef,
+      decision: "allow",
+      validity_state: "active",
+      resume_posture: "retryable",
+      expires_at: null,
+      revalidate_if: []
+    }
+  });
+}
+
 describe("review regressions", () => {
   it("rejects denied decisions that claim retryability", () => {
     const store = makeStore();
-    const intent = store.persist({
-      schema: "ls.continuity.v1",
-      object_type: "intent",
-      subject_id: "denied",
-      created_at: "2026-06-28T00:00:00.000Z",
-      payload: { action: "example_action", params_digest: DIGEST }
-    });
+    const intent = persistIntent(store, "denied");
 
     assert.throws(() => store.persist({
       schema: "ls.continuity.v1",
@@ -130,6 +168,117 @@ describe("review regressions", () => {
 
     assert.equal(first.object_id, second.object_id);
     assert.equal(store.listEvents("same").length, 1);
+  });
+
+  it("accepts a write-time EEXIST for the same canonical object", () => {
+    const store = makeStore();
+    const mutableFs = fs as unknown as { writeFileSync: (...args: any[]) => void };
+    const originalWrite = mutableFs.writeFileSync;
+    let injected = false;
+
+    mutableFs.writeFileSync = (...args: any[]) => {
+      const options = args[2] as { flag?: string } | undefined;
+      if (!injected && options?.flag === "wx") {
+        injected = true;
+        originalWrite(...args);
+        const error = new Error("simulated concurrent winner") as NodeJS.ErrnoException;
+        error.code = "EEXIST";
+        throw error;
+      }
+      originalWrite(...args);
+    };
+
+    try {
+      const object = persistIntent(store, "race");
+      assert.match(object.object_id, /^sha256:[0-9a-f]{64}$/);
+      assert.equal(store.listEvents("race").length, 1);
+    } finally {
+      mutableFs.writeFileSync = originalWrite;
+    }
+  });
+
+  it("rejects a decision whose intent does not exist", () => {
+    const store = makeStore();
+    assert.throws(
+      () => persistAllowForIntent(store, "missing-intent", MISSING_REF),
+      /DECISION_INTENT_NOT_INDEXED/
+    );
+  });
+
+  it("rejects a decision whose intent_ref points to another object type", () => {
+    const store = makeStore();
+    const receipt = store.persist({
+      schema: "ls.continuity.v1",
+      object_type: "verification_receipt",
+      subject_id: "wrong-type",
+      created_at: "2026-06-28T00:00:00.000Z",
+      payload: { verifier: "test" }
+    });
+
+    assert.throws(
+      () => persistAllowForIntent(store, "wrong-type", receipt.object_id),
+      /DECISION_INTENT_TYPE_MISMATCH/
+    );
+  });
+
+  it("rejects a decision whose intent belongs to another subject", () => {
+    const store = makeStore();
+    const foreignIntent = persistIntent(store, "subject-a");
+    assert.throws(
+      () => persistAllowForIntent(store, "subject-b", foreignIntent.object_id),
+      /DECISION_INTENT_SUBJECT_MISMATCH/
+    );
+  });
+
+  it("rejects orphan intent files that were never indexed as evidence", () => {
+    const { db, store } = makeFixture();
+    const intent = persistIntent(store, "orphan");
+
+    db.prepare("DELETE FROM current_state WHERE subject_id = ?").run("orphan");
+    db.prepare("DELETE FROM event_log WHERE subject_id = ?").run("orphan");
+    db.prepare("DELETE FROM objects WHERE object_id = ?").run(intent.object_id);
+
+    assert.throws(
+      () => persistAllowForIntent(store, "orphan", intent.object_id),
+      /DECISION_INTENT_NOT_INDEXED/
+    );
+  });
+
+  it("rejects a decision for an older intent after a newer intent exists", () => {
+    const store = makeStore();
+    const first = persistIntent(store, "stale-intent", "first_action", "2026-06-28T00:00:00.000Z");
+    const second = persistIntent(store, "stale-intent", "second_action", "2026-06-28T00:00:01.000Z");
+
+    assert.throws(
+      () => persistAllowForIntent(store, "stale-intent", first.object_id),
+      /DECISION_INTENT_NOT_CURRENT/
+    );
+    assert.doesNotThrow(() => persistAllowForIntent(store, "stale-intent", second.object_id));
+  });
+
+  it("clears prior authority when a new intent is persisted", () => {
+    const store = makeStore();
+    allowDecision(store, "new-intent");
+    assert.equal(evaluateResume(recoverSubject(store, "new-intent")).reason, "OK");
+
+    const nextIntent = persistIntent(
+      store,
+      "new-intent",
+      "second_action",
+      "2026-06-28T00:00:02.000Z"
+    );
+    const state = recoverSubject(store, "new-intent");
+
+    assert.equal(state?.latest_intent_ref, nextIntent.object_id);
+    assert.equal(state?.decision_ref, null);
+    assert.equal(state?.decision_state, null);
+    assert.equal(evaluateResume(state).reason, "DECISION_NOT_ALLOWED");
+  });
+
+  it("accepts a decision backed by the current same-subject intent", () => {
+    const store = makeStore();
+    allowDecision(store, "valid-intent");
+    assert.equal(evaluateResume(recoverSubject(store, "valid-intent")).reason, "OK");
   });
 
   it("rejects malformed object references", () => {

@@ -51,7 +51,7 @@ const reopenedDb = openDatabase(databasePath);
 const reopenedStore = new ContinuityStore(reopenedDb, objectsPath);
 const recovered = reopenedStore.load<typeof snapshot.payload>(snapshot.object_id);
 
-const retryDecision = evaluateTransitionResume(recovered, {
+const retryDecision = evaluateTransitionResume(reopenedStore, recovered.object_id, {
   transition_id: recovered.payload.transition_id,
   subject_id: recovered.payload.subject_id,
   action_identity_digest: recovered.payload.action_identity_digest,
@@ -62,7 +62,7 @@ const retryDecision = evaluateTransitionResume(recovered, {
   now: "2030-01-01T00:10:00.000Z"
 });
 
-const reportDecision = evaluateTransitionResume(recovered, {
+const reportDecision = evaluateTransitionResume(reopenedStore, recovered.object_id, {
   transition_id: recovered.payload.transition_id,
   subject_id: recovered.payload.subject_id,
   action_identity_digest: recovered.payload.action_identity_digest,

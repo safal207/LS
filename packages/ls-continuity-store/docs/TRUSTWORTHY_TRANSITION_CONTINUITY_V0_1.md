@@ -85,6 +85,8 @@ audit record changes the digest and requires a rebuilt snapshot.
 
 Allowed only when:
 
+- the selected snapshot is the latest stored snapshot for the transition;
+- the complete stored `previous_ref` sequence is forward-only and valid;
 - transition, subject, action, and binding match exactly;
 - evidence and runtime context have not drifted;
 - authority is `VALID` and not expired;
@@ -113,7 +115,9 @@ original side effect.
 
 ## Monotonic snapshot chain
 
-`assessSnapshotChain(previous, current)` rejects:
+Live resume evaluation reconstructs the transition's snapshot sequence from the
+local event log. `assessSnapshotChain(previous, current)` and
+`assessSnapshotSequence(snapshots)` reject:
 
 - incorrect `previous_ref`;
 - transition or subject substitution;
@@ -123,6 +127,9 @@ original side effect.
 - `OBSERVED_EXECUTED -> NOT_OBSERVED`;
 - capture-time rollback;
 - terminal authority reopened under the same authorization reference.
+
+Terminal authority remains sticky across intermediate states. A chain such as
+`DENIED -> PENDING -> VALID` cannot hide the denied epoch.
 
 Reopening a terminal authority state requires:
 
@@ -150,9 +157,12 @@ The fixture suite covers:
 10. cross-subject substitution rejection;
 11. terminal-state rollback rejection;
 12. explicit reauthorization epoch acceptance.
+13. content-addressed snapshot tampering rejection after restart.
 
 Every primary fixture is persisted to SQLite/WAL, the database is closed,
-reopened, and the immutable snapshot is loaded before evaluation.
+reopened, and the immutable snapshot is loaded before evaluation. The tampering
+fixture mutates a stored dimension byte and proves that reload fails closed on
+the object hash before any resume decision is made.
 
 ## Package gate
 

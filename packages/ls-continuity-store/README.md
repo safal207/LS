@@ -105,6 +105,9 @@ a new snapshot.
 Historical snapshots remain reportable even after expiry or evidence drift, but
 they cannot silently regain live permission.
 
+Live resume evaluation loads the selected snapshot from the local store and
+requires it to be the latest entry in a valid, forward-only transition chain.
+
 ### Snapshot chain rules
 
 `assessSnapshotChain()` rejects:
@@ -115,6 +118,7 @@ they cannot silently regain live permission.
 - committed-side-effect rollback;
 - executed-to-unobserved rollback;
 - terminal authority reopened without a new explicit authorization epoch;
+- terminal authority hidden behind intermediate snapshots;
 - capture-time rollback.
 
 A new authorization epoch must use a different `authorization_ref` and set
@@ -137,6 +141,8 @@ A new authorization epoch must use a different `authorization_ref` and set
 - stale snapshots remain historical-report-only;
 - cross-subject substitution fails;
 - terminal snapshot state cannot be rolled back to a permissive state.
+- a non-latest snapshot cannot grant live continuation;
+- a transition-specific tampering fixture fails closed after restart.
 
 ## Boundary
 
