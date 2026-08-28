@@ -738,7 +738,7 @@ def verify_source_checkout(
         )
     index_records = _run_git(root, "ls-files", "-v", "-z")
     for record in index_records.split("\0"):
-        if record and record[0] in {"h", "S"}:
+        if record and record[0] in {"h", "s", "S"}:
             fail(
                 "ROUTE-V2-HEAD",
                 (

@@ -331,8 +331,13 @@ class RouteArtifactV2Tests(unittest.TestCase):
                     )
 
     def test_t0_rejects_index_flags_that_hide_tracked_mutations(self):
-        for flag in ("--assume-unchanged", "--skip-worktree"):
-            with self.subTest(flag=flag):
+        flag_sets = (
+            ("--assume-unchanged",),
+            ("--skip-worktree",),
+            ("--assume-unchanged", "--skip-worktree"),
+        )
+        for flags in flag_sets:
+            with self.subTest(flags=flags):
                 with source_checkout() as (repo, head):
                     artifact = materialize_t0(
                         repo,
@@ -340,9 +345,13 @@ class RouteArtifactV2Tests(unittest.TestCase):
                         compute_digest=compute_content_digest,
                     )
                     replay_script = repo / "scripts" / "verify_route_contract.py"
-                    git(
-                        repo, "update-index", flag, str(replay_script.relative_to(repo))
-                    )
+                    for flag in flags:
+                        git(
+                            repo,
+                            "update-index",
+                            flag,
+                            str(replay_script.relative_to(repo)),
+                        )
                     replay_script.write_text(
                         "print('hidden replacement')\n",
                         encoding="utf-8",
