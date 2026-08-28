@@ -101,9 +101,10 @@ Allowed only after `OBSERVED_ERRORED` when the snapshot explicitly records
 `retryable_after_error=true` and the request supplies the exact stored
 idempotency key. A later snapshot cannot make retry eligibility permissive, or
 replace its accepted key, unless that snapshot also adds fresh observation
-evidence or starts an explicit authorization epoch. Entering
-`OBSERVED_ERRORED` itself always requires a fresh observation reference; a new
-authorization epoch cannot manufacture execution evidence.
+evidence or starts an explicit authorization epoch. `OBSERVED_ERRORED` always
+requires observation evidence, including in the first snapshot. Entering that
+state later requires a fresh observation reference; a new authorization epoch
+cannot manufacture execution evidence.
 
 ### `report_only`
 
@@ -124,6 +125,7 @@ one SQLite read snapshot after verifying the event-hash chain, immutable object
 index coverage, and replayed projection. `assessSnapshotChain(previous, current)` and
 `assessSnapshotSequence(snapshots)` reject:
 
+- `VALID` authority without an immutable `authorization_ref`;
 - incorrect `previous_ref`;
 - transition or subject substitution;
 - action or binding substitution;
@@ -132,9 +134,10 @@ index coverage, and replayed projection. `assessSnapshotChain(previous, current)
 - `OBSERVED_EXECUTED -> NOT_OBSERVED`;
 - retry eligibility made permissive without fresh observation evidence or a new
   authorization epoch;
-- a new `OBSERVED_ERRORED` state without fresh observation evidence;
+- an errored snapshot without observation evidence, including the first snapshot;
 - `UNKNOWN` or `NOT_EVALUATED` causal state promoted to `VALID` without a fresh
   non-null causal record;
+- any later `VALID` use of a causal record previously classified as non-valid;
 - capture-time rollback;
 - terminal authority reopened under the same authorization reference.
 

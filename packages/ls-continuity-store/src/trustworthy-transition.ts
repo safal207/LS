@@ -276,6 +276,24 @@ function validateDimensions(
   };
 }
 
+function validateStateEvidenceBindings(
+  dimensions: TransitionContinuitySnapshotPayload["dimensions"],
+  recordRefs: TransitionContinuitySnapshotPayload["record_refs"]
+): void {
+  if (
+    dimensions.authority === "VALID" &&
+    recordRefs.authorization_ref === null
+  ) {
+    throw new Error("VALID_AUTHORITY_REQUIRES_AUTHORIZATION_REF");
+  }
+  if (
+    dimensions.execution === "OBSERVED_ERRORED" &&
+    recordRefs.observation_refs.length === 0
+  ) {
+    throw new Error("OBSERVED_ERROR_REQUIRES_OBSERVATION");
+  }
+}
+
 export function computeEvidenceSetDigest(input: {
   transition_id: string;
   subject_id: string;
@@ -360,6 +378,7 @@ export function createTransitionSnapshotEnvelope(
       "causal_audit_ref"
     )
   };
+  validateStateEvidenceBindings(dimensions, recordRefs);
   const transitionId = requireText(input.transition_id, "transition_id");
   const subjectId = requireText(input.subject_id, "subject_id");
   const actionIdentityDigest = requireNonNullObjectRef(
@@ -445,7 +464,7 @@ function verifyStoredSnapshot(
   requireNonNullObjectRef(snapshot.payload.context_digest, "context_digest");
   requireObjectRef(snapshot.payload.reauthorization_ref, "reauthorization_ref");
   requireObjectRef(snapshot.payload.evidence_set_digest, "evidence_set_digest");
-  validateDimensions(snapshot.payload.dimensions);
+  const dimensions = validateDimensions(snapshot.payload.dimensions);
   if (typeof snapshot.payload.side_effect_committed !== "boolean") {
     throw new Error("SIDE_EFFECT_COMMITTED_INVALID");
   }
@@ -463,11 +482,26 @@ function verifyStoredSnapshot(
   if (snapshot.payload.claim_boundary !== CLAIM_BOUNDARY) {
     throw new Error("TRANSITION_SNAPSHOT_CLAIM_BOUNDARY_MISMATCH");
   }
-  const recordRefs = requireRecord(snapshot.payload.record_refs, "record_refs");
-  requireObjectRef(recordRefs.authorization_ref, "authorization_ref");
-  uniqueSorted(recordRefs.observation_refs);
-  requireObjectRef(recordRefs.response_integrity_ref, "response_integrity_ref");
-  requireObjectRef(recordRefs.causal_audit_ref, "causal_audit_ref");
+  const inputRecordRefs = requireRecord(
+    snapshot.payload.record_refs,
+    "record_refs"
+  );
+  const recordRefs = {
+    authorization_ref: requireObjectRef(
+      inputRecordRefs.authorization_ref,
+      "authorization_ref"
+    ),
+    observation_refs: uniqueSorted(inputRecordRefs.observation_refs),
+    response_integrity_ref: requireObjectRef(
+      inputRecordRefs.response_integrity_ref,
+      "response_integrity_ref"
+    ),
+    causal_audit_ref: requireObjectRef(
+      inputRecordRefs.causal_audit_ref,
+      "causal_audit_ref"
+    )
+  };
+  validateStateEvidenceBindings(dimensions, recordRefs);
   const expected = computeEvidenceSetDigest(snapshot.payload);
   if (snapshot.payload.evidence_set_digest !== expected) {
     throw new Error("TRANSITION_SNAPSHOT_EVIDENCE_MISMATCH");
@@ -882,6 +916,7 @@ export function assessSnapshotSequence(
   const seenAuthorizationRefs = new Set<string>();
   let causalRecoveryRequired = false;
   const seenCausalRefs = new Set<string>();
+  const nonValidCausalRefs = new Set<string>();
   let responseRecoveryRequired = false;
   const seenResponseRefs = new Set<string>();
   let responseRecoveryUnverified = false;
@@ -991,6 +1026,9 @@ export function assessSnapshotSequence(
       causalRef !== null && seenCausalRefs.has(causalRef);
     if (snapshot.payload.dimensions.causal_validity !== "VALID") {
       causalRecoveryRequired = true;
+      if (causalRef !== null) nonValidCausalRefs.add(causalRef);
+    } else if (causalRef !== null && nonValidCausalRefs.has(causalRef)) {
+      reasons.push("CAUSAL_EVIDENCE_REUSED");
     } else if (
       causalRecoveryRequired &&
       snapshot.payload.dimensions.causal_validity === "VALID"

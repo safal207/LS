@@ -114,6 +114,7 @@ transition chain.
 
 `assessSnapshotChain()` rejects:
 
+- `VALID` authority without an immutable `authorization_ref`;
 - broken `previous_ref` links;
 - transition, subject, action, or binding substitution;
 - removed observation evidence;
@@ -121,9 +122,10 @@ transition chain.
 - executed-to-unobserved rollback;
 - retry eligibility made permissive without fresh observation evidence or a new
   authorization epoch;
-- a newly claimed execution error without fresh observation evidence;
+- an errored snapshot without observation evidence, including the first snapshot;
 - causal validity restored after `UNKNOWN` or `NOT_EVALUATED` without a fresh
   causal record;
+- any later `VALID` use of a causal record previously classified as non-valid;
 - terminal authority reopened without a new explicit authorization epoch;
 - terminal authority hidden behind intermediate snapshots;
 - capture-time rollback.
