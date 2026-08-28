@@ -1254,6 +1254,13 @@ def verify_route_artifact(
     eligible = boolean(training["eligible"], "route.training.eligible")
     if training["corpus_scope"] not in {"none", "research", "distillation"}:
         fail("ROUTE-V2-TRAINING", "unsupported corpus scope")
+    if status == "revoked" and (
+        eligible or training["corpus_scope"] != "none"
+    ):
+        fail(
+            "ROUTE-V2-TRAINING",
+            "revoked routes must be ineligible with corpus_scope=none",
+        )
 
     license_value = obj(route["license"], "route.license")
     exact(

@@ -171,6 +171,10 @@ not escape through Python recursion depth.
 - `deprecated`
 - `revoked`
 
+A revoked route must set `training.eligible=false` and
+`training.corpus_scope=none`; revocation cannot leave a corpus-consumption path
+active.
+
 A non-T0 artifact cannot become `candidate` or `validated`.
 
 The current narrow verifier independently establishes one replay, one source

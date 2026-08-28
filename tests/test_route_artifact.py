@@ -886,6 +886,33 @@ class RouteArtifactV2Tests(unittest.TestCase):
             artifact,
         )
 
+    def test_revoked_t0_route_cannot_remain_training_eligible(self):
+        for eligible, corpus_scope in (
+            (True, "research"),
+            (True, "none"),
+            (False, "research"),
+        ):
+            with self.subTest(eligible=eligible, corpus_scope=corpus_scope):
+                with source_checkout() as (repo, head):
+                    artifact = materialize_t0(
+                        repo,
+                        head,
+                        compute_digest=compute_content_digest,
+                    )
+                    artifact["status"] = "revoked"
+                    artifact["training"] = {
+                        "eligible": eligible,
+                        "corpus_scope": corpus_scope,
+                    }
+                    digest(artifact)
+                    self.assert_code(
+                        "ROUTE-V2-TRAINING",
+                        verify_route_artifact,
+                        artifact,
+                        repository_root=repo,
+                        execute_declared_replay=True,
+                    )
+
     def test_t2_rejected_from_canonical_store(self):
         artifact = load("route_t2_rejected.json")
         self.assert_code(
