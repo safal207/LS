@@ -86,8 +86,8 @@ Keep the following route-specific:
 | Identity influence / profile patch | yes | no | adapt | `schemas/identity_update_record.example.json` is identity-specific; route durable state uses a typed `RouteVersionRecord` template instead. |
 | Exact Git repository and HEAD | no | yes | route-only | PR #772's Route Artifact verifier binds the repository origin, ref, and exact commit for T0 evidence. |
 | T0 / T1 / T2 evidence semantics | no | yes | route-only | PR #772 keeps deterministic replay, artifact-attested evidence, and narrative rejection-audit fields distinct. |
-| Deterministic replay | no | yes | route-only | PR #772 binds replay inputs and output assertions to a replay-evidence digest. |
-| Sealed honeypot evaluation | no | yes | route-only | PR #772 requires sealed ground truth and matching observed-result digests. |
+| Deterministic replay | no | yes | route-only | PR #772 binds a clean exact checkout and the declared assertions to the executed machine-readable report. |
+| Sealed honeypot evaluation | no | yes | route-only | PR #772 counts only executed result digests that match separately supplied operator ground truth. |
 | FP / FN / reviewer-time metrics | no | yes | route-only | PR #772 keeps route-effect metrics separate from identity influence and continuity fields. |
 | Time / Space / Phase / Depth closure axes | no | yes | route-only | These are a deferred route causal-fragment pilot and have no checked-in identity-record equivalent. |
 
