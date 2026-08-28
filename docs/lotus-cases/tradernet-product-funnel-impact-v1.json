@@ -1,0 +1,165 @@
+{
+  "schema_version": "ls-lotus-product-impact-v1",
+  "scorecard_sha256": "326d784d6dffaa72e5af54fc271023fa3cdcf8f35d4d7868a748424d19f30dd3",
+  "case_id": "tradernet-product-funnel-2026-07-21",
+  "evidence_chain": {
+    "liminalqa_repository": "safal207/LiminalQAengineer",
+    "liminalqa_pr": 102,
+    "liminalqa_exact_head": "d14d0e0cf434000c10609dc8627c288df5306df6",
+    "pythia_repository": "safal207/pythiaLabs",
+    "pythia_pr": 238,
+    "pythia_exact_head": "323705b4f7a8ecca3c5a475e2504f2c41e231188",
+    "cml_repository": "safal207/Causal-Memory-Layer",
+    "cml_pr": 215,
+    "cml_exact_head": "f0269ee1f9c9237876dcf70fc390a66790a76e55",
+    "cml_pack_id": "d9b886e7b4985dd9c4932232a69a5bfb5caaf70f597051a87dd93357560c4654",
+    "lotus_product_lens_repository": "safal207/LS",
+    "lotus_product_lens_pr": 920,
+    "lotus_product_lens_exact_head": "44087899bdaad86b32b13d89812cbf7a174db2fe"
+  },
+  "authority": {
+    "mode": "advisory_only",
+    "ownership": false,
+    "approval": false,
+    "execution": false,
+    "account_access": false,
+    "order_execution": false,
+    "external_submission": false,
+    "experiment_launch": false,
+    "deployment": false,
+    "delivery": false,
+    "merge": false
+  },
+  "verdict": "HUMAN_REVIEW_REQUIRED",
+  "human_impact_order": [
+    {
+      "rank": 1,
+      "id": "mobile-chart-user-agent-404",
+      "severity": "P1",
+      "evidence_status": "CONFIRMED",
+      "human_impact": "A mobile user loses access to a public analytical capability and receives a generic failure state.",
+      "recommended_human_action": "Prioritise as a separate public mobile repair item."
+    },
+    {
+      "rank": 2,
+      "id": "mobile-hero-late-discovery",
+      "severity": "P1-performance",
+      "evidence_status": "CONFIRMED",
+      "human_impact": "Meaningful mobile content appears several avoidable seconds late, increasing abandonment and uncertainty.",
+      "recommended_human_action": "Prioritise responsive LCP scheduling and verify with repeated alternating runs."
+    },
+    {
+      "rank": 3,
+      "id": "terminal-hidden-mobile-asset",
+      "severity": "P2",
+      "evidence_status": "CONFIRMED",
+      "human_impact": "The user pays network, battery and time cost for a 346800-byte resource that is not visible.",
+      "recommended_human_action": "Remove the hidden responsive request and confirm transfer-size reduction."
+    },
+    {
+      "rank": 4,
+      "id": "terminal-missing-onboarding-asset",
+      "severity": "P3",
+      "evidence_status": "CONFIRMED",
+      "human_impact": "No visible break is proven, but the product creates redundant request and diagnostic noise.",
+      "recommended_human_action": "Remove or correct the obsolete reference."
+    }
+  ],
+  "product_priority": [
+    {
+      "priority": "P0",
+      "status": "VALIDATION_REQUIRED",
+      "items": [
+        "persistent real/demo, market-session and data state",
+        "complete order consequences preview",
+        "marketable-limit explanation",
+        "explicit cancellation state",
+        "in-context Stop Loss and Take Profit",
+        "mobile task cards",
+        "safe mobile draft recovery"
+      ]
+    },
+    {
+      "priority": "P1",
+      "status": "BOUNDED_EXPERIMENTS",
+      "items": [
+        "intent-segmented public entry",
+        "demo-first activation",
+        "preserved activation checklist",
+        "portfolio attention queue",
+        "bounded mobile navigation"
+      ]
+    },
+    {
+      "priority": "P2",
+      "status": "AFTER_CORE_RELIABILITY",
+      "items": [
+        "intent-specific workspace presets",
+        "contextual education",
+        "portfolio-change explanation",
+        "bounded recovery reminders"
+      ]
+    }
+  ],
+  "seven_product_petals": [
+    {
+      "petal": "intent_before_conversion",
+      "result": "PARTIAL",
+      "note": "Segmented entry is a sound experiment, but current user-segment mismatch has not been measured."
+    },
+    {
+      "petal": "continuity_before_friction",
+      "result": "NEEDS_EVIDENCE",
+      "note": "Onboarding, order-draft and mobile interruption continuity require authorised validation."
+    },
+    {
+      "petal": "complementary_value_before_upsell",
+      "result": "GUARDRAIL",
+      "note": "Paid or risk-increasing choices must remain relevant, optional and not preselected."
+    },
+    {
+      "petal": "one_click_without_hidden_commitment",
+      "result": "NEEDS_AUTHENTICATED_EVIDENCE",
+      "note": "Exact amount, fee, currency, session and next state must be validated before a defect claim."
+    },
+    {
+      "petal": "recovery_before_pressure",
+      "result": "GUARDRAIL",
+      "note": "Recovery must restore a real intention and must not pressure the user to trade."
+    },
+    {
+      "petal": "evidence_before_growth_claims",
+      "result": "PASS_WITH_MEASUREMENT_PLAN",
+      "note": "Qualified activation is paired with corrections, support contacts, complaints and harm signals."
+    },
+    {
+      "petal": "human_freedom_at_every_stage",
+      "result": "NEEDS_EVIDENCE",
+      "note": "Decline, correction, cancellation and challenge paths require authenticated journey evidence."
+    }
+  ],
+  "handoff": {
+    "ready_now": [
+      "Four confirmed public repair items.",
+      "P0 authenticated validation matrix.",
+      "P0-P2 backlog with acceptance criteria and guardrails.",
+      "Bounded experiment plan using qualified activation."
+    ],
+    "not_ready": [
+      "Authenticated order-form defect claims.",
+      "KYC or funding recovery defect claims.",
+      "Stop Loss or Take Profit usability claims.",
+      "Conversion-lift claims.",
+      "Security-vulnerability claims.",
+      "One-root-cause claim for all mobile findings."
+    ],
+    "next_human_decision": "Assign owners for the four confirmed fixes and authorise a safe exact-build authenticated validation pass before any additional defect report."
+  },
+  "clickfunnels_boundary": {
+    "role": "pattern_reference_only",
+    "false_urgency": false,
+    "pressure_to_trade": false,
+    "preselected_paid_or_risk_increasing_choices": false,
+    "vendor_claims_are_tradernet_evidence": false
+  }
+}
