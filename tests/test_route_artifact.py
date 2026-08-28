@@ -7,6 +7,7 @@ import io
 import json
 import math
 import os
+import shlex
 import shutil
 import sys
 import tempfile
@@ -28,6 +29,7 @@ from route_artifact import (  # noqa: E402
     load_promotion_thresholds,
     verify_immutable_update,
     verify_route_artifact,
+    verify_source_checkout,
 )
 from route_test_support import (  # noqa: E402
     FIXTURES,
@@ -327,6 +329,117 @@ class RouteArtifactV2Tests(unittest.TestCase):
                         repository_root=repo,
                         execute_declared_replay=True,
                     )
+
+    def test_t0_rejects_index_flags_that_hide_tracked_mutations(self):
+        for flag in ("--assume-unchanged", "--skip-worktree"):
+            with self.subTest(flag=flag):
+                with source_checkout() as (repo, head):
+                    artifact = materialize_t0(
+                        repo,
+                        head,
+                        compute_digest=compute_content_digest,
+                    )
+                    replay_script = repo / "scripts" / "verify_route_contract.py"
+                    git(
+                        repo, "update-index", flag, str(replay_script.relative_to(repo))
+                    )
+                    replay_script.write_text(
+                        "print('hidden replacement')\n",
+                        encoding="utf-8",
+                    )
+                    self.assertEqual(
+                        "",
+                        git(repo, "status", "--porcelain=v1"),
+                    )
+                    self.assert_code(
+                        "ROUTE-V2-HEAD",
+                        verify_route_artifact,
+                        artifact,
+                        repository_root=repo,
+                        execute_declared_replay=True,
+                    )
+
+    def test_t0_executes_from_a_fresh_exact_tree_after_source_verification(self):
+        with source_checkout() as (repo, head):
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+
+            def verify_then_mutate(*args, **kwargs):
+                verify_source_checkout(*args, **kwargs)
+                (repo / "scripts" / "verify_route_contract.py").write_text(
+                    "raise SystemExit(99)\n",
+                    encoding="utf-8",
+                )
+
+            with mock.patch(
+                "route_artifact.verify_source_checkout",
+                side_effect=verify_then_mutate,
+            ):
+                result = verify_route_artifact(
+                    artifact,
+                    repository_root=repo,
+                    execute_declared_replay=True,
+                )
+
+        self.assertTrue(result["source_bound"])
+        self.assertEqual(1, result["honeypot_evaluations"])
+
+    def test_t0_rejects_external_or_traversing_replay_entrypoints(self):
+        with source_checkout() as (repo, head):
+            outside_script = repo.parent / f"{repo.name}-outside-replay.py"
+            shutil.copy2(
+                repo / "scripts" / "verify_route_contract.py",
+                outside_script,
+            )
+            try:
+                commands = (
+                    shlex.join(["python3", str(outside_script)]),
+                    shlex.join(["python3", f"../{outside_script.name}"]),
+                )
+                for command in commands:
+                    with self.subTest(command=command):
+                        artifact = materialize_t0(
+                            repo,
+                            head,
+                            compute_digest=compute_content_digest,
+                        )
+                        replay = artifact["verification"]["replay"]
+                        replay["command"] = command
+                        replay["evidence_digest"] = compute_replay_evidence_digest(
+                            replay
+                        )
+                        digest(artifact)
+                        self.assert_code(
+                            "ROUTE-V2-REPLAY",
+                            verify_route_artifact,
+                            artifact,
+                            repository_root=repo,
+                            execute_declared_replay=True,
+                        )
+            finally:
+                outside_script.unlink(missing_ok=True)
+
+    def test_t0_rejects_an_unbound_inline_replay_implementation(self):
+        with source_checkout() as (repo, head):
+            artifact = materialize_t0(
+                repo,
+                head,
+                compute_digest=compute_content_digest,
+            )
+            replay = artifact["verification"]["replay"]
+            replay["command"] = "python3 -c 'print(0)'"
+            replay["evidence_digest"] = compute_replay_evidence_digest(replay)
+            digest(artifact)
+            self.assert_code(
+                "ROUTE-V2-REPLAY",
+                verify_route_artifact,
+                artifact,
+                repository_root=repo,
+                execute_declared_replay=True,
+            )
 
     def test_t0_rejects_ignored_checkout_content(self):
         with source_checkout() as (repo, _head):

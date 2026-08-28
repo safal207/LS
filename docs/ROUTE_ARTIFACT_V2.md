@@ -20,7 +20,12 @@ T0 requires:
 
 - a declared Git host, repository, ref, and exact commit;
 - a clean local checkout whose `origin`, `HEAD`, declared ref, and commit all
-  match, with no tracked, untracked, or ignored material present;
+  match, with no tracked, untracked, or ignored material present and no
+  `assume-unchanged` or `skip-worktree` index entries;
+- verifier-owned materialization of the exact commit tree before execution;
+- a repository-local regular-file replay entrypoint; absolute paths,
+  parent traversal, symlink escapes, and unbound inline implementations fail
+  closed;
 - sandbox execution;
 - explicit operator opt-in to execute the replay without a shell inside an
   already controlled sandbox;
@@ -44,6 +49,14 @@ no-op command, a digest-only claim, a dirty checkout, or verification without
 the explicit execution capability fails closed. This proves source-bound replay
 behavior; it does not turn the producer's assertion names into independent
 claims about the world.
+
+The verifier executes from a temporary tree exported from `exact_head`, not
+from the caller's mutable working directory. The declared command must name its
+repository-relative implementation immediately after a bare sandbox runner (or
+invoke a repository-relative executable directly). The exact tree and declared
+entrypoint are source-bound; the runner, operating system, and transitive
+runtime remain capabilities supplied by the operator-controlled sandbox rather
+than evidence authored by the route producer.
 
 Verifier-owned Git checks and the declared replay inherit no caller-supplied
 `GIT_*` overrides; the verifier adds only `GIT_NO_REPLACE_OBJECTS=1`. Thus

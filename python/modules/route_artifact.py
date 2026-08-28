@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
 import heapq
+import io
 import json
 import math
 import os
 import re
 import shlex
 import subprocess
+import tarfile
+import tempfile
 import unicodedata
-from collections.abc import Mapping, Sequence
-from pathlib import Path
+from collections.abc import Iterator, Mapping, Sequence
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 API_VERSION = "ls.route/v2"
@@ -343,11 +347,112 @@ def verify_replay(value: Any) -> Mapping[str, Any]:
     return replay
 
 
+def _reject_external_command_paths(arguments: Sequence[str]) -> None:
+    """Reject command tokens that can address files outside the exact tree."""
+    for argument in arguments:
+        candidates = [argument]
+        if "=" in argument:
+            candidates.append(argument.split("=", 1)[1])
+        for raw_candidate in candidates:
+            candidate = raw_candidate.replace("\\", "/")
+            path = PurePosixPath(candidate)
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or re.match(r"^[A-Za-z]:/", candidate)
+            ):
+                fail(
+                    "ROUTE-V2-REPLAY",
+                    "replay command paths must remain inside the exact source tree",
+                )
+
+
+def _verify_replay_entrypoint(arguments: Sequence[str], replay_root: Path) -> None:
+    """Require one exact-tree implementation behind an operator-provided runner."""
+    if "/" in arguments[0] or "\\" in arguments[0] or arguments[0].startswith("."):
+        entrypoint = arguments[0]
+    else:
+        if len(arguments) < 2 or arguments[1].startswith("-"):
+            fail(
+                "ROUTE-V2-REPLAY",
+                (
+                    "replay command must name a repository-local implementation "
+                    "immediately after its sandbox runner"
+                ),
+            )
+        entrypoint = arguments[1]
+
+    candidate = replay_root / entrypoint
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError):
+        fail(
+            "ROUTE-V2-REPLAY",
+            f"replay implementation is missing from the exact source tree: {entrypoint}",
+        )
+    if not resolved.is_relative_to(replay_root) or not resolved.is_file():
+        fail(
+            "ROUTE-V2-REPLAY",
+            "replay implementation must be a regular file inside the exact source tree",
+        )
+
+
+@contextlib.contextmanager
+def _materialized_exact_tree(
+    repository_root: Path,
+    exact_head: str,
+) -> Iterator[Path]:
+    """Materialize only exact-head Git objects into a verifier-owned directory."""
+    try:
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_root),
+                "archive",
+                "--format=tar",
+                exact_head,
+            ],
+            check=True,
+            capture_output=True,
+            timeout=60,
+            env=_sanitized_git_environment(),
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        fail("ROUTE-V2-HEAD", f"unable to materialize exact source tree: {exc}")
+
+    with tempfile.TemporaryDirectory(prefix="route-v2-replay-") as directory:
+        replay_root = Path(directory).resolve()
+        try:
+            with tarfile.open(
+                fileobj=io.BytesIO(completed.stdout), mode="r:"
+            ) as archive:
+                members = archive.getmembers()
+                for member in members:
+                    path = PurePosixPath(member.name)
+                    if (
+                        path.is_absolute()
+                        or ".." in path.parts
+                        or member.isdev()
+                        or member.isfifo()
+                        or member.islnk()
+                    ):
+                        fail(
+                            "ROUTE-V2-HEAD",
+                            "exact source archive contains an unsafe entry",
+                        )
+                archive.extractall(replay_root, members=members, filter="data")
+        except (OSError, tarfile.TarError) as exc:
+            fail("ROUTE-V2-HEAD", f"unable to extract exact source tree: {exc}")
+        yield replay_root
+
+
 def execute_replay(
     replay: Mapping[str, Any],
     repository_root: Path | str,
+    exact_head: str,
 ) -> Mapping[str, str]:
-    """Execute a replay and hash its canonical honeypot results locally."""
+    """Execute exact-tree replay and hash its canonical honeypot results locally."""
     command = text(replay["command"], "verification.replay.command")
     try:
         arguments = shlex.split(command)
@@ -355,19 +460,24 @@ def execute_replay(
         fail("ROUTE-V2-REPLAY", f"invalid replay command: {exc}")
     if not arguments:
         fail("ROUTE-V2-REPLAY", "replay command must not be empty")
+    _reject_external_command_paths(arguments)
 
-    try:
-        completed = subprocess.run(
-            arguments,
-            cwd=Path(repository_root).resolve(),
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            env=_sanitized_git_environment(),
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        fail("ROUTE-V2-REPLAY", f"unable to execute replay command: {exc}")
+    with _materialized_exact_tree(
+        Path(repository_root).resolve(), exact_head
+    ) as replay_root:
+        _verify_replay_entrypoint(arguments, replay_root)
+        try:
+            completed = subprocess.run(
+                arguments,
+                cwd=replay_root,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=_sanitized_git_environment(),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            fail("ROUTE-V2-REPLAY", f"unable to execute replay command: {exc}")
 
     expected = replay["expected_exit_code"]
     observed = replay["observed_exit_code"]
@@ -626,6 +736,16 @@ def verify_source_checkout(
             "ROUTE-V2-HEAD",
             f"checkout HEAD {current_head} does not match exact_head {exact_head}",
         )
+    index_records = _run_git(root, "ls-files", "-v", "-z")
+    for record in index_records.split("\0"):
+        if record and record[0] in {"h", "S"}:
+            fail(
+                "ROUTE-V2-HEAD",
+                (
+                    "source checkout contains an assume-unchanged or "
+                    f"skip-worktree index entry: {record[2:]}"
+                ),
+            )
     if _run_git(
         root,
         "status",
@@ -969,7 +1089,7 @@ def verify_route_artifact(
             honeypots,
             trusted_honeypot_ground_truth,
         )
-        executed_honeypots = execute_replay(replay, repository_root)
+        executed_honeypots = execute_replay(replay, repository_root, head)
         verified_honeypot_count = verify_executed_honeypots(
             honeypots,
             executed_honeypots,
