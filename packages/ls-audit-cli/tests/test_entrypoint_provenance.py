@@ -3,6 +3,8 @@ import json
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -82,6 +84,27 @@ class ProvenanceTests(unittest.TestCase):
             self.write_bundle(root)
             with self.assertRaises(core.InputError):
                 entrypoint.stamp_tool_provenance(root, "main")
+
+    def test_provenance_write_failure_returns_filesystem_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.write_bundle(root)
+            stderr = StringIO()
+            with (
+                patch.dict(os.environ, {entrypoint.SOURCE_SHA_ENV: HEAD}),
+                patch.object(entrypoint.cml_cli, "main", return_value=0),
+                patch.object(entrypoint, "_output_path", return_value=root),
+                patch.object(
+                    entrypoint.core,
+                    "write_json",
+                    side_effect=OSError("disk full"),
+                ),
+                redirect_stderr(stderr),
+            ):
+                exit_code = entrypoint.main([])
+
+            self.assertEqual(exit_code, 5)
+            self.assertIn("tool provenance failure: disk full", stderr.getvalue())
 
     def test_explicit_source_repository_matches_the_owner_of_source_sha(self) -> None:
         env = {

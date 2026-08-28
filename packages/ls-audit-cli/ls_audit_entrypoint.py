@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             return 5
         try:
             stamp_tool_provenance(output, source_sha)
-        except core.InputError as exc:
+        except (core.InputError, OSError) as exc:
             print(f"ls-audit: tool provenance failure: {exc}", file=sys.stderr)
             return 5
     return exit_code
