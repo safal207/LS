@@ -1,0 +1,361 @@
+{
+  "fixture_version": "0.1",
+  "profile": "org.ls.trustworthy-transition-continuity.v0.1",
+  "cases": [
+    {
+      "case_id": "active_unobserved_resume",
+      "snapshot": {
+        "transition_id": "transition-001",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-001",
+        "binding_digest": "$REF:binding-001",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-001",
+          "observation_refs": [],
+          "response_integrity_ref": null,
+          "causal_audit_ref": "$REF:causal-001"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "NOT_OBSERVED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-001"
+      },
+      "request": {
+        "operation": "resume_side_effect",
+        "now": "2030-01-01T00:10:00.000Z"
+      },
+      "expected": {
+        "allowed": true,
+        "posture": "CONTINUE_SIDE_EFFECT",
+        "reason": "OK"
+      }
+    },
+    {
+      "case_id": "executed_restart_cannot_replay",
+      "snapshot": {
+        "transition_id": "transition-002",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-002",
+        "binding_digest": "$REF:binding-002",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-002",
+          "observation_refs": ["$REF:observation-002"],
+          "response_integrity_ref": "$REF:integrity-002",
+          "causal_audit_ref": "$REF:causal-002"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "VERIFIED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": true,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-002"
+      },
+      "request": {
+        "operation": "retry_side_effect",
+        "now": "2030-01-01T00:10:00.000Z"
+      },
+      "expected": {
+        "allowed": false,
+        "posture": "ALREADY_CONSUMED",
+        "reason": "SIDE_EFFECT_ALREADY_COMMITTED"
+      }
+    },
+    {
+      "case_id": "expired_snapshot_cannot_resume",
+      "snapshot": {
+        "transition_id": "transition-003",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-003",
+        "binding_digest": "$REF:binding-003",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-003",
+          "observation_refs": [],
+          "response_integrity_ref": null,
+          "causal_audit_ref": "$REF:causal-003"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "NOT_OBSERVED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T00:05:00.000Z",
+        "context_digest": "$REF:context-003"
+      },
+      "request": {
+        "operation": "resume_side_effect",
+        "now": "2030-01-01T00:10:00.000Z"
+      },
+      "expected": {
+        "allowed": false,
+        "posture": "BLOCKED",
+        "reason": "AUTHORITY_EXPIRED"
+      }
+    },
+    {
+      "case_id": "exact_idempotent_retry_after_error",
+      "snapshot": {
+        "transition_id": "transition-004",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-004",
+        "binding_digest": "$REF:binding-004",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-004",
+          "observation_refs": ["$REF:observation-004"],
+          "response_integrity_ref": null,
+          "causal_audit_ref": "$REF:causal-004"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_ERRORED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-004",
+        "retry": {
+          "retryable_after_error": true,
+          "idempotency_key": "retry-key-004"
+        }
+      },
+      "request": {
+        "operation": "retry_side_effect",
+        "now": "2030-01-01T00:10:00.000Z",
+        "idempotency_key": "retry-key-004"
+      },
+      "expected": {
+        "allowed": true,
+        "posture": "RETRY_SIDE_EFFECT",
+        "reason": "OK"
+      }
+    },
+    {
+      "case_id": "wrong_retry_key_requires_revalidation",
+      "snapshot": {
+        "transition_id": "transition-005",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-005",
+        "binding_digest": "$REF:binding-005",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-005",
+          "observation_refs": ["$REF:observation-005"],
+          "response_integrity_ref": null,
+          "causal_audit_ref": "$REF:causal-005"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_ERRORED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-005",
+        "retry": {
+          "retryable_after_error": true,
+          "idempotency_key": "retry-key-005"
+        }
+      },
+      "request": {
+        "operation": "retry_side_effect",
+        "now": "2030-01-01T00:10:00.000Z",
+        "idempotency_key": "wrong-key"
+      },
+      "expected": {
+        "allowed": false,
+        "posture": "REVALIDATE",
+        "reason": "RETRY_NOT_PROVEN_SAFE"
+      }
+    },
+    {
+      "case_id": "failed_response_requires_remediation",
+      "snapshot": {
+        "transition_id": "transition-006",
+        "subject_id": "agent:reporter",
+        "action_identity_digest": "$REF:action-006",
+        "binding_digest": "$REF:binding-006",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-006",
+          "observation_refs": ["$REF:observation-006"],
+          "response_integrity_ref": "$REF:integrity-006",
+          "causal_audit_ref": "$REF:causal-006"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_ERRORED",
+          "response_integrity": "FAILED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-006"
+      },
+      "request": {
+        "operation": "remediate_response",
+        "now": "2030-01-01T00:10:00.000Z"
+      },
+      "expected": {
+        "allowed": true,
+        "posture": "REMEDIATE_RESPONSE",
+        "reason": "RESPONSE_REMEDIATION_ONLY"
+      }
+    },
+    {
+      "case_id": "causal_invalid_blocks_continuation",
+      "snapshot": {
+        "transition_id": "transition-007",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-007",
+        "binding_digest": "$REF:binding-007",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-007",
+          "observation_refs": [],
+          "response_integrity_ref": null,
+          "causal_audit_ref": "$REF:causal-007"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "NOT_OBSERVED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "INVALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-007"
+      },
+      "request": {
+        "operation": "resume_side_effect",
+        "now": "2030-01-01T00:10:00.000Z"
+      },
+      "expected": {
+        "allowed": false,
+        "posture": "BLOCKED",
+        "reason": "CAUSAL_LINEAGE_INVALID"
+      }
+    },
+    {
+      "case_id": "evidence_drift_requires_new_snapshot",
+      "snapshot": {
+        "transition_id": "transition-008",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-008",
+        "binding_digest": "$REF:binding-008",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-008",
+          "observation_refs": [],
+          "response_integrity_ref": null,
+          "causal_audit_ref": "$REF:causal-008"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "NOT_OBSERVED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-008"
+      },
+      "request": {
+        "operation": "resume_side_effect",
+        "now": "2030-01-01T00:10:00.000Z",
+        "current_evidence_set_digest": "$REF:different-evidence"
+      },
+      "expected": {
+        "allowed": false,
+        "posture": "REVALIDATE",
+        "reason": "EVIDENCE_DRIFT"
+      }
+    },
+    {
+      "case_id": "stale_snapshot_remains_reportable",
+      "snapshot": {
+        "transition_id": "transition-009",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-009",
+        "binding_digest": "$REF:binding-009",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-009",
+          "observation_refs": ["$REF:observation-009"],
+          "response_integrity_ref": "$REF:integrity-009",
+          "causal_audit_ref": "$REF:causal-009"
+        },
+        "dimensions": {
+          "authority": "EXPIRED_AT_REPORT",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "VERIFIED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": true,
+        "authority_expires_at": "2030-01-01T00:05:00.000Z",
+        "context_digest": "$REF:context-009"
+      },
+      "request": {
+        "operation": "report_only",
+        "now": "2030-01-01T00:10:00.000Z",
+        "current_evidence_set_digest": "$REF:newer-evidence",
+        "current_context_digest": "$REF:newer-context"
+      },
+      "expected": {
+        "allowed": true,
+        "posture": "REPORT_ONLY",
+        "reason": "HISTORICAL_REPORT_ONLY"
+      }
+    },
+    {
+      "case_id": "cross_subject_substitution_fails",
+      "snapshot": {
+        "transition_id": "transition-010",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "$REF:action-010",
+        "binding_digest": "$REF:binding-010",
+        "record_refs": {
+          "authorization_ref": "$REF:auth-010",
+          "observation_refs": [],
+          "response_integrity_ref": null,
+          "causal_audit_ref": "$REF:causal-010"
+        },
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "NOT_OBSERVED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "VALID"
+        },
+        "side_effect_committed": false,
+        "authority_expires_at": "2030-01-01T01:00:00.000Z",
+        "context_digest": "$REF:context-010"
+      },
+      "request": {
+        "operation": "resume_side_effect",
+        "now": "2030-01-01T00:10:00.000Z",
+        "subject_id": "agent:other"
+      },
+      "expected": {
+        "allowed": false,
+        "posture": "BLOCKED",
+        "reason": "SUBJECT_MISMATCH"
+      }
+    }
+  ],
+  "tampering_cases": [
+    {
+      "case_id": "snapshot_dimension_mutation_fails_closed",
+      "source_case_id": "active_unobserved_resume",
+      "mutation": {
+        "dimension": "authority",
+        "value": "DENIED"
+      },
+      "expected_error": "OBJECT_HASH_MISMATCH"
+    }
+  ]
+}

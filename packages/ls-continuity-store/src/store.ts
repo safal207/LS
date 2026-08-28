@@ -124,6 +124,14 @@ export class ContinuityStore {
     `).all(subjectId) as Array<Record<string, unknown>>;
   }
 
+  /** Returns the immutable object-index refs that a subject event stream must cover. */
+  listIndexedObjectRefs(subjectId: string): string[] {
+    const rows = this.db.prepare(`
+      SELECT object_id FROM objects WHERE subject_id = ? ORDER BY object_id ASC
+    `).all(subjectId) as Array<{ object_id: string }>;
+    return rows.map((row) => row.object_id);
+  }
+
   /** Executes recovery reads under one SQLite snapshot. */
   withReadSnapshot<T>(callback: () => T): T {
     this.db.exec("BEGIN DEFERRED");

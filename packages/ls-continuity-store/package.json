@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test --import tsx tests/**/*.test.ts",
-    "demo": "tsx src/demo.ts"
+    "demo": "tsx src/demo.ts",
+    "demo:transition": "tsx src/transition-demo.ts"
   },
   "dependencies": {
     "json-canonicalize": "^1.0.6",
