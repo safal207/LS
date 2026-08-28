@@ -18,7 +18,7 @@
 [![Council Safety Gate](https://github.com/safal207/LS/actions/workflows/council_safety.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/council_safety.yml)
 [![Cognitive Trail Contract](https://github.com/safal207/LS/actions/workflows/cognitive_trail_contract.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/cognitive_trail_contract.yml)
 [![Landing Pages](https://github.com/safal207/LS/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/safal207/LS/actions/workflows/pages.yml)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](#quick-start)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](#quick-start)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-black.svg)](https://ollama.com/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 [![Rust Powered](https://img.shields.io/badge/Rust-Inside-orange.svg)](#core-architecture-summary)
@@ -369,7 +369,7 @@ If you are new to the repo, start there first.
 
 Requirements:
 
-- Python 3.9+
+- Python 3.11+
 - optional local LLM runtime (for some demos)
 
 Install dependencies:

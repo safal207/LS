@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import html
-import json
 import os
 from pathlib import Path
 import sys
@@ -425,23 +424,34 @@ def stamp_tool_version(output: Path) -> None:
     core.write_json(manifest_path, manifest)
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = core.parser()
-    parser.add_argument(
+def parser():
+    cli = core.parser()
+    cli.add_argument(
         "--cml-registry",
         type=Path,
         help="Optional local Git Internet trust registry for public CML evidence.",
     )
-    args = parser.parse_args(argv)
+    return cli
+
+
+def resolve_invocation(args: Any) -> tuple[Any, str, Path]:
+    """Resolve the canonical target identity and output path for one CLI call."""
+    ref = core.parse_url(args.pr_url)
+    expected = core.validate_sha(args.expected_head)
+    output = args.output or Path(
+        f"ls-audit-{ref.owner}-{ref.repo}-pr-{ref.number}-{expected[:12]}"
+    )
+    return ref, expected, output
+
+
+def main(argv: list[str] | None = None) -> int:
+    cli = parser()
+    args = cli.parse_args(argv)
     try:
-        ref = core.parse_url(args.pr_url)
-        expected = core.validate_sha(args.expected_head)
+        ref, expected, output = resolve_invocation(args)
         api_base = base.validate_network_boundary(ref, args.api_base)
         base.validate_finding_dispositions(args.adjudication)
         registry = cml.load_registry(args.cml_registry) if args.cml_registry else None
-        output = args.output or Path(
-            f"ls-audit-{ref.owner}-{ref.repo}-pr-{ref.number}-{expected[:12]}"
-        )
         base.validate_output_boundary(output, args.overwrite)
         client = target_client(
             api_base,
@@ -479,7 +489,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         stamp_tool_version(output)
     except (core.InputError, cml.CmlError) as exc:
-        parser.error(str(exc))
+        cli.error(str(exc))
     except core.ApiError as exc:
         if "output" in locals():
             base.cleanup_unsealed(output)

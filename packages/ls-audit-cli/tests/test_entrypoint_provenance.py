@@ -44,7 +44,9 @@ class ProvenanceTests(unittest.TestCase):
         core.write_json(root / "manifest.json", manifest)
         (root / "SCORECARD.md").write_text("old", encoding="utf-8")
 
-    def test_tool_source_is_bound_into_manifest_scorecard_and_bundle_digest(self) -> None:
+    def test_tool_source_is_bound_into_manifest_scorecard_and_bundle_digest(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             self.write_bundle(root)
@@ -80,6 +82,17 @@ class ProvenanceTests(unittest.TestCase):
             self.write_bundle(root)
             with self.assertRaises(core.InputError):
                 entrypoint.stamp_tool_provenance(root, "main")
+
+    def test_explicit_source_repository_matches_the_owner_of_source_sha(self) -> None:
+        env = {
+            "GITHUB_REPOSITORY": "upstream/LS",
+            "LS_TOOL_SOURCE_REPOSITORY": "contributor/LS",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            metadata = entrypoint._tool_metadata(HEAD)
+
+        self.assertEqual(metadata["source_sha"], HEAD)
+        self.assertEqual(metadata["source_repository"], "contributor/LS")
 
     def test_output_path_supports_default_explicit_and_reordered_forms(self) -> None:
         default = entrypoint._output_path(

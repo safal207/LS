@@ -11,20 +11,16 @@ import ls_audit as core
 import ls_audit_cml_cli as cml_cli
 
 SOURCE_SHA_ENV = "LS_TOOL_SOURCE_SHA"
+SOURCE_REPOSITORY_ENV = "LS_TOOL_SOURCE_REPOSITORY"
 
 
 def _output_path(args: Sequence[str]) -> Path | None:
-    parser = core.parser()
-    parser.add_argument("--cml-registry", type=Path)
     try:
-        parsed = parser.parse_args(list(args))
-        ref = core.parse_url(parsed.pr_url)
-        expected = core.validate_sha(parsed.expected_head)
+        parsed = cml_cli.parser().parse_args(list(args))
+        _, _, output = cml_cli.resolve_invocation(parsed)
     except (SystemExit, core.InputError):
         return None
-    return parsed.output or Path(
-        f"ls-audit-{ref.owner}-{ref.repo}-pr-{ref.number}-{expected[:12]}"
-    )
+    return output
 
 
 def _positive_int_env(name: str) -> int | None:
@@ -40,7 +36,9 @@ def _tool_metadata(source_sha: str) -> dict[str, object]:
         "version": cml_cli.TOOL_VERSION,
         "source_sha": core.validate_sha(source_sha),
     }
-    repository = os.environ.get("GITHUB_REPOSITORY")
+    repository = os.environ.get(SOURCE_REPOSITORY_ENV) or os.environ.get(
+        "GITHUB_REPOSITORY"
+    )
     workflow = os.environ.get("GITHUB_WORKFLOW")
     run_id = _positive_int_env("GITHUB_RUN_ID")
     run_attempt = _positive_int_env("GITHUB_RUN_ATTEMPT")
@@ -107,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:
     if source_sha and exit_code in {0, 3}:
         output = _output_path(args)
         if output is None:
-            print("ls-audit: cannot resolve output path for tool provenance", file=sys.stderr)
+            print(
+                "ls-audit: cannot resolve output path for tool provenance",
+                file=sys.stderr,
+            )
             return 5
         try:
             stamp_tool_provenance(output, source_sha)

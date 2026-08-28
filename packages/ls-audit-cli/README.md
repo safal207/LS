@@ -22,7 +22,7 @@ ls-audit https://github.com/OWNER/REPO/pull/123 \
   --expected-head 0123456789abcdef0123456789abcdef01234567
 ```
 
-`LS_TOOL_SOURCE_SHA` must be a full 40-character hexadecimal commit SHA. When present, LS writes it to both `manifest.json` and `scorecard.json`, includes it in the bundle digest, and records available GitHub Actions repository, workflow, run ID, and attempt metadata. The official CI workflow checks out this exact SHA and asserts `git rev-parse HEAD` before testing.
+`LS_TOOL_SOURCE_SHA` must be a full 40-character hexadecimal commit SHA. When present, LS writes it to both `manifest.json` and `scorecard.json`, includes it in the bundle digest, and records available GitHub Actions repository, workflow, run ID, and attempt metadata. `LS_TOOL_SOURCE_REPOSITORY` may bind that SHA to the pull-request head repository (including a fork); otherwise metadata falls back to `GITHUB_REPOSITORY`. This is workflow provenance, not independent repository attestation. The official CI workflow checks out the exact SHA and asserts `git rev-parse HEAD` before testing.
 
 Set `GITHUB_TOKEN` for private target repositories. LS accepts only `github.com` PR URLs and `api.github.com`; custom API hosts are rejected. Both the target client and optional CML client reject HTTP redirects, so credentials and source trust cannot silently cross hosts. The target token is never written to the bundle.
 

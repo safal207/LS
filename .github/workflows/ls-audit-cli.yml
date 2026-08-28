@@ -23,6 +23,7 @@ jobs:
     env:
       EXACT_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       LS_TOOL_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      LS_TOOL_SOURCE_REPOSITORY: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,7 +79,7 @@ jobs:
           assert not any(memory['authority'].values())
           assert 'evidence/cml-memory.json' in manifest['evidence_digests']
           assert manifest['tool']['source_sha'] == os.environ['EXPECTED_HEAD']
-          assert manifest['tool']['source_repository'] == os.environ['GITHUB_REPOSITORY']
+          assert manifest['tool']['source_repository'] == os.environ['LS_TOOL_SOURCE_REPOSITORY']
           assert manifest['tool']['workflow_run_id'] == int(os.environ['GITHUB_RUN_ID'])
           assert manifest['tool']['workflow_run_attempt'] == int(os.environ['GITHUB_RUN_ATTEMPT'])
           assert card['tool'] == manifest['tool']

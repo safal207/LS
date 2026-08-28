@@ -1,11 +1,14 @@
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[3]
 EXACT_SOURCE_EXPRESSION = (
     "${{ github.event_name == 'pull_request' && "
     "github.event.pull_request.head.sha || github.sha }}"
+)
+SOURCE_REPOSITORY_EXPRESSION = (
+    "${{ github.event_name == 'pull_request' && "
+    "github.event.pull_request.head.repo.full_name || github.repository }}"
 )
 
 
@@ -22,12 +25,18 @@ class WorkflowExactHeadContractTests(unittest.TestCase):
             self.assertIn('test "$(git rev-parse HEAD)" = "$EXACT_SOURCE_SHA"', text)
 
     def test_live_audit_binds_tool_source_sha_into_the_manifest(self) -> None:
-        text = (ROOT / ".github/workflows/ls-audit-cli.yml").read_text(
-            encoding="utf-8"
-        )
+        text = (ROOT / ".github/workflows/ls-audit-cli.yml").read_text(encoding="utf-8")
         self.assertIn(f"LS_TOOL_SOURCE_SHA: {EXACT_SOURCE_EXPRESSION}", text)
         self.assertIn(
+            f"LS_TOOL_SOURCE_REPOSITORY: {SOURCE_REPOSITORY_EXPRESSION}", text
+        )
+        self.assertIn(
             "assert manifest['tool']['source_sha'] == os.environ['EXPECTED_HEAD']",
+            text,
+        )
+        self.assertIn(
+            "assert manifest['tool']['source_repository'] == "
+            "os.environ['LS_TOOL_SOURCE_REPOSITORY']",
             text,
         )
 
