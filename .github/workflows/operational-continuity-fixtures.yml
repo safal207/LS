@@ -4,17 +4,21 @@ on:
   pull_request:
     paths:
       - "spec/operational-continuity-fixtures-v0.1.md"
+      - "spec/inter-agent-dispatch-audit-v0.1.md"
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
       - "tools/validate_recovered_evidence_v0_2.py"
+      - "tools/validate_inter_agent_dispatch_audit_v0_1.py"
   push:
     branches:
       - main
     paths:
       - "spec/operational-continuity-fixtures-v0.1.md"
+      - "spec/inter-agent-dispatch-audit-v0.1.md"
       - "fixtures/operational-continuity/**"
       - "tools/run_operational_continuity_fixtures.py"
       - "tools/validate_recovered_evidence_v0_2.py"
+      - "tools/validate_inter_agent_dispatch_audit_v0_1.py"
 
 permissions:
   contents: read
@@ -39,3 +43,192 @@ jobs:
           python tools/validate_recovered_evidence_v0_2.py \
             fixtures/operational-continuity/shared-envelope/resumed_constraint_defer_v0.2.json \
             fixtures/operational-continuity/shared-envelope/schema-v0.2.json
+      - name: Validate inter-agent dispatch audit v0.1
+        run: |
+          python tools/validate_inter_agent_dispatch_audit_v0_1.py \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
+            fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json
+      - name: Validate URI and canonical schema status boundaries
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "tools")
+          import validate_inter_agent_dispatch_audit_v0_1 as validator
+
+          fixture_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+          schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+          for uri in ("urn:isbn:0451450523", "mailto:user@example.com"):
+              candidate = copy.deepcopy(fixture)
+              candidate["_meta"]["related_issue"] = uri
+              report = validator.validate_fixture(candidate, schema)
+              assert report["passed"] is True, report
+
+          for uri in ("https://exa mple.com", "https://example.com/%ZZ"):
+              candidate = copy.deepcopy(fixture)
+              candidate["_meta"]["related_issue"] = uri
+              report = validator.validate_fixture(candidate, schema)
+              assert report["passed"] is False, report
+              assert any(
+                  item["code"] == "SCHEMA_VALIDATION_FAILED"
+                  and item["location"].endswith("._meta.related_issue")
+                  for item in report["fixture_errors"]
+              ), report
+
+          candidate = copy.deepcopy(fixture)
+          del candidate["canonical_record"]["result"]["result_id"]
+          report = validator.validate_fixture(candidate, schema)
+          assert report["canonical"]["passed"] is False, report
+          assert any(
+              item["code"] == "SCHEMA_VALIDATION_FAILED"
+              and item["location"].endswith(".result.result_id")
+              for item in report["canonical"]["errors"]
+          ), report
+          PY
+      - name: Validate structured CLI input failures
+        run: |
+          tmp_dir="$(mktemp -d)"
+          printf '{invalid-json' > "$tmp_dir/bad.json"
+          printf '[]' > "$tmp_dir/non-object.json"
+          check_failure() {
+            label="$1"
+            fixture="$2"
+            output="$tmp_dir/$label-output.json"
+            set +e
+            python tools/validate_inter_agent_dispatch_audit_v0_1.py \
+              "$fixture" \
+              fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json \
+              > "$output"
+            status=$?
+            set -e
+            test "$status" -eq 1
+            python -c 'import json,sys; report=json.load(open(sys.argv[1], encoding="utf-8")); errors=report["fixture_errors"]; assert report["passed"] is False; assert len(errors) == 1; assert errors[0]["code"] == "INPUT_LOAD_FAILED"; assert errors[0]["location"] == "cli"; assert errors[0]["message"]' "$output"
+          }
+          check_failure malformed "$tmp_dir/bad.json"
+          check_failure non_object "$tmp_dir/non-object.json"
+          check_failure missing "$tmp_dir/missing.json"
+      - name: Reject tampered schema vector contracts
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          fixture = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          def validate(tampered_schema):
+              with tempfile.TemporaryDirectory() as tmp_dir:
+                  tampered = Path(tmp_dir) / "schema.json"
+                  tampered.write_text(json.dumps(tampered_schema), encoding="utf-8")
+                  result = subprocess.run(
+                      [
+                          sys.executable,
+                          "tools/validate_inter_agent_dispatch_audit_v0_1.py",
+                          str(fixture),
+                          str(tampered),
+                      ],
+                      check=False,
+                      capture_output=True,
+                      text=True,
+                  )
+              assert result.returncode == 1, result.stdout + result.stderr
+              return json.loads(result.stdout)
+
+          schema = json.loads(schema_path.read_text(encoding="utf-8"))
+          schema["properties"]["negative_vectors"]["allOf"] = schema["properties"]["negative_vectors"]["allOf"][:-1]
+          report = validate(schema)
+          codes = {item["code"] for item in report["fixture_errors"]}
+          assert "SCHEMA_VECTOR_CONTRACT_SET_INVALID" in codes, report
+
+          schema = json.loads(schema_path.read_text(encoding="utf-8"))
+          schema["properties"]["negative_vectors"]["maxItems"] += 1
+          report = validate(schema)
+          errors = report["fixture_errors"]
+          assert any(
+              item["code"] == "SCHEMA_VECTOR_COUNT_INVALID"
+              and item["location"].endswith(".maxItems")
+              for item in errors
+          ), report
+          PY
+      - name: Reject JSON type-confused mutation contracts
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          fixture_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+          target = next(
+              item
+              for item in fixture["negative_vectors"]
+              if item["case"] == "ui_only_without_machine_readable_audit"
+          )
+          target["mutation"]["value"] = 0
+          with tempfile.TemporaryDirectory() as tmp_dir:
+              mutated = Path(tmp_dir) / "fixture.json"
+              mutated.write_text(json.dumps(fixture), encoding="utf-8")
+              result = subprocess.run(
+                  [
+                      sys.executable,
+                      "tools/validate_inter_agent_dispatch_audit_v0_1.py",
+                      str(mutated),
+                      str(schema_path),
+                  ],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              )
+          assert result.returncode == 1, result.stdout + result.stderr
+          report = json.loads(result.stdout)
+          codes = {item["code"] for item in report["fixture_errors"]}
+          assert "REQUIRED_MUTATION_INVALID" in codes, report
+          assert "SCHEMA_VALIDATION_FAILED" in codes, report
+          PY
+      - name: Reject additional negative vectors
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          fixture_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+          extra = copy.deepcopy(fixture["negative_vectors"][-1])
+          extra["case"] = "extra_malformed_content_digest"
+          fixture["negative_vectors"].append(extra)
+          with tempfile.TemporaryDirectory() as tmp_dir:
+              mutated = Path(tmp_dir) / "fixture.json"
+              mutated.write_text(json.dumps(fixture), encoding="utf-8")
+              result = subprocess.run(
+                  [
+                      sys.executable,
+                      "tools/validate_inter_agent_dispatch_audit_v0_1.py",
+                      str(mutated),
+                      str(schema_path),
+                  ],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              )
+          assert result.returncode == 1, result.stdout + result.stderr
+          report = json.loads(result.stdout)
+          codes = {item["code"] for item in report["fixture_errors"]}
+          assert "UNEXPECTED_NEGATIVE_CASES" in codes, report
+          assert "SCHEMA_VALIDATION_FAILED" in codes, report
+          PY
