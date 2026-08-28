@@ -235,6 +235,64 @@ describe("trustworthy-transition continuity adapter", () => {
     );
   });
 
+  it("requires immutable causal evidence for every VALID causal state", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[0]);
+    const invalidInput = structuredClone(snapshotInput);
+    invalidInput.record_refs.causal_audit_ref = null;
+
+    assert.throws(
+      () =>
+        createTransitionSnapshotEnvelope(
+          invalidInput,
+          "2030-01-01T00:00:00.000Z"
+        ),
+      /VALID_CAUSAL_STATE_REQUIRES_AUDIT_REF/
+    );
+
+    const stored = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const forged = structuredClone(stored);
+    forged.payload.record_refs.causal_audit_ref = null;
+    forged.payload.evidence_set_digest = computeEvidenceSetDigest(forged.payload);
+    assert.throws(
+      () => assessSnapshotSequence([forged]),
+      /VALID_CAUSAL_STATE_REQUIRES_AUDIT_REF/
+    );
+  });
+
+  it("requires immutable response evidence for VERIFIED integrity", () => {
+    const { store } = storageFixture();
+    const { snapshotInput } = materializeCase(fixture.cases[1]);
+    const invalidInput = structuredClone(snapshotInput);
+    invalidInput.record_refs.response_integrity_ref = null;
+
+    assert.throws(
+      () =>
+        createTransitionSnapshotEnvelope(
+          invalidInput,
+          "2030-01-01T00:00:00.000Z"
+        ),
+      /VERIFIED_RESPONSE_REQUIRES_INTEGRITY_REF/
+    );
+
+    const stored = persistTransitionSnapshot(
+      store,
+      snapshotInput,
+      "2030-01-01T00:00:00.000Z"
+    );
+    const forged = structuredClone(stored);
+    forged.payload.record_refs.response_integrity_ref = null;
+    forged.payload.evidence_set_digest = computeEvidenceSetDigest(forged.payload);
+    assert.throws(
+      () => assessSnapshotSequence([forged]),
+      /VERIFIED_RESPONSE_REQUIRES_INTEGRITY_REF/
+    );
+  });
+
   it("requires observation evidence in an initial errored snapshot", () => {
     const { store } = storageFixture();
     const { snapshotInput } = materializeCase(fixture.cases[0]);
@@ -1168,6 +1226,60 @@ describe("trustworthy-transition continuity adapter", () => {
     );
     assert.equal(result.allowed, false);
     assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID");
+  });
+
+  it("never verifies a response ref previously classified failed or partial", () => {
+    for (const rejectedState of ["FAILED", "PARTIAL"] as const) {
+      const { store } = storageFixture();
+      const { snapshotInput } = materializeCase(fixture.cases[0]);
+      const rejectedRef = ref(`response-${rejectedState.toLowerCase()}-a`);
+
+      snapshotInput.record_refs.response_integrity_ref = rejectedRef;
+      snapshotInput.dimensions.response_integrity = rejectedState;
+      const rejectedA = persistTransitionSnapshot(
+        store,
+        snapshotInput,
+        "2030-01-01T00:00:00.000Z"
+      );
+
+      const verifiedCInput = structuredClone(snapshotInput);
+      verifiedCInput.record_refs.response_integrity_ref = ref("response-verified-c");
+      verifiedCInput.dimensions.response_integrity = "VERIFIED";
+      const verifiedC = persistTransitionSnapshot(
+        store,
+        verifiedCInput,
+        "2030-01-01T00:01:00.000Z",
+        rejectedA.object_id
+      );
+
+      const reusedAInput = structuredClone(verifiedCInput);
+      reusedAInput.record_refs.response_integrity_ref = rejectedRef;
+      const reusedA = persistTransitionSnapshot(
+        store,
+        reusedAInput,
+        "2030-01-01T00:02:00.000Z",
+        verifiedC.object_id
+      );
+
+      assert.deepEqual(
+        assessSnapshotSequence([rejectedA, verifiedC, reusedA]),
+        {
+          valid: false,
+          reason_codes: ["RESPONSE_INTEGRITY_EVIDENCE_REUSED"]
+        },
+        rejectedState
+      );
+      const result = evaluateTransitionResume(
+        store,
+        reusedA.object_id,
+        buildRequest(reusedA, {
+          operation: "resume_side_effect",
+          now: "2030-01-01T00:10:00.000Z"
+        })
+      );
+      assert.equal(result.allowed, false, rejectedState);
+      assert.equal(result.reason, "SNAPSHOT_CHAIN_INVALID", rejectedState);
+    }
   });
 
   it("keeps failed response recovery active until verification", () => {

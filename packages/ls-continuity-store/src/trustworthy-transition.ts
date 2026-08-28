@@ -287,6 +287,18 @@ function validateStateEvidenceBindings(
     throw new Error("VALID_AUTHORITY_REQUIRES_AUTHORIZATION_REF");
   }
   if (
+    dimensions.causal_validity === "VALID" &&
+    recordRefs.causal_audit_ref === null
+  ) {
+    throw new Error("VALID_CAUSAL_STATE_REQUIRES_AUDIT_REF");
+  }
+  if (
+    dimensions.response_integrity === "VERIFIED" &&
+    recordRefs.response_integrity_ref === null
+  ) {
+    throw new Error("VERIFIED_RESPONSE_REQUIRES_INTEGRITY_REF");
+  }
+  if (
     dimensions.execution === "OBSERVED_ERRORED" &&
     recordRefs.observation_refs.length === 0
   ) {
@@ -919,6 +931,7 @@ export function assessSnapshotSequence(
   const nonValidCausalRefs = new Set<string>();
   let responseRecoveryRequired = false;
   const seenResponseRefs = new Set<string>();
+  const failedOrPartialResponseRefs = new Set<string>();
   let responseRecoveryUnverified = false;
   let blockedExecutionActive = false;
   let blockedClearanceEpoch: string | null = null;
@@ -1050,6 +1063,13 @@ export function assessSnapshotSequence(
     ) {
       responseRecoveryRequired = true;
       responseRecoveryUnverified = false;
+      if (responseRef !== null) failedOrPartialResponseRefs.add(responseRef);
+    } else if (
+      snapshot.payload.dimensions.response_integrity === "VERIFIED" &&
+      responseRef !== null &&
+      failedOrPartialResponseRefs.has(responseRef)
+    ) {
+      reasons.push("RESPONSE_INTEGRITY_EVIDENCE_REUSED");
     } else if (responseRecoveryRequired) {
       if (snapshot.payload.dimensions.response_integrity === "VERIFIED") {
         if (responseRef === null || responseRefSeen) {

@@ -126,6 +126,8 @@ index coverage, and replayed projection. `assessSnapshotChain(previous, current)
 `assessSnapshotSequence(snapshots)` reject:
 
 - `VALID` authority without an immutable `authorization_ref`;
+- `VALID` causal state without an immutable `causal_audit_ref`;
+- `VERIFIED` response integrity without an immutable `response_integrity_ref`;
 - incorrect `previous_ref`;
 - transition or subject substitution;
 - action or binding substitution;
@@ -138,6 +140,8 @@ index coverage, and replayed projection. `assessSnapshotChain(previous, current)
 - `UNKNOWN` or `NOT_EVALUATED` causal state promoted to `VALID` without a fresh
   non-null causal record;
 - any later `VALID` use of a causal record previously classified as non-valid;
+- any later `VERIFIED` use of a response record previously classified as
+  `FAILED` or `PARTIAL`;
 - capture-time rollback;
 - terminal authority reopened under the same authorization reference.
 
