@@ -25,6 +25,11 @@ RFC3339_PATTERN = re.compile(
     r"(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})"
     r"(?P<fraction>\.\d+)?(?P<zone>[Zz]|[+-]\d{2}:\d{2})$"
 )
+URI_SCHEME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+URI_CHARACTER_PATTERN = re.compile(
+    r"^[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*$"
+)
+INVALID_PERCENT_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 REQUIRED_VECTOR_CONTRACTS: dict[str, dict[str, Any]] = {
     "missing_authorized_exact_content": {
         "mutation": {"op": "delete", "path": "dispatches[0].payload.authorized_view.exact_content"},
@@ -162,6 +167,49 @@ def match_rfc3339(value: Any) -> re.Match[str] | None:
 def is_rfc3339_datetime(value: Any) -> bool:
     """Return whether *value* conforms to the dependency-free v0.1 profile."""
     return match_rfc3339(value) is not None
+
+
+def is_rfc3986_uri(value: Any) -> bool:
+    """Validate an absolute ASCII URI without assuming a URL authority.
+
+    RFC 3986 permits opaque absolute forms such as ``urn:`` and ``mailto:``.
+    This dependency-free check also rejects raw illegal characters, malformed
+    percent escapes, invalid bracketed authorities, and invalid ports.
+    """
+    if (
+        not isinstance(value, str)
+        or not value.isascii()
+        or URI_SCHEME_PATTERN.match(value) is None
+        or URI_CHARACTER_PATTERN.fullmatch(value) is None
+        or INVALID_PERCENT_ESCAPE.search(value) is not None
+        or value.count("#") > 1
+    ):
+        return False
+
+    try:
+        parsed = urlparse(value)
+        parsed.port
+    except ValueError:
+        return False
+
+    remainder = value.split(":", 1)[1]
+    if remainder.startswith("//"):
+        authority_and_rest = remainder[2:]
+        boundary = min(
+            (
+                index
+                for marker in "/?#"
+                if (index := authority_and_rest.find(marker)) >= 0
+            ),
+            default=len(authority_and_rest),
+        )
+        authority = authority_and_rest[:boundary]
+        trailing = authority_and_rest[boundary:]
+        if authority.count("@") > 1 or "[" in trailing or "]" in trailing:
+            return False
+    elif "[" in remainder or "]" in remainder:
+        return False
+    return bool(parsed.scheme)
 
 
 def is_utc_timestamp(value: Any) -> bool:
@@ -406,8 +454,7 @@ def validate_schema_instance(
         if format_name == "date-time" and not is_rfc3339_datetime(instance):
             issues.append(f"{path}: invalid RFC3339 date-time for v0.1 profile")
         if format_name == "uri":
-            parsed = urlparse(instance)
-            if not parsed.scheme or not parsed.netloc:
+            if not is_rfc3986_uri(instance):
                 issues.append(f"{path}: invalid absolute URI")
 
     if isinstance(instance, int) and not isinstance(instance, bool):
@@ -624,6 +671,16 @@ def validate_fixture(fixture: dict[str, Any], schema: dict[str, Any]) -> dict[st
 
     canonical = fixture.get("canonical_record")
     canonical_errors = validate_record(canonical)
+    canonical_schema = schema.get("$defs", {}).get("auditRecord")
+    if isinstance(canonical_schema, dict):
+        canonical_errors.extend(schema_errors_as_records(
+            validate_schema_instance(
+                canonical,
+                canonical_schema,
+                schema,
+                "canonical_record",
+            )
+        ))
     vector_results: list[dict[str, Any]] = []
     negative_vectors = fixture.get("negative_vectors")
     seen_cases: set[str] = set()

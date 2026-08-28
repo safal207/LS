@@ -48,6 +48,49 @@ jobs:
           python tools/validate_inter_agent_dispatch_audit_v0_1.py \
             fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json \
             fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json
+      - name: Validate URI and canonical schema status boundaries
+        run: |
+          python - <<'PY'
+          import copy
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "tools")
+          import validate_inter_agent_dispatch_audit_v0_1 as validator
+
+          fixture_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/dispatch_chain_v0.1.json")
+          schema_path = Path("fixtures/operational-continuity/inter-agent-dispatch-audit/schema-v0.1.json")
+          fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+          schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+          for uri in ("urn:isbn:0451450523", "mailto:user@example.com"):
+              candidate = copy.deepcopy(fixture)
+              candidate["_meta"]["related_issue"] = uri
+              report = validator.validate_fixture(candidate, schema)
+              assert report["passed"] is True, report
+
+          for uri in ("https://exa mple.com", "https://example.com/%ZZ"):
+              candidate = copy.deepcopy(fixture)
+              candidate["_meta"]["related_issue"] = uri
+              report = validator.validate_fixture(candidate, schema)
+              assert report["passed"] is False, report
+              assert any(
+                  item["code"] == "SCHEMA_VALIDATION_FAILED"
+                  and item["location"].endswith("._meta.related_issue")
+                  for item in report["fixture_errors"]
+              ), report
+
+          candidate = copy.deepcopy(fixture)
+          del candidate["canonical_record"]["result"]["result_id"]
+          report = validator.validate_fixture(candidate, schema)
+          assert report["canonical"]["passed"] is False, report
+          assert any(
+              item["code"] == "SCHEMA_VALIDATION_FAILED"
+              and item["location"].endswith(".result.result_id")
+              for item in report["canonical"]["errors"]
+          ), report
+          PY
       - name: Validate structured CLI input failures
         run: |
           tmp_dir="$(mktemp -d)"
