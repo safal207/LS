@@ -1,0 +1,132 @@
+name: Qwen Autopilot Agent
+
+on:
+  pull_request:
+    paths:
+      - "hackathons/qwen-autopilot-agent/**"
+      - ".github/workflows/qwen-autopilot-agent.yml"
+  push:
+    branches:
+      - main
+      - agent/qwen-autopilot-agent
+    paths:
+      - "hackathons/qwen-autopilot-agent/**"
+      - ".github/workflows/qwen-autopilot-agent.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  policy-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: hackathons/qwen-autopilot-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: hackathons/qwen-autopilot-agent/requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - run: python -m py_compile app/*.py
+
+  live-qwen-smoke:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[qwen-live-smoke]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: hackathons/qwen-autopilot-agent
+    env:
+      DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+      QWEN_BASE_URL: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+      QWEN_MODEL: qwen3.7-plus
+      QWEN_TIMEOUT_SECONDS: "45"
+      EXPECTED_HEAD_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_HEAD_SHA }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: hackathons/qwen-autopilot-agent/requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Require configured secret without revealing it
+        shell: bash
+        run: |
+          if [ -z "$DASHSCOPE_API_KEY" ]; then
+            echo "DASHSCOPE_API_KEY repository secret is not configured" >&2
+            exit 1
+          fi
+
+      - name: Call Qwen and write redacted exact-head evidence
+        run: |
+          mkdir -p artifacts
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from app.qwen import QwenRiskReasoner
+
+          reasoner = QwenRiskReasoner()
+          assessment = reasoner.assess(
+              {
+                  "action_type": "read_public_documentation",
+                  "description": "Summarize a public project README without changing external state.",
+                  "external_side_effect": False,
+                  "irreversible": False,
+                  "contains_credentials": False,
+              },
+              {
+                  "decision": "ALLOW",
+                  "risk_level": "LOW",
+                  "reasons": ["Read-only public documentation request"],
+                  "required_controls": ["Do not execute external actions"],
+              },
+          )
+
+          assert assessment["risk_level"] in {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+          assert assessment["decision"] in {"ALLOW", "HUMAN_APPROVAL", "BLOCK"}
+          assert 0 <= assessment["confidence"] <= 1
+          assert assessment["reasons"]
+
+          evidence = {
+              "schema_version": "qwen-live-smoke-v1",
+              "head_sha": os.environ["EXPECTED_HEAD_SHA"],
+              "qwen": {
+                  "status": "COMPLETED",
+                  "model": reasoner.model,
+                  "assessment": assessment,
+              },
+              "execution": {
+                  "status": "NOT_EXECUTED",
+                  "authority": "advisory_only",
+              },
+          }
+          path = Path("artifacts/qwen-live-smoke.json")
+          path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload redacted live-smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qwen-live-smoke-${{ env.EXPECTED_HEAD_SHA }}-${{ github.run_id }}
+          path: hackathons/qwen-autopilot-agent/artifacts/qwen-live-smoke.json
+          if-no-files-found: warn
+          retention-days: 30
