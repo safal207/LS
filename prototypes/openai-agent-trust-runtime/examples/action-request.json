@@ -1,0 +1,36 @@
+{
+  "schema_version": "cross-thread-event/v0.1",
+  "event_id": "evt-action-request-001",
+  "trajectory_id": "project:migration",
+  "continuation_id": "designer-03",
+  "source": {
+    "thread_id": "thread:designer",
+    "agent_id": "Designer Agent",
+    "role": "designer"
+  },
+  "target": {
+    "thread_id": "thread:executor"
+  },
+  "event_type": "ACTION_REQUEST",
+  "subject": "implementation.request",
+  "payload": {
+    "action": "write_patch",
+    "scope": ["cross_thread.py", "tests/test_cross_thread.py"]
+  },
+  "evidence_refs": [
+    {
+      "ref": "artifact:design",
+      "sha256": "75bf69f6c5abf0318da2b3f99f09ce4a7a513cc4c46ad5fdd2243db98a4c9829",
+      "media_type": "text/plain"
+    }
+  ],
+  "verification_status": "VERIFIED",
+  "authority": {
+    "may_inform": true,
+    "may_request_action": true,
+    "may_authorize_execution": false
+  },
+  "sequence": 3,
+  "created_at": "2026-08-04T06:29:00Z",
+  "supersedes_event_id": null
+}

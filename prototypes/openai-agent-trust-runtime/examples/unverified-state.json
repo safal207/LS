@@ -1,0 +1,29 @@
+{
+  "schema_version": "cross-thread-event/v0.1",
+  "event_id": "evt-unverified-state-001",
+  "trajectory_id": "project:migration",
+  "continuation_id": "executor-05",
+  "source": {
+    "thread_id": "thread:executor",
+    "agent_id": "Executor Agent",
+    "role": "executor"
+  },
+  "target": {
+    "thread_id": "thread:stabilizer"
+  },
+  "event_type": "STATE_UPDATE",
+  "subject": "deployment.endpoint",
+  "payload": {
+    "value": "https://new-endpoint.example"
+  },
+  "evidence_refs": [],
+  "verification_status": "UNVERIFIED",
+  "authority": {
+    "may_inform": true,
+    "may_request_action": false,
+    "may_authorize_execution": false
+  },
+  "sequence": 5,
+  "created_at": "2026-08-04T06:31:00Z",
+  "supersedes_event_id": null
+}
