@@ -29,7 +29,7 @@ jobs:
       matrix:
         python-version: ["3.9", "3.11"]
     env:
-      LS_IDENTITY_CATALOG_SECRET: ci-catalog-key-material
+      LS_IDENTITY_CATALOG_SECRET: ci-catalog-key-material # fcrp: fixture
 
     steps:
       - uses: actions/checkout@v4
