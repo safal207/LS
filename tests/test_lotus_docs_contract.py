@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOTUS = ROOT / "LOTUS.md"
+PRODUCT_LENS = ROOT / "docs" / "LOTUS_PRODUCT_LENS.md"
 PR_TEMPLATE = ROOT / ".github" / "pull_request_template.md"
 
 
@@ -63,3 +64,82 @@ def test_lotus_remains_guidance_not_runtime_authority() -> None:
     assert "not a personality cult, hidden authority, mystical proof" in text
     assert "не runtime-компонент, не система разрешений и не автономный агент" in text
     assert "не культ личности, не скрытая власть, не мистическое доказательство" in text
+
+
+def test_product_lens_is_bilingual_and_vendor_neutral() -> None:
+    text = PRODUCT_LENS.read_text(encoding="utf-8")
+    english, russian = text.split("# Продуктовая линза Лотоса", maxsplit=1)
+
+    assert "SamCart" in english and "ClickFunnels" in english
+    assert "SamCart" in russian and "ClickFunnels" in russian
+    assert "vendor-neutral" in english
+    assert "не зависит от вендора" in russian
+    assert "not a runtime component" in english
+    assert "не является runtime-компонентом" in russian
+
+
+def test_product_lens_keeps_the_seven_product_obligations() -> None:
+    text = PRODUCT_LENS.read_text(encoding="utf-8")
+    english, russian = text.split("# Продуктовая линза Лотоса", maxsplit=1)
+
+    english_obligations = (
+        "State the user goal and the business goal separately",
+        "Preserve context, progress, selected items, language, price, and recovery state",
+        "relevant, clearly optional, separately priced, and easy to decline",
+        "show the exact item, amount, currency, recurring terms, and next state",
+        "bounded frequency, honest wording, opt-out, privacy, and a stop condition",
+        "refunds, churn, complaints, completion, retention, repeat value, and harm signals",
+        "a visible no, a comprehensible total, a route back",
+    )
+    russian_obligations = (
+        "Отдельно фиксируй цель пользователя и цель бизнеса",
+        "Сохраняй контекст, прогресс, выбранные позиции, язык, цену и состояние восстановления",
+        "релевантными, явно необязательными, отдельно оценёнными и простыми для отказа",
+        "точный товар, сумму, валюту, условия регулярных списаний или продления и следующий шаг",
+        "ограниченной частотой, честным текстом, opt-out, приватностью и условием остановки",
+        "возвратами, churn, жалобами, завершением, retention, повторной ценностью и сигналами вреда",
+        "видимый отказ, понятный total, путь назад",
+    )
+
+    for phrase in english_obligations:
+        assert phrase in english
+    for phrase in russian_obligations:
+        assert phrase in russian
+
+
+def test_product_lens_preserves_choice_evidence_and_authority() -> None:
+    text = PRODUCT_LENS.read_text(encoding="utf-8")
+
+    assert "Paid extras must not be preselected" in text
+    assert "Vendor case studies and platform-wide percentages are context, not proof" in text
+    assert "causal, correlational, simulated, or anecdotal" in text
+    assert "- refund path;" in text
+    assert "- recovery path;" in text
+    assert "for subscription stages, a separate cancellation or stop-renewal path" in text
+    assert "missing cancellation or stop-renewal paths" in text
+    assert "do not authorize a launch, price, payment, experiment, deployment, or merge" in text
+    assert "Платные дополнения нельзя выбирать заранее" in text
+    assert "не доказательством для этого продукта" in text
+    assert "основанный на единичных историях, отзывах либо свидетельствах" in text
+    assert "цену, валюту, условия регулярных списаний или продления и итоговую сумму" in text
+    assert "отдельный путь возврата средств" in text
+    assert "отдельный путь восстановления" in text
+    assert "Для этапов с подпиской отдельно фиксируй путь отмены или остановки автопродления" in text
+    assert "скрытые условия регулярных списаний или продления" in text
+    assert "отсутствие пути отмены или остановки автопродления" in text
+    assert "не имеет полномочий назначать цену, разрешать или выполнять оплату, запускать продукт" in text
+    assert (
+        "не дают права запускать продукт, назначать цену, проводить оплату, "
+        "начинать эксперимент, выполнять deployment или merge"
+    ) in text
+
+
+def test_product_pr_checklist_requires_counter_metrics_and_cancellation() -> None:
+    template = PR_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "user goal and business goal are both explicit" in template
+    assert "Price, currency, recurring terms, comprehensible total, decline path" in template
+    assert "cancellation or stop-renewal path, refund path, and recovery path" in template
+    assert "relevant, optional, and not preselected" in template
+    assert "refunds, churn, complaints, completion, retention, repeat value, and harm signals" in template
+    assert "No false urgency, obstructed decline, surprise payment" in template

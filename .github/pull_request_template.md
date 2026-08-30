@@ -49,6 +49,17 @@ Explain the visitor, contributor, operator, or safety value.
 
 <!-- Describe a real design choice or tradeoff, not just agreement with the principle. Example: "The new memory lane is advisory-only, exposes its evidence digest, and cannot raise the verdict to PASS." Write "Not applicable" only for genuinely routine maintenance. See LOTUS.md. -->
 
+## Lotus Product Lens — when applicable
+
+Use this section for changes to user journeys, offers, pricing, checkout, paid add-ons, follow-up offers, subscriptions, recovery, or growth experiments. See [`docs/LOTUS_PRODUCT_LENS.md`](../docs/LOTUS_PRODUCT_LENS.md).
+
+- [ ] Not applicable — the Lotus note explains why.
+- [ ] Applicable — the user goal and business goal are both explicit.
+- [ ] Price, currency, recurring terms, comprehensible total, decline path, cancellation or stop-renewal path, refund path, and recovery path are visible before commitment.
+- [ ] Any add-on, upgrade, upsell, or downsell is relevant, optional, and not preselected.
+- [ ] Conversion, AOV, LTV, retention, refund, or churn claims name the exact experiment, cohort, denominator, time window, and uncertainty, and report accompanying refunds, churn, complaints, completion, retention, repeat value, and harm signals.
+- [ ] No false urgency, obstructed decline, surprise payment, or excessive recovery messaging is introduced.
+
 For landing changes:
 
 ```bash
