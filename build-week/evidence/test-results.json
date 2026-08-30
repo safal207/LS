@@ -1,0 +1,91 @@
+{
+  "schema_version": "ls.build_week.test_evidence.v0.1",
+  "recorded_at_utc": "2026-07-14T03:33:11Z",
+  "repository": "safal207/LS",
+  "pull_request_number": 895,
+  "baseline_sha": "caaa5ed758c965127834690dfd248e0496780e74",
+  "evidence_subject_sha": "299db4b239eddad32b621f31bd8b47de25f40fd7",
+  "evidence_subject_url": "https://github.com/safal207/LS/commit/299db4b239eddad32b621f31bd8b47de25f40fd7",
+  "environment": {
+    "operating_system": "linux",
+    "python": "3.12.13",
+    "bash": "5.2.21"
+  },
+  "local_validation": {
+    "command": "python3 -m unittest -v tests/test_build_week_trust_gate.py tests/test_build_week_demo.py",
+    "exit_code": 0,
+    "tests_run": 10,
+    "failures": 0,
+    "errors": 0
+  },
+  "demo_validation": {
+    "command": "./scripts/run_build_week_demo.sh",
+    "exit_code": 0,
+    "matched_scenarios": 4,
+    "total_scenarios": 4,
+    "scenarios": [
+      {
+        "scenario_id": "stale-approval",
+        "verdict": "BLOCKED",
+        "reason_code": "STALE_APPROVAL"
+      },
+      {
+        "scenario_id": "spoofed-reviewer",
+        "verdict": "BLOCKED",
+        "reason_code": "UNTRUSTED_REVIEWER"
+      },
+      {
+        "scenario_id": "required-check-not-run",
+        "verdict": "BLOCKED",
+        "reason_code": "REQUIRED_LANE_NOT_RUN"
+      },
+      {
+        "scenario_id": "trusted-current-head",
+        "verdict": "TRUSTED",
+        "reason_code": "ALL_REQUIRED_EVIDENCE_VALID"
+      }
+    ]
+  },
+  "github_actions": [
+    {
+      "name": "Reflection Dashboard HTTP E2E",
+      "run_id": 29303554682,
+      "run_number": 1392,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/safal207/LS/actions/runs/29303554682"
+    },
+    {
+      "name": "Phase 12.1 Regression Scan",
+      "run_id": 29303554670,
+      "run_number": 1195,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/safal207/LS/actions/runs/29303554670"
+    },
+    {
+      "name": "Security & CI Pipeline",
+      "run_id": 29303554694,
+      "run_number": 2280,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/safal207/LS/actions/runs/29303554694"
+    },
+    {
+      "name": "Causal Review Collect — Forks",
+      "run_id": 29303554693,
+      "run_number": 121,
+      "status": "completed",
+      "conclusion": "skipped",
+      "expected_to_run": false,
+      "url": "https://github.com/safal207/LS/actions/runs/29303554693"
+    }
+  ],
+  "exact_head_review": {
+    "reviewer": "CodeRabbit",
+    "reviewed_sha": "299db4b239eddad32b621f31bd8b47de25f40fd7",
+    "result": "NO_ISSUES_FOUND",
+    "unresolved_threads": 0,
+    "url": "https://github.com/safal207/LS/pull/895#issuecomment-4965121921"
+  }
+}

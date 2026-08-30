@@ -1,0 +1,13 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY tools/build_week_trust_gate.py tools/build_week_trust_gate.py
+COPY scripts/run_build_week_demo.sh scripts/run_build_week_demo.sh
+COPY build-week build-week
+COPY tests/test_build_week_trust_gate.py tests/test_build_week_trust_gate.py
+COPY tests/test_build_week_demo.py tests/test_build_week_demo.py
+
+RUN chmod +x scripts/run_build_week_demo.sh
+
+CMD ["bash", "-lc", "./scripts/run_build_week_demo.sh && python3 -m unittest -v tests/test_build_week_trust_gate.py tests/test_build_week_demo.py"]

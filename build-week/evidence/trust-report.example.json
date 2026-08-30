@@ -1,0 +1,79 @@
+{
+  "checks": [
+    {
+      "check_id": "review.state",
+      "expected": "one of APPROVED",
+      "observed": "APPROVED",
+      "reason_code": null,
+      "status": "PASS"
+    },
+    {
+      "check_id": "review.identity",
+      "expected": "trusted reviewer login and account type",
+      "observed": "coderabbitai[bot] (Bot)",
+      "reason_code": null,
+      "status": "PASS"
+    },
+    {
+      "check_id": "review.provenance",
+      "expected": "authenticated trusted evidence route",
+      "observed": "github_api.pull_request_review authenticated=true",
+      "reason_code": null,
+      "status": "PASS"
+    },
+    {
+      "check_id": "review.exact_head",
+      "expected": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_code": "STALE_APPROVAL",
+      "status": "FAIL"
+    },
+    {
+      "check_id": "lane.unit-tests",
+      "expected": "PASS at bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed": "PASS at bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "reason_code": null,
+      "status": "PASS"
+    },
+    {
+      "check_id": "lane.security",
+      "expected": "PASS at bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed": "PASS at bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "reason_code": null,
+      "status": "PASS"
+    }
+  ],
+  "decision_input": {
+    "current_head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "pull_request_number": 897,
+    "repository": "safal207/LS",
+    "required_lane_statuses": {
+      "security": "PASS",
+      "unit-tests": "PASS"
+    },
+    "review_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "reviewer_account_type": "Bot",
+    "reviewer_login": "coderabbitai[bot]"
+  },
+  "delivery_state": "BLOCKED",
+  "headline": "BLOCKED — UNTRUSTED",
+  "human_authorization_required": true,
+  "human_details": [
+    "Current pull-request head is bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.",
+    "The approval is stale and cannot authorize delivery."
+  ],
+  "human_summary": "Approval belongs to aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.",
+  "input_digest_sha256": "6385eb8bcf7c37145b77b7335ac76349a3445f6d9daba697c240b5d2fd0348d2",
+  "policy_digest_sha256": "80f289d76fb3fd43ed8f438d483975642b6cd8581f0491999a9be00a46ea793c",
+  "reason_code": "STALE_APPROVAL",
+  "scenario_id": "stale-approval",
+  "schema_version": "ls.build_week.trust_report.v0.1",
+  "side_effects_performed": false,
+  "status_vocabulary": {
+    "FAIL": "The check ran or evidence was present, but policy was not satisfied.",
+    "NOT_RUN": "Required evidence is absent or the required check did not execute.",
+    "PASS": "The check ran for the required evidence and satisfied policy."
+  },
+  "trust_state": "UNTRUSTED",
+  "verdict": "BLOCKED"
+}

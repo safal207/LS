@@ -1,0 +1,13 @@
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+.env
+node_modules
+artifacts
+coverage
+htmlcov

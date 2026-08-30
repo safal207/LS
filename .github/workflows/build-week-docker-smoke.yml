@@ -1,0 +1,48 @@
+name: Build Week Docker Smoke
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile.build-week"
+      - ".dockerignore"
+      - ".github/workflows/build-week-docker-smoke.yml"
+      - "build-week/**"
+      - "scripts/run_build_week_demo.sh"
+      - "scripts/run_build_week_docker.sh"
+      - "tools/build_week_trust_gate.py"
+      - "tests/test_build_week_*.py"
+  push:
+    branches:
+      - build-week-2026
+    paths:
+      - "Dockerfile.build-week"
+      - ".dockerignore"
+      - ".github/workflows/build-week-docker-smoke.yml"
+      - "build-week/**"
+      - "scripts/run_build_week_demo.sh"
+      - "scripts/run_build_week_docker.sh"
+      - "tools/build_week_trust_gate.py"
+      - "tests/test_build_week_*.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Verify exact checkout
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Build and run clean-room Docker demo
+        run: ./scripts/run_build_week_docker.sh "$SOURCE_SHA"
