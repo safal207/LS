@@ -57,16 +57,12 @@ click==8.3.1
     #   uvicorn
 coverage[toml]==7.13.4
     # via pytest-cov
-cryptography==46.0.7
+cryptography==50.0.0
     # via
     #   -r requirements.in
     #   ltp-client
 ctranslate2==4.7.1
     # via faster-whisper
-cuda-bindings==12.9.4
-    # via torch
-cuda-pathfinder==1.4.1
-    # via cuda-bindings
 cyclonedx-bom==7.2.2
     # via -r requirements.in
 cyclonedx-python-lib[validation]==11.6.0
@@ -163,7 +159,7 @@ mock==5.2.0
     # via -r requirements.in
 mpmath==1.3.0
     # via sympy
-msgpack==1.1.2
+msgpack==1.2.1
     # via cachecontrol
 mss==10.2.0
     # via -r requirements.in
@@ -194,45 +190,6 @@ numpy==2.4.2
     #   soundfile
     #   tifffile
     #   transformers
-nvidia-cublas-cu12==12.8.4.1
-    # via
-    #   nvidia-cudnn-cu12
-    #   nvidia-cusolver-cu12
-    #   torch
-nvidia-cuda-cupti-cu12==12.8.90
-    # via torch
-nvidia-cuda-nvrtc-cu12==12.8.93
-    # via torch
-nvidia-cuda-runtime-cu12==12.8.90
-    # via torch
-nvidia-cudnn-cu12==9.10.2.21
-    # via torch
-nvidia-cufft-cu12==11.3.3.83
-    # via torch
-nvidia-cufile-cu12==1.13.1.3
-    # via torch
-nvidia-curand-cu12==10.3.9.90
-    # via torch
-nvidia-cusolver-cu12==11.7.3.90
-    # via torch
-nvidia-cusparse-cu12==12.5.8.93
-    # via
-    #   nvidia-cusolver-cu12
-    #   torch
-nvidia-cusparselt-cu12==0.7.1
-    # via torch
-nvidia-nccl-cu12==2.27.5
-    # via torch
-nvidia-nvjitlink-cu12==12.8.93
-    # via
-    #   nvidia-cufft-cu12
-    #   nvidia-cusolver-cu12
-    #   nvidia-cusparse-cu12
-    #   torch
-nvidia-nvshmem-cu12==3.4.5
-    # via torch
-nvidia-nvtx-cu12==12.8.90
-    # via torch
 onnxruntime==1.24.3
     # via faster-whisper
 opencv-python==4.13.0.92
@@ -258,7 +215,7 @@ packaging==26.0
     #   wheel
 pathspec==1.0.4
     # via mypy
-pillow==12.2.0
+pillow==12.3.0
     # via
     #   -r requirements.in
     #   imagehash
@@ -330,7 +287,7 @@ python-dateutil==2.9.0.post0
     # via arrow
 python-discovery==1.1.1
     # via virtualenv
-python-multipart==0.0.28
+python-multipart==0.0.31
     # via -r requirements.in
 pywavelets==1.9.0
     # via imagehash
@@ -419,7 +376,7 @@ tomli==2.4.0
     # via pip-audit
 tomli-w==1.2.0
     # via pip-audit
-torch==2.10.0
+torch==2.10.0+cpu
     # via
     #   -r requirements.in
     #   sentence-transformers
@@ -429,10 +386,8 @@ tqdm==4.67.3
     #   huggingface-hub
     #   sentence-transformers
     #   transformers
-transformers==5.3.0
+transformers==5.10.1
     # via sentence-transformers
-triton==3.6.0
-    # via torch
 typer==0.24.1
     # via
     #   huggingface-hub
