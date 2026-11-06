@@ -551,6 +551,8 @@ reference/transparency-log-conformance-v0.14.mjs
 
 v0.14 does not provide a globally discoverable log, gossip transport, durable storage, global latest-checkpoint consensus, or Byzantine consensus. Absence of supplied conflicting checkpoint evidence is not proof that no undiscovered split view exists globally.
 
+For the October 2026 independent-review finding disposition and non-normative consumer guidance, see [`docs/INDEPENDENT_REVIEW_2026_10_17.md`](docs/INDEPENDENT_REVIEW_2026_10_17.md).
+
 ## Run the full portable stack
 
 ```bash
